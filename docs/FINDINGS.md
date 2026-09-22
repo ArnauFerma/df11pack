@@ -479,19 +479,29 @@ general, not a quirk of one layer.
 
 **Three consequences.**
 
-1. **`output_positions` is already free.** At 0.024% of the unit, replacing its
-   uint32 entries with an 8-bit index and a warp prefix-sum — the idea from the
-   sibling `bf16-exponent-compression` project — would save **0.018% of the
-   output**. That idea was measured there against a format whose index cost 4.4%
-   at BLOCK=64; DF11's 4096-byte chunks are ~64× coarser, so the overhead it
-   targets has already been engineered away. There is nothing to win here.
+1. **`output_positions` is already free** at 0.024% of the unit — 0.0026
+   bits/weight. Nothing any index scheme does to it can matter.
 
-2. **If any index cost matters in DF11, it is `gaps`, at 1.91%** — eighty times
-   `output_positions`. But that cost is not inefficiency, it is what buys
-   parallel decode: 5 bits per 64-bit window is the price of letting a thread
-   start mid-stream without decoding from the block start. Shrinking it means
-   larger windows and proportionally more work per thread — a speed/size
-   trade-off, not an encoding win.
+   **Correction to an earlier version of this section.** I first compared the
+   sibling project's 8-bit index against `output_positions` and concluded it
+   would save 0.018%. That was the wrong pairing. idx8 is an **input-side**
+   index — it tells a thread where its block begins in the bitstream, which is
+   what **`gaps`** does; `output_positions` is an output-side index and is not
+   what idx8 replaces. The sibling project's own `HANDOFF.md` makes exactly this
+   pairing, and its estimate of DF11's `gaps` cost, 0.21 bits/weight, agrees with
+   the 0.2080 measured here. Against `gaps`, idx8 costs 0.14 bits/weight at
+   BLOCK=64 and 0.07 at BLOCK=128, so it would save **0.6–1.3% of output size**,
+   not 0.018%. Modest but real, and it requires a different kernel; the
+   speed comparison between the two designs has never been measured. Full
+   treatment in [`INDEX_SCHEMES.md`](INDEX_SCHEMES.md).
+
+2. **The index cost that matters is `gaps`, at 1.91%** — eighty times
+   `output_positions`, and the only index tensor worth a design decision. It is
+   not inefficiency: 5 bits per 64-bit window is the price of letting a thread
+   start mid-stream, and DF11 pays for its compactness with a two-pass decode
+   (count, block-wide prefix sum, then decode). idx8 trades that for a
+   single-pass decode with a warp prefix-sum on the input side, at 0.6–1.3% less
+   output. Which is faster is unmeasured.
 
 3. **The remaining headroom over the entropy bound is ~2.7%.** The sibling
    project measured this exact model family's field entropies as H(exp) = 2.645
