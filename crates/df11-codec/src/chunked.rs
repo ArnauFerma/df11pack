@@ -149,10 +149,9 @@ pub fn encode_chunked(
             let mut g = Vec::new();
             let mut o = Vec::new();
             let mut p = start;
-            let mut elem = (ci * chunk_symbols) as u32;
             let mut last_w: Option<usize> = None;
             let mut last_b: Option<usize> = None;
-            for &s in c.iter() {
+            for (elem, &s) in ((ci * chunk_symbols) as u32..).zip(c.iter()) {
                 let w = (p as usize) / window_bits;
                 if last_w != Some(w) {
                     g.push((w, (p as usize % window_bits) as u32));
@@ -164,7 +163,6 @@ pub fn encode_chunked(
                     last_b = Some(b);
                 }
                 p += u64::from(bits[s as usize]);
-                elem += 1;
             }
             (g, o)
         })
