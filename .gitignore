@@ -25,3 +25,6 @@
 
 # Phase 0 corpus and outputs (large, regenerable)
 /phase0/corpus/
+
+# Fixture manifest is tracked; the large outputs it hashes are not
+!/phase0/fixtures/MANIFEST.json

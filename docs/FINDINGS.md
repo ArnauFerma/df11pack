@@ -745,3 +745,71 @@ the format; both facts are now on the record.
 
 **Unproven, as with H6:** nothing here loaded either variant through
 `DFloat11Model` or compared inference. Batched with H7.
+
+---
+
+## 0.3 / H2 — where the time goes: CONFIRMED
+
+Instrumented the official stage functions and ran tier 0 again.
+
+| | seconds | share |
+|---|---|---|
+| wall total | 108.46 | |
+| model load | 0.78 | 0.7% |
+| `compress_model` call | 107.68 | 99.3% |
+| **of which `encode`** | **101.76** | **94.5% of the call, 93.8% of wall** |
+
+H2 proposed ">90% of the time is in the Python `encode` loop". Measured **94.5%**.
+Confirmed.
+
+**Limitation, stated rather than glossed:** only `encode` was successfully
+instrumented. `compress_model` imports the other stage helpers by name at module
+load, so rebinding them on the module afterwards does not intercept the already-bound
+references — `get_codec`, `get_32bit_codec`, `get_luts` and `encode_weights`
+recorded zero calls. That does not weaken the result: `encode` alone accounts for
+94.5%, so the unmeasured remainder is at most 5.5% however it divides. It does
+mean this run cannot break that remainder down, and the earlier throughput
+evidence (556.7k vs 558.2k symbols/s across a 7× workload change) remains the
+independent cross-check.
+
+---
+
+# Phase 0 closure
+
+| ID | Hypothesis | Status | Evidence |
+|---|---|---|---|
+| H1 | Official peak RAM ≈ 2× model | **Confirmed, partially** | 1.60× measured on full Qwen3-0.6B under the cheap pattern; stage decomposition not done |
+| H2 | >90% of time in the Python encode loop | **CONFIRMED** | 94.5%, plus linear-throughput cross-check |
+| H3 | Units are independent | **CONFIRMED** | source; no shared state beyond configuration |
+| H4 | `dahuffman` reproducible byte-for-byte | **CONFIRMED, 2 caveats** | 682+300 histograms exact; argpartition ties load-bearing; `get_luts` leak must be reproduced |
+| H5 | Native encoder makes disk the bottleneck | **Deferred to Phase 3** | needs the encoder; baseline recorded |
+| H6 | Loaders ignore physical tensor order | **Confirmed structurally** | 3 independent checks + loader source; GPU confirmation batched |
+| H7 | `decode.ptx` loadable without CuPy | **Deferred** | the one GPU item; batched |
+| H8 | Uncompressed tensors identical (LLM) | **CONFIRMED** | 132/132 byte-identical across two models |
+| H9 | Same, diffusers | **OPEN** | no diffusers output locally; closes as a by-product of Phase 2 |
+| H10 | `config.json` rebuildable without heavy libs | **CONFIRMED** | stdlib rebuild, byte-for-byte on both fixtures |
+| H11 | Loader ignores shard grouping | **Confirmed structurally** | loader dispatches by tensor name; 2 repackings verified |
+| H12 | CPU decoder scales with cores | **Deferred to Phase 5** | needs the decoder |
+| H13 | Chroma approximator stays uncompressed | **REFUTED** | `in_proj`/`out_proj` are compressed, in one unit of 12 |
+
+**Phase 0 exit gate: met.** Every hypothesis has a verdict or an explicit
+deferral with the reason and the phase that closes it. Nothing is left silently
+open.
+
+**What Phase 0 changed in the design**, beyond settling hypotheses:
+
+1. Two invariants in DESIGN §1.3 were stated wrongly and are corrected (0.2).
+2. `get_luts` leaks state across prefix tables, so byte-identity requires reproducing a bug — this produced [`COMPATIBILITY.md`](COMPATIBILITY.md) and the gated `--luts=correct` mode (0.5).
+3. `np.argpartition` tie order is load-bearing on realistic models, promoting a footnote to a porting task (0.5).
+4. The diffusers concatenation orders in DESIGN §1.7 were wrong; the real ones are now recorded, and H13 is refuted (0.9).
+5. Non-unit norm tensors relocate into their layer's shard — a placement rule no per-tensor check would catch (0.7).
+6. `save_pretrained` rewrites the whole config schema rather than adding to it, and published diffusers releases ship a two-key `config.json`, not the diffusers schema (0.8).
+
+**Fixtures frozen** (0.12): `phase0/fixtures/MANIFEST.json`, per-tensor sha256 for
+34 shards, 324 tensors, 959 MiB of official output, tagged by provenance. Phase 1
+grades against this and needs neither Python, nor the official compressor, nor a
+large machine.
+
+**Deferred to one batched GPU session:** H7, H6's inference confirmation, H11's
+load confirmation, and the `--luts=correct` kernel test that gates that mode's
+release.

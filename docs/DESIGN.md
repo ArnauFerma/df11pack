@@ -179,36 +179,45 @@ granularity that is favourable to the RAM budget.
 
 **Real structure of `ChromaApproximator`**: `in_proj` (Linear), `layers`
 (5 × `PixArtAlphaTextProjection`, each with `in_layer` and `out_layer`), `norms`
-(5 × RMSNorm), `out_proj` (Linear). The native pattern compresses only the
-linears inside `layers`; `in_proj`, `out_proj` and the RMSNorms remain
-**uncompressed** and must be copied as-is.
+(5 × RMSNorm), `out_proj` (Linear). **In the diffusers layout `in_proj` and
+`out_proj` are compressed** along with the `layers` linears, in one unit — see
+below and FINDINGS §0.9. Only the RMSNorms stay uncompressed. Whether the
+ComfyUI-native pattern in Extended makes the same choice is **not yet verified
+against a published native release**; treat the native claim as unconfirmed.
 
-**Diffusers layout** (to be derived; Chroma uses `FluxAttention` unchanged, so the
-attention naming is inherited from Flux):
+**Diffusers layout** — [CONFIRMED by measurement, 0.9]. Taken from the
+`dfloat11_config.pattern_dict` inside the published `DFloat11/Chroma-DF11` and
+`DFloat11/FLUX.1-dev-DF11` releases, i.e. the configuration the official
+compressor actually ran with. **The orders below are load-bearing**: they fix the
+concatenation, hence `split_positions`, hence every compressed byte. An earlier
+draft of this section derived them from the class definitions and got the right
+*set* with the wrong *order* in both patterns — see FINDINGS §0.9.
 
-- `transformer_blocks\.\d+` → 12: `attn.to_q`, `attn.to_k`, `attn.to_v`,
-  `attn.add_q_proj`, `attn.add_k_proj`, `attn.add_v_proj`, `attn.to_out.0`,
-  `attn.to_add_out`, `ff.net.0.proj`, `ff.net.2`, `ff_context.net.0.proj`,
-  `ff_context.net.2`. `norm1.linear` and `norm1_context.linear` disappear.
-- `single_transformer_blocks\.\d+` → 5: `attn.to_q`, `attn.to_k`, `attn.to_v`,
-  `proj_mlp`, `proj_out`. `norm.linear` disappears. **Note:** the single block
-  builds `FluxAttention` with `pre_only=True` and without `added_kv_proj_dim`, so
-  `attn.to_out.0` and the `add_*` projections **do not exist**; the output goes
-  through `proj_out`. The total of 5 matches the earlier estimate, but its
-  composition is different, and the composition is what fixes the concatenation
-  order.
-- `distilled_guidance_layer.layers.N` → equivalent to native.
+- `transformer_blocks\.\d+` → 12, in this order: `attn.to_q`, `attn.to_k`,
+  `attn.to_v`, **`attn.add_k_proj`, `attn.add_v_proj`, `attn.add_q_proj`**
+  (k, v, q — not q, k, v), `attn.to_out.0`, `attn.to_add_out`, `ff.net.0.proj`,
+  `ff.net.2`, `ff_context.net.0.proj`, `ff_context.net.2`.
+- `single_transformer_blocks\.\d+` → 5, in this order: **`proj_mlp`,
+  `proj_out`**, `attn.to_q`, `attn.to_k`, `attn.to_v` — the projections come
+  *first*. There is no `attn.to_out.0` and there are no `add_*`, because the
+  single block builds `FluxAttention` with `pre_only=True` and without
+  `added_kv_proj_dim`.
+- `distilled_guidance_layer` → **one unit of 12**, with no layer index:
+  `in_proj`, `layers.0.linear_1`, `layers.0.linear_2`, … `layers.4.linear_1`,
+  `layers.4.linear_2`, `out_proj`.
 
-Revised conclusion: the diffusers definition of Chroma is **Flux minus the
-modulations, plus the approximator** — a smaller delta than expected. Even so,
-they are per-architecture and per-layout definitions in their own right, not a
-flag on top of Flux.
+For reference, Flux diffusers is the same shape plus the modulation linears:
+`transformer_blocks\.\d+` → 14 (`norm1.linear`, `norm1_context.linear`, then the
+12 above) and `single_transformer_blocks\.\d+` → 6 (`norm.linear`, then the 5
+above).
 
-The double block does pass `added_kv_proj_dim`, so the six projections plus
-`to_out.0` and `to_add_out` all exist: 12 confirmed.
-
-**Still to verify in code:** the real names in a diffusers Chroma checkpoint
-(`imnotednamode/Chroma-v36-dc-diffusers`, `subfolder="transformer"`).
+**H13 is refuted [0.9].** This section previously claimed the approximator splits
+into five units of two and that `in_proj`, `out_proj` and the RMSNorms stay
+uncompressed. In fact `in_proj` and `out_proj` **are compressed**, inside a single
+unit, and the sub-modules are named `linear_1`/`linear_2` rather than
+`in_layer`/`out_layer`. Only the RMSNorms are genuinely left uncompressed. The
+structural conclusion — Chroma is Flux minus the modulations, plus the
+approximator — survives; the granularity and the naming did not.
 
 **ChromaRadiance.** Extended additionally defines this variant: identical to
 Chroma plus `nerf_blocks\.\d+` → `param_generator` (a single element). Adding it
