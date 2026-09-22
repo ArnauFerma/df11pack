@@ -176,7 +176,28 @@ fn bits_string(code: &Code) -> String {
 /// sharing that prefix. Across rows it is accidental — the accumulator is never
 /// reset — and a row whose first key is not 0 therefore begins with the previous
 /// row's trailing value. Byte-identity requires both. See `docs/COMPATIBILITY.md`.
+/// Which LUT semantics to emit.
+///
+/// The default reproduces the official encoder exactly, bug included. See
+/// `docs/COMPATIBILITY.md`; the opt-out is gated and unreleased until the Phase 5
+/// kernel test proves the leaked positions are unreachable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LutMode {
+    /// Byte-identical to the official compressor, carry-over across rows and all.
+    #[default]
+    Compat,
+    /// Zero-fill the positions the official encoder leaves holding the previous
+    /// row's trailing value. **Not byte-identical, by design.**
+    Correct,
+}
+
+/// Build the LUTs in compat mode. Equivalent to `build_luts_with(cb, LutMode::Compat)`.
 pub fn build_luts(cb: &Codebook) -> Result<Vec<[u8; 256]>, EncodeError> {
+    build_luts_with(cb, LutMode::Compat)
+}
+
+/// Build the LUTs in an explicit mode.
+pub fn build_luts_with(cb: &Codebook, mode: LutMode) -> Result<Vec<[u8; 256]>, EncodeError> {
     let mut prefixes: Vec<String> = vec![String::new()];
     for (s, c) in cb.entries() {
         if matches!(s, Sym::Val(_)) {
@@ -197,6 +218,13 @@ pub fn build_luts(cb: &Codebook) -> Result<Vec<[u8; 256]>, EncodeError> {
     let mut curr_val: u8 = 0; // never reset between rows, on purpose
 
     for p in &prefixes {
+        if mode == LutMode::Correct {
+            // The only difference between the modes. Within a row the fill is
+            // deliberate -- it replicates a short code's entry across every byte
+            // value sharing its prefix -- so only the carry-over across rows is
+            // suppressed.
+            curr_val = 0;
+        }
         let pl = p.len() / 8;
         let mut bytes_map: Vec<Option<u8>> = vec![None; 256];
         for (s, c) in cb.entries() {

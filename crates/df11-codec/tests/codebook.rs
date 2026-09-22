@@ -148,3 +148,68 @@ fn the_cross_row_carry_over_is_reproduced() {
         "the whole leaked run must carry the same value"
     );
 }
+
+/// `--luts=correct` must differ from compat in exactly the leaked positions and
+/// nowhere else. A mode that changed anything further would not be "the same
+/// file with the leak removed", it would be a different codec.
+#[test]
+fn correct_mode_differs_only_where_the_leak_is() {
+    use df11_codec::huffman::{build_luts_with, LutMode};
+
+    let Some(fx) = skip_if_missing("correct_mode_differs_only_where_the_leak_is") else {
+        return;
+    };
+    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(src) = SourceModel::open(set) else {
+        return;
+    };
+
+    let mut units_with_leak = 0;
+    for unit in set.unit_names() {
+        let input = src.unit_input(&unit, &QWEN3_LAYER).expect("source");
+        let (exp, _) = split_fields(&input);
+        let h = Histogram::build(&exp).unwrap();
+        let cb = Codebook::build(&h.frequencies());
+
+        let compat = build_luts_with(&cb, LutMode::Compat).unwrap();
+        let correct = build_luts_with(&cb, LutMode::Correct).unwrap();
+        assert_eq!(compat.len(), correct.len(), "{unit}: same number of rows");
+
+        // Predict the leaked span independently: for each row after the first
+        // whose own entries do not start at byte 0, the leading run carries the
+        // previous row's trailing value in compat and must be 0 in correct.
+        let mut leaked_cells = 0;
+        for r in 0..compat.len() {
+            for c in 0..256 {
+                if compat[r][c] == correct[r][c] {
+                    continue;
+                }
+                leaked_cells += 1;
+                assert!(r > 0, "{unit}: row 0 cannot leak, nothing precedes it");
+                assert_eq!(correct[r][c], 0, "{unit}: correct mode must zero-fill");
+                assert_eq!(
+                    compat[r][c],
+                    compat[r - 1][255],
+                    "{unit}: a differing cell must hold the previous row's trailing value"
+                );
+                assert!(
+                    (0..c).all(|k| compat[r][k] == compat[r][c]),
+                    "{unit}: the leak is a prefix run, so every earlier cell matches"
+                );
+            }
+        }
+        if leaked_cells > 0 {
+            units_with_leak += 1;
+        }
+        // The lens row is data, never filled, so it must be untouched.
+        assert_eq!(
+            compat.last().unwrap(),
+            correct.last().unwrap(),
+            "{unit}: the code-length row must be identical in both modes"
+        );
+    }
+    assert!(
+        units_with_leak > 0,
+        "no unit exhibited the leak, so this test proved nothing"
+    );
+}
