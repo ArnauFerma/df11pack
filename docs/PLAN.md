@@ -19,8 +19,8 @@ rough. They exclude model download time and waiting on rented hardware.
 
 | Resource | Needed by | Note |
 |---|---|---|
-| Any machine, ≥8 GB RAM | Most of Phase 0, all of Phase 1 | The synthetic corpus is deliberately small so the bulk of the work needs no special machine. |
-| **~64 GB RAM** | Steps 0.4 (H1 on Flux), 0.7 (H8/H9 on a real model), 0.13 (real-model golden fixtures) | The official compressor peaks around 48 GB on 12B Flux. If no such machine exists, these steps run on Qwen3-0.6B and the synthetic corpus only, and the real-model runs move to a rented box. Everything else in Phase 0 still closes. |
+| Any machine, ≥8 GB RAM | **All of Phase 0 and Phase 1**, including real Flux and Chroma | Both the synthetic corpus and the real-model work are bounded by the largest single tensor, not by model size. Nothing here instantiates a model. |
+| **~64 GB RAM — optional, one step** | Step 0.4 only, and only to confirm H1 *at full scale* | This is the RAM the **official** compressor needs (~48 GB peak on 12B Flux), not anything df11pack needs. H1 is the hypothesis that this peak is unnecessary — it motivates the project but constrains no design decision. Without such a machine, measure the scaling curve on the models that do fit and cite the official README's figure for the endpoint. |
 | **NVIDIA GPU** | Steps 0.10 (H7), 0.11 (`check_correctness` path), and Phase 5 | Verification only. There is no local GPU, so these steps need rented hardware; the sibling repo `../bf16-exponent-compression/RENT_A_GPU.md` already documents a working rental and setup procedure. |
 | An old machine (4 cores / 8 GB / HDD) | Phase 3 exit gate, Phase 9-equivalent metrics | This is the machine the guiding principle is written for. Identify it early; if none is available, emulate with cgroup memory limits and `--workers 1`. |
 
@@ -29,9 +29,10 @@ rough. They exclude model download time and waiting on rented hardware.
 | Model | Size | Needed by | Source |
 |---|---|---|---|
 | Qwen3-0.6B (BF16) | ~1.2 GB | 0.2 onward — the main real-model workhorse | HF, plus the official example `pattern_dict` |
-| `lodestones/Chroma1-HD` | ~18 GB | 0.9 (H13), 0.13, Phase 7 | single-file, ComfyUI-native layout |
+| **Official pre-compressed DF11 releases** | ~11–17 GB each | **0.2b, 0.7, 0.8, 0.9, 0.12** | `DFloat11/Chroma-DF11`, `DFloat11/FLUX.1-dev-DF11`, `DFloat11/FLUX.1-schnell-DF11` (diffusers layout) and `mingyi456/Chroma1-Base-DF11` (ComfyUI-native). These **are** the official compressor's output — downloading them replaces running it. See 0.2b. |
+| `lodestones/Chroma1-HD` | ~18 GB | 0.7, 0.9 (as the *source* side of the comparison) | single-file, ComfyUI-native layout |
 | `imnotednamode/Chroma-v36-dc-diffusers` (`subfolder="transformer"`) | ~18 GB | 0.8 (H10), 0.9, 1.8 | diffusers layout; also settles the §1.7 "still to verify" item |
-| Flux (both layouts) | ~24 GB each | 0.13, Phase 7 | Only for the final real-model proof; the synthetic reduced Flux covers development |
+| Flux BF16 (both layouts) | ~24 GB each | 0.7, 0.12 | The source side for the Flux comparisons; the synthetic reduced Flux covers development |
 
 The synthetic corpus (cases 2, 3 and 4 of DESIGN §8) is **generated locally**, not
 downloaded, and is the only corpus most steps need.
@@ -80,6 +81,17 @@ on the official compressor's own runtime.
 - **Depends on:** 0.1.
 - **Effort:** 3 days. The adversarial generators are most of it — hitting the 32-bit limit path on purpose is fiddly.
 
+### 0.2b — Official DF11 releases as reference output
+
+- **Goal:** obtain the official compressor's output for real models **without running the official compressor**, which is what the large-RAM requirement was really about.
+- **Inputs:** 0.1.
+- **Actions:** download the published DF11 files — `DFloat11/Chroma-DF11`, `DFloat11/FLUX.1-dev-DF11`, `DFloat11/FLUX.1-schnell-DF11` for the diffusers layout, `mingyi456/Chroma1-Base-DF11` for ComfyUI-native — together with the matching BF16 sources. Record for each: which upstream revision it was compressed from, the `dfloat11_config` it carries, and its file hashes. Where the compressed release and the BF16 source are not provably the same revision, mark that pair as usable for *structural* questions (which tensors exist, `split_positions`, LUT shapes) but not for byte-identity claims.
+- **Produces:** `phase0/corpus/official/` plus a provenance note per model.
+- **Verification:** each downloaded file passes the 0.6 invariant checker and loads with its own ecosystem's loader.
+- **Depends on:** 0.1.
+- **Effort:** 1 day, mostly download time.
+- **Why this step exists:** the pass criterion is "byte-identical to the official compressor's output". That needs the output, not the compressor. Reading a published DF11 file is a streaming read bounded by its largest tensor — a few hundred MB — so every real-model question below drops from ~64 GB to a laptop.
+
 ### 0.3 — H2: where does the time go
 
 - **Goal:** confirm or refute that >90% of official compression time is the Python `encode` loop.
@@ -99,7 +111,8 @@ on the official compressor's own runtime.
 - **Produces:** peak-RSS-by-stage table and the per-UC temporary breakdown.
 - **Verification:** the measured breakdown accounts for the observed peak; the ~48 GB figure for 12B Flux is reproduced or explained.
 - **Depends on:** 0.2.
-- **Effort:** 1–2 days. **Large-RAM machine for the Flux run.**
+- **Effort:** 1–2 days.
+- **Machine note:** this is the *only* step that would benefit from ~64 GB, and only for the 12B endpoint. Measure the curve across Qwen3-0.6B, the synthetic models and the largest model that fits; if it scales as predicted, the endpoint is extrapolation plus the official README's own figure. Do not block the phase on it.
 
 ### 0.5 — H4: replicate `dahuffman` exactly
 
@@ -129,8 +142,8 @@ on the official compressor's own runtime.
 - **Actions:** for ComfyUI-native (H8) and diffusers (H9), compare tensor by tensor between the source and the official output: names, dtypes, shapes and bytes of everything that belongs to no UC. Catalogue every difference found (added buffers, dtype casts, renames, `swap_scale_shift`-style transforms) per architecture and per layout.
 - **Produces:** a difference catalogue; if empty, that is the result.
 - **Verification:** byte comparison, not shape comparison.
-- **Depends on:** 0.2, 0.4 (a real-model run needs the large-RAM machine).
-- **Effort:** 2 days. **Large-RAM machine** for real models; the synthetic corpus covers the rest.
+- **Depends on:** 0.2, 0.2b.
+- **Effort:** 2 days. Runs on any machine: both sides are read tensor by tensor from disk, never instantiated. Use the 0.2b downloads as the official side, subject to their provenance caveat.
 - **Consequence if refuted:** every catalogued transform becomes a required, architecture-specific feature of the writer in Phase 2, and the "byte-identical" criterion must be restated per tensor class.
 
 ### 0.8 — H10 / H11 / H6: what the loaders actually depend on
@@ -150,11 +163,11 @@ on the official compressor's own runtime.
 
 - **Goal:** confirm that Chroma's approximator `in_proj`, `out_proj` and RMSNorms stay uncompressed, and nail down the diffusers UC composition and order that DESIGN §1.7 leaves marked "still to verify".
 - **Inputs:** both Chroma checkpoints.
-- **Actions:** compress Chroma with the official tool in both layouts; list which tensors ended up compressed and compare against DESIGN §1.7; dump the real key names from `imnotednamode/Chroma-v36-dc-diffusers`; derive the concatenation order empirically from `split_positions` in the official output rather than from reading the class.
+- **Actions:** read the tensor list straight out of `DFloat11/Chroma-DF11` and `mingyi456/Chroma1-Base-DF11` — that list *is* the answer to H13, since an uncompressed tensor appears under its own name and a compressed one does not. Compare against DESIGN §1.7. Dump the real key names from `imnotednamode/Chroma-v36-dc-diffusers`. Derive the concatenation order empirically from the `split_positions` carried in the published file, divided by the per-tensor shapes from the BF16 source.
 - **Produces:** the confirmed per-layout Chroma definitions, ready to be transcribed into the Phase 1 architecture data files.
 - **Verification:** `split_positions` computed from our derived order matches the official file exactly.
-- **Depends on:** 0.2, 0.7.
-- **Effort:** 2 days. **Large-RAM machine** for the compression runs.
+- **Depends on:** 0.2b, 0.7.
+- **Effort:** 2 days. Header reads and one `split_positions` tensor per UC — negligible RAM.
 - **Note:** this is the single most design-relevant unknown left in DESIGN.md. The diffusers concatenation order cannot be guessed; it has to come out of an official file.
 
 ### 0.10 — H7: loading `decode.ptx` without CuPy
@@ -183,10 +196,10 @@ on the official compressor's own runtime.
 
 - **Goal:** freeze the official outputs that Phase 1 will be graded against, so Phase 1 needs neither Python nor a large machine.
 - **Inputs:** everything above.
-- **Actions:** for every corpus case, store the official output tensors plus the intermediate artefacts (histogram, codebook, LUTs, `gaps`, `output_positions`, `split_positions`) with a manifest and per-tensor sha256. Keep the large ones out of git (see `.gitignore`) with a documented regeneration script and recorded hashes.
-- **Produces:** `fixtures/` plus `fixtures/MANIFEST.json`.
+- **Actions:** for every corpus case, store the official output tensors plus the intermediate artefacts (histogram, codebook, LUTs, `gaps`, `output_positions`, `split_positions`) with a manifest and per-tensor sha256. For the small and synthetic cases these come from running the official compressor locally; for the real models they come from the 0.2b downloads. Keep the large ones out of git (see `.gitignore`) with a documented regeneration script and recorded hashes.
+- **Produces:** `fixtures/` plus `fixtures/MANIFEST.json`, each entry tagged `locally-compressed` or `published-release` so a byte-identity failure on a published-release fixture is triaged against its provenance caveat before being treated as an encoder bug.
 - **Verification:** the regeneration script reproduces identical hashes on a second machine.
-- **Depends on:** 0.2–0.9.
+- **Depends on:** 0.2–0.9, 0.2b.
 - **Effort:** 2 days.
 
 ### 0.13 — `docs/FINDINGS.md`
@@ -384,4 +397,4 @@ Carried from DESIGN §11 — listed here, not decided.
 3. **Flux's ComfyUI double block: 10 or 8 linears?** The brief §4 says the ComfyUI double block has 10 linears (against 14 for diffusers), but DESIGN §1.7 lists Chroma's ComfyUI double block with 8 named `attr_names` and says the Chroma/Flux delta is only the modulations. Those two statements are hard to reconcile; step 0.9 derives the truth empirically from `split_positions` rather than from either document.
 4. **The diffusers concatenation order is unconfirmed**, as both documents note. It cannot be guessed, and step 1.8 depends on it, so step 0.9 is on the critical path to Phase 1 — worth starting its downloads first.
 5. **No local GPU.** H7 (0.10) and the whole GPU side of Phase 5 need rented hardware. The sibling repo's `RENT_A_GPU.md` covers the procedure.
-6. **Large-RAM access is unknown.** Steps 0.4, 0.7, 0.9 and 0.12 want ~64 GB for real-model runs. If no such machine is reachable, every one of those steps still closes on Qwen3-0.6B plus the synthetic corpus — but the real-model golden fixtures, and with them Phase 2's exit gate, would have to move to rented hardware.
+6. **~~Large-RAM access is unknown.~~** *Resolved during review.* An earlier draft of this plan required ~64 GB for steps 0.4, 0.7, 0.9 and 0.12, on the assumption that real-model fixtures meant running the official compressor. They don't: the official team and the Extended maintainer both publish the compressed output on Hugging Face, and reading it is a streaming operation. Step 0.2b downloads those instead. The only residue is step 0.4's 12B endpoint for H1, which is optional and does not gate anything. It was a mistake to import the reference implementation's memory requirement into a plan whose entire purpose is to eliminate it.
