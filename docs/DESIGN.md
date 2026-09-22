@@ -66,12 +66,12 @@ Read from the encoder and from the kernel (`decode.cu`):
 - Exponent = bits 7..14 of the int16 pattern. Bitstream is MSB-first within each byte.
 - After the last symbol, `dahuffman`'s **EOF** code is written and padded to a byte boundary.
 - `gaps`: 5 bits per 64-bit window = the offset of the first code that begins in that window; padded with zeros up to a multiple of 512 windows and packed with `packbits`. Requires a maximum code length ≤ 32 bits.
-- `output_positions`: index of the first element beginning in each 4096-byte chunk, plus `len(data)` at the end; uint32 stored as a uint8 view.
+- `output_positions`: index of the first element beginning in each 4096-byte chunk, plus the total element count at the end; uint32 stored as a uint8 view. Its length is `ceil(len(encoded_exponent) / 4096) + 1`, and its final value is the **weight count**, equal to `len(sign_mantissa)` — not the encoded byte length. [CONFIRMED by measurement, 0.1/0.2; the earlier wording "plus `len(data)`" was ambiguous and was read wrongly once already.]
 - `luts`: uint8, shape `(n_prefixes + 1, 256)`. In the kernel, a value ≥ 240 means "jump to LUT 256−v". Therefore:
   - **no real exponent may be 240–255** (enormous values, Inf or NaN), and
   - the number of prefix tables is bounded (≤ 16).
   If a model violates this, we must abort with a clear error, never emit a file.
-- `split_positions`: int64, cumulative sums of the sizes of the concatenated tensors (empty for a bare `nn.Linear`). **The concatenation order is the order of `attr_names` in the `pattern_dict`.**
+- `split_positions`: int64, the **internal** boundaries of the concatenated tensors — for n tensors it has **n−1** entries, equal to `cumsum(sizes)[:-1]`. The total is *not* stored here; it is `len(sign_mantissa)`. Empty for a single-tensor unit (a bare `nn.Linear` or `nn.Embedding`). **The concatenation order is the order of `attr_names` in the `pattern_dict`.** [CONFIRMED by measurement, 0.1/0.2: a 7-tensor unit produced 6 entries.]
 - **Kernel 32-bit limits**: `n_bytes` and `n_elements` are `int` and `output_positions` is `uint32`. A UC cannot exceed 2³¹−1 weights or 2³¹−1 bytes of bitstream. Flux is far from this (max ~340M), but an LLM with a huge UC (e.g. giant embeddings) could hit it. This must be checked before encoding.
 - Output names per UC: `<uc>.luts`, `.encoded_exponent`, `.sign_mantissa`, `.output_positions`, `.gaps`, `.split_positions`. The compressed `.weight` tensors disappear; the rest of the state_dict (biases, norms, layers outside the pattern) is preserved.
 - `dahuffman`'s Huffman tree tie-breaking: a heap of tuples `(frequency, list of (symbol, code))`; ties are resolved by comparing the lists, and EOF always compares as smallest. It is deterministic and reproducible in any language.

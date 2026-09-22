@@ -116,3 +116,111 @@ row in PLAN.md's hardware table stays unexercised for tier 1.
 4. The layers-only choice for tier 1 is a **local** decision for fixtures. df11pack
    must still support the mainstream pattern, and consequence 3 is how that gets
    tested without a large machine.
+
+---
+
+## 0.1 — Reference environment, and the GPU that turned out not to be needed
+
+**Result: the official compressor runs on this machine, with no GPU and no cupy.**
+
+Pinned: Python 3.12.3, torch 2.14.0+cpu, numpy 2.5.3, safetensors 0.8.0,
+dahuffman 0.4.2, transformers 5.17.0, dfloat11 0.5.0. Rebuild steps in
+[`../phase0/README.md`](../phase0/README.md).
+
+The official `dfloat11` package does `import cupy` at module scope and builds a
+`RawModule` from `decode.ptx` at import time, so it cannot be imported at all
+without cupy — even to compress, which is pure CPU work. Reading the source
+shows cupy is otherwise reached in only two places, both inside
+`cp.cuda.Device` contexts: inference, and `check_correctness=True`.
+
+Rather than install ~2.5 GB of CUDA wheels on a GPU-less machine,
+`phase0/shim/cupy.py` satisfies the import and **raises on any real use**. That
+is the stronger option, not merely the cheaper one: a compression run that
+completes with the stub on `sys.path` has *provably* never touched the GPU.
+
+**Consequence.** Compression is GPU-free in the reference implementation too.
+Nothing in Phase 0 through Phase 4 needs a GPU. The first thing that does is H7
+(loading `decode.ptx` natively), so all GPU work should be batched into a single
+rented session rather than spread across steps.
+
+## 0.2 — Tier-0 corpus, and the first reference output
+
+**Built:** `phase0/corpus/tier0/qwen3-trunc` — Qwen3-0.6B truncated to 4 layers
+with the vocabulary sliced to 4096, keeping real tensor names, real shapes and
+real BF16 values. 47 tensors, 71.31M weights, 136.0 MiB. Generator:
+`phase0/make_tier0.py`. Crucially, **a layer unit is the same size here as in the
+full model** (15,728,640 weights), so per-unit memory behaviour is identical —
+only the number of units changes.
+
+**Run:** official compressor, layers-only pattern, `check_correctness=False`.
+
+| | |
+|---|---|
+| Wall time | **113.0 s** for 4 units (62.9M weights) |
+| Peak RSS | **956.4 MiB** |
+| RSS at start (torch imported) | 328.1 MiB |
+| RSS after model load | 360.7 MiB |
+| RSS after compression | 657.0 MiB |
+| Size | 142,632,024 → 94,168,127 bytes (**0.660**) |
+
+Two things stand out. The torch import alone costs 328 MiB — a third of peak,
+before any work. And loading the model added only 32 MiB, because safetensors
+mmaps it; the model is in page cache, not in RSS. So the official peak is driven
+by **per-unit transients**, not by the model, at least at this size.
+
+### Finding: single-file mode fails on tied-embedding models
+
+The first attempt used `save_single_file=True` and **failed at the very last
+step**, after compressing everything successfully (it had already printed
+`Compression factor: 68.14%`):
+
+```
+RuntimeError: Some tensors share memory ... [{'model.embed_tokens.weight', 'lm_head.weight'}]
+```
+
+`config.json` has `tie_word_embeddings: true`, so transformers ties the two on
+load; `compress_model` leaves both uncompressed under the layers-only pattern,
+and the final `save_file(model.state_dict())` refuses to write shared tensors.
+This is a limitation of the official compressor, not of our setup — it will hit
+any tied-embedding LLM in single-file mode.
+
+Directory mode (`save_single_file=False`) succeeds, and it is also how every
+published DF11 LLM is actually shipped. **Note what it emits:** the remainder
+file contains `model.embed_tokens.weight` and `model.norm.weight` — and *not*
+`lm_head.weight`, which is dropped entirely because it is tied. A loader must
+reconstruct it from the tie. Anything df11pack writes has to match that.
+
+### Two invariants in DESIGN §1.3 were wrong, and are now corrected
+
+Both found by checking the real output rather than trusting the prose, on a unit
+of 7 tensors totalling 15,728,640 weights.
+
+1. **`split_positions` holds n−1 entries, not n.** Measured `[2097152, 3145728,
+   4194304, 6291456, 9437184, 12582912]` for 7 tensors — exactly
+   `cumsum(sizes)[:-1]`. The total, 15,728,640, is not stored; it is
+   `len(sign_mantissa)`. A single-tensor unit therefore has an **empty**
+   `split_positions`.
+2. **`output_positions`' trailing value is an element count, not a byte length.**
+   `encoded_exponent` is 5,233,601 bytes → `ceil(/4096) = 1278` chunks →
+   `len(output_positions) = 1279`, and its last value is **15,728,640**, the
+   weight count. DESIGN's phrase "plus `len(data)`" meant the element stream.
+
+Confirmed exactly as written: the `gaps` length rule (654,201 windows padded to
+654,336, × 5 bits = **408,960 bytes**, predicted and measured identical), and
+`luts` shape `(n_prefixes + 1, 256)` — this unit gives `(5, 256)`, so four prefix
+levels are exercised by default rather than needing an adversarial case.
+
+### Format version drift
+
+This output carries `dfloat11_config` version **`0.5.0`**; the published
+Qwen3-8B/14B/32B releases carry **`0.2.0`**. df11pack must emit the right version
+per target and tolerate both on read. Recorded now so it is not discovered late.
+
+### H1 prediction for tier 1, refined with measured numbers
+
+A layer unit is identical in the truncated and full models, so the per-unit
+transient (~490 MiB above the torch baseline) does not grow with model size, and
+the model itself is mmapped. Revised prediction for full Qwen3-0.6B under the
+layers-only pattern: **peak RSS in the 1.0–1.6 GiB range**, against ~2.0 GiB
+available. The original 0.2c prediction of ~1.6 GiB stands as an upper bound.
+Measurement follows in 0.4.

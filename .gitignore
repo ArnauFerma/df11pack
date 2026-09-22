@@ -19,3 +19,9 @@
 # OS / editor
 .DS_Store
 *.swp
+
+# Bifrost MCP local history
+.bifrost/
+
+# Phase 0 corpus and outputs (large, regenerable)
+/phase0/corpus/
