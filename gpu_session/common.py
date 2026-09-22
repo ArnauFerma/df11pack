@@ -125,6 +125,37 @@ def find_ptx_path():
     return pkg_resources.resource_filename("dfloat11", "decode.ptx")
 
 
+def decode_with_cupy(unit_bytes, n_elements):
+    """Decode one unit's five kernel-input tensors with real CuPy --
+    RawModule + RawKernel over decode.ptx, exactly the call dfloat11.py's
+    own get_hook()/compress_model() make. Returns the raw output bytes
+    (n_elements * 2, bf16 bit patterns, uninterpreted)."""
+    import cupy as cp
+
+    ptx_path = find_ptx_path()
+    module = cp.RawModule(path=ptx_path)
+    decode_fn = module.get_function("decode")
+
+    n_luts, n_bytes, grid, block, shared_mem = launch_geometry(
+        unit_bytes["luts"], unit_bytes["encoded_exponent"], unit_bytes["output_positions"],
+    )
+
+    d_luts = cp.asarray(np.frombuffer(unit_bytes["luts"], dtype=np.uint8))
+    d_encoded = cp.asarray(np.frombuffer(unit_bytes["encoded_exponent"], dtype=np.uint8))
+    d_sign_mantissa = cp.asarray(np.frombuffer(unit_bytes["sign_mantissa"], dtype=np.uint8))
+    d_output_positions = cp.asarray(np.frombuffer(unit_bytes["output_positions"], dtype=np.uint8))
+    d_gaps = cp.asarray(np.frombuffer(unit_bytes["gaps"], dtype=np.uint8))
+    d_out = cp.empty(n_elements * 2, dtype=cp.uint8)
+
+    decode_fn(grid=grid, block=block, shared_mem=shared_mem, args=[
+        d_luts.data.ptr, d_encoded.data.ptr, d_sign_mantissa.data.ptr,
+        d_output_positions.data.ptr, d_gaps.data.ptr, d_out.data.ptr,
+        n_luts, n_bytes, n_elements,
+    ])
+    cp.cuda.Stream.null.synchronize()
+    return cp.asnumpy(d_out).tobytes()
+
+
 # ---------------------------------------------------------------------------
 # result reporting
 # ---------------------------------------------------------------------------
