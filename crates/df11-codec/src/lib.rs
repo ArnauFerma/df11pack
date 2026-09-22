@@ -41,6 +41,8 @@ pub fn split_fields(bf16_le: &[u8]) -> (Vec<u8>, Vec<u8>) {
     (exponents, sign_mantissa)
 }
 
+pub mod huffman;
+
 use std::fmt;
 
 /// Exponents 240..=255 collide with the LUT's "jump to table 256-v" convention,
@@ -152,6 +154,15 @@ impl Histogram {
     /// How many distinct exponent values occur.
     pub fn distinct(&self) -> usize {
         self.counts.iter().filter(|&&c| c > 0).count()
+    }
+
+    /// `(symbol, frequency)` pairs, ascending by symbol -- the order
+    /// `torch.unique` yields, which the official encoder feeds to dahuffman.
+    pub fn frequencies(&self) -> Vec<(u8, u64)> {
+        (0..=255u8)
+            .filter(|&s| self.counts[s as usize] > 0)
+            .map(|s| (s, self.counts[s as usize]))
+            .collect()
     }
 
     /// The exponent values that occur, ascending.
