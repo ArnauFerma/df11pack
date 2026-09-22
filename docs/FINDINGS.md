@@ -593,3 +593,155 @@ tensors *across* shard files, as opposed to reordering within one — which is
 precisely what H11 asks and what the placement rule above makes non-trivial.
 
 Both go on the batched GPU session with H7.
+
+---
+
+## 0.9 / H13 — Chroma's real definitions, and why guessing them would have failed
+
+Settled from the `dfloat11_config.pattern_dict` carried inside the published
+official releases — `DFloat11/Chroma-DF11` and `DFloat11/FLUX.1-dev-DF11`. These
+are the configurations the official compressor actually ran with, so they are
+ground truth, and they cost two `config.json` fetches rather than 36 GB of
+downloads.
+
+### H13 is REFUTED
+
+DESIGN §1.7 and the handoff brief both state that Chroma's approximator
+`in_proj`, `out_proj` and RMSNorms stay **uncompressed**. The published release
+says otherwise. `distilled_guidance_layer` is **one unit of 12 attributes**:
+
+```
+in_proj, layers.0.linear_1, layers.0.linear_2, layers.1.linear_1, layers.1.linear_2,
+layers.2.linear_1, layers.2.linear_2, layers.3.linear_1, layers.3.linear_2,
+layers.4.linear_1, layers.4.linear_2, out_proj
+```
+
+Three corrections in one:
+
+1. **`in_proj` and `out_proj` ARE compressed.** H13's central claim is wrong.
+2. **It is a single unit, not five.** DESIGN §1.7 said the approximator splits into one unit per layer (`distilled_guidance_layer\.layers\.\d+`), which it called "much more favourable to the RAM budget". It does not; the pattern has no layer index at all, and the shard listing confirms exactly one `distilled_guidance_layer.safetensors`.
+3. **The sub-modules are `linear_1`/`linear_2`,** not `in_layer`/`out_layer`.
+
+Only the RMSNorms survive the original claim: they are absent from the attribute
+list, so they do stay uncompressed.
+
+### The concatenation orders, which could not have been guessed — and were not
+
+Step 0.9 warned that the diffusers order "cannot be guessed; it has to come out
+of an official file". That was right. DESIGN §1.7's derived orders have the
+correct **set** of attributes in both cases and the wrong **order** in both:
+
+**`transformer_blocks`** — the `add_*` projections are **k, v, q**, not q, k, v:
+
+| pos | DESIGN §1.7 guessed | actual |
+|---|---|---|
+| 3 | `attn.add_q_proj` | **`attn.add_k_proj`** |
+| 4 | `attn.add_k_proj` | **`attn.add_v_proj`** |
+| 5 | `attn.add_v_proj` | **`attn.add_q_proj`** |
+
+**`single_transformer_blocks`** — the projections come **first**, not last:
+
+| pos | DESIGN §1.7 guessed | actual |
+|---|---|---|
+| 0 | `attn.to_q` | **`proj_mlp`** |
+| 1 | `attn.to_k` | **`proj_out`** |
+| 2 | `attn.to_v` | **`attn.to_q`** |
+| 3 | `proj_mlp` | **`attn.to_k`** |
+| 4 | `proj_out` | **`attn.to_v`** |
+
+Order determines the concatenation, hence `split_positions`, hence the exponent
+stream, hence every compressed byte. A Phase 1 built on the derived order would
+have produced structurally valid, invariant-passing, **byte-wrong** output for
+every Chroma and Flux unit — and the failure would have looked like an encoder
+bug, not a definition bug.
+
+### Ground truth for step 1.8
+
+**Flux (diffusers).** `transformer_blocks\.\d+` → 14: `norm1.linear`,
+`norm1_context.linear`, `attn.to_q`, `attn.to_k`, `attn.to_v`, `attn.add_k_proj`,
+`attn.add_v_proj`, `attn.add_q_proj`, `attn.to_out.0`, `attn.to_add_out`,
+`ff.net.0.proj`, `ff.net.2`, `ff_context.net.0.proj`, `ff_context.net.2`.
+`single_transformer_blocks\.\d+` → 6: `norm.linear`, `proj_mlp`, `proj_out`,
+`attn.to_q`, `attn.to_k`, `attn.to_v`.
+
+**Chroma (diffusers).** Identical to Flux minus the modulation linears —
+`transformer_blocks` drops `norm1.linear` and `norm1_context.linear` (→ 12),
+`single_transformer_blocks` drops `norm.linear` (→ 5) — plus the
+`distilled_guidance_layer` unit above. So DESIGN §1.7's *structural* conclusion
+("Flux minus the modulations, plus the approximator") was right; only its
+orderings and the approximator's granularity were wrong.
+
+## 0.8 / H10 — rebuilding `config.json` without the heavy libraries
+
+**Reconstructable, given one declared input.** `phase0/rebuild_config.py` uses
+only the standard library and reproduces the official output **byte-for-byte on
+both local fixtures** in `--mode full`.
+
+The diff between source and output config is identical in shape for both, and
+almost none of it is dfloat11's doing:
+
+- **removed:** `torch_dtype`, `rope_theta`, `rope_scaling`
+- **added:** `dtype`, `rope_parameters` (merging the two removed rope keys), `layer_types`, `pad_token_id: null`, `dfloat11_config`
+- **changed:** `transformers_version` (4.51.0 → 5.17.0)
+
+Only `dfloat11_config` is injected by dfloat11. Everything else is
+`save_pretrained` → `PretrainedConfig.to_json_file()` re-normalising the *entire*
+config against whatever transformers version is installed. DESIGN §1.6's framing
+— "source config + save_pretrained fields + dfloat11_config" — understated this:
+it is not an additive step, it is a whole-schema rewrite.
+
+**One field is genuinely uncomputable:** `transformers_version`, which is the
+installed library's own version string. A Rust binary has no library to read it
+from, so it must be a **declared per-run target**, like `pattern_dict` already
+is, backed by a small table mapping version → which schema transformations apply.
+By contrast `dfloat11_config.version` is *not* library-dependent: it is a
+hardcoded constant in the dfloat11 package.
+
+### The diffusers config is far simpler than DESIGN §1.6 assumed
+
+DESIGN §1.6 says the output `config.json` "must come out the same as
+`save_pretrained`'s ... plus the fields diffusers adds (`_class_name`,
+`_diffusers_version`, etc.)". Every published diffusers DF11 release checked
+contains **exactly two keys**:
+
+```json
+{"dfloat11_config": {...}, "model_type": "llama"}
+```
+
+No `_class_name`, no `_diffusers_version`, no diffusers schema at all — in
+`Chroma-DF11`, `FLUX.1-dev-DF11` and `FLUX.1-schnell-DF11` alike. And
+`model_type` is `"llama"` in all three, for two diffusion transformers, which is
+plainly vestigial rather than meaningful.
+
+This matches the loader: with `bfloat16_model=` supplied, it reads `config.json`
+as a plain dict and requires only `dfloat11_config`, never routing it through
+`AutoConfig` or diffusers. So the full-schema reconstruction DESIGN assumed is
+achievable but **is not what the ecosystem ships**, and the two-key form is
+trivially reproducible. Phase 2 should emit the minimal form for diffusers
+targets and keep `--mode full` for the transformers path.
+
+## 0.8 / H11 — shard grouping and file names
+
+**Confirmed, by code and by construction.** `load_and_replace_tensors` enumerates
+`*.safetensors` in the directory and dispatches purely on `tensor_name`, walked
+against the live module tree; the file name is used only to open the file and is
+never compared to anything.
+
+The 28-shard output was repacked two ways, each built and deleted one at a time:
+a **single merged file** (282/282 tensors byte-identical, all 28 units pass
+invariants), and **4 interleaved files** named `blob_00_of_4.bin.safetensors`…
+matching no unit name, with one unit's six tensors deliberately split across
+three different files (282/282 byte-identical).
+
+**A checker limitation surfaced, and was handled correctly.** Running
+`check_invariants.py` per-file on the interleaved variant fails 84 checks with
+`INV-NAMES-COMPLETE` — because the checker groups tensors into units *per file*,
+an assumption that holds for every official fixture and is exactly what H11
+tests. Rather than weaken the checker, a separate script reassembles each logical
+unit by name across the whole directory, as the real loader does, and runs the
+**unmodified** checker on that: 28/28 units pass. The checker's assumption is
+correct for files the official compressor produces and wrong as a statement about
+the format; both facts are now on the record.
+
+**Unproven, as with H6:** nothing here loaded either variant through
+`DFloat11Model` or compared inference. Batched with H7.
