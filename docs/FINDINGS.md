@@ -907,3 +907,72 @@ and may not all be there.
 **On memory.** 598 MiB peak for a 1.4 GiB model, against the official's 2.3 GiB,
 without any streaming yet — the whole unit is still held in memory. Phase 3's
 bounded-RAM work starts from a much better position than the plan assumed.
+
+---
+
+# Phase 2 exit gate: passed, and it found a version trap
+
+A second GPU session (RTX 3070, ~12 minutes, about **$0.03**) loaded df11pack's
+output and the official compressor's output through the real `DFloat11Model` and
+the real CUDA kernel, and compared logits.
+
+## The result
+
+**Identical logits, exactly, `max_abs_diff = 0.0`** — once the two directories
+carry the same `config.json` schema. The tensor path is exact: the decoded model
+from df11pack's output is indistinguishable from the official one.
+
+## Two things that nearly went wrong, and what they taught
+
+### A missing baseline produced a false "REFUTED"
+
+The first run compared the two directories and reported a difference of 1.64.
+That was the test's fault, not the output's: the skeleton comes from
+`AutoModelForCausalLM.from_config`, which initialises randomly, so two
+independently built skeletons differ for reasons that have nothing to do with
+compression. The GPU session's own H6 script had a determinism baseline for
+exactly this reason; the gate script I wrote did not.
+
+With the baseline added — load the same directory twice, require identical logits
+before comparing anything else — the baseline passed and the difference persisted,
+which is what made it worth chasing rather than dismissing.
+
+**A comparison without a baseline cannot tell "different" from "nondeterministic".**
+
+### The difference was the config, and it is a real trap
+
+With the baseline holding, the difference was real but not in our tensors. The
+decisive test: take the **official tensors** and swap in **our `config.json`**.
+Logits then matched ours exactly, `max_abs_diff = 0.0`. So the compressed data was
+never in question; the config was.
+
+The two configs differ because upstream's `save_pretrained` rewrote the schema
+against whatever transformers was installed:
+
+| | official output | df11pack output |
+|---|---|---|
+| RoPE | `rope_parameters: {rope_theta: 1000000, rope_type: "default"}` | `rope_theta: 1000000`, `rope_scaling: null` |
+| also | `dtype`, `layer_types`, `pad_token_id` | `torch_dtype` |
+| stamped | `transformers_version: 5.17.0` | `4.51.0` (the source's own) |
+
+Under transformers **4.51.0** — the version this model's config was authored with
+— the official directory's 5.x-schema config is misread, RoPE falls back to a
+default, and inference changes. **A DF11 directory produced by one transformers
+version can silently change inference when loaded under another**, because the
+rope keys moved. Nothing in the file warns you; the weights are fine.
+
+This vindicates preserving the source config rather than re-normalising it
+(`ConfigMode::PreserveSource`). df11pack's output stays readable by the
+transformers version the model was authored for, which is the version its own
+config names. Matching `save_pretrained` byte for byte would mean inheriting
+whichever schema happened to be installed — portability traded for a byte
+comparison nobody benefits from.
+
+**Recorded as a limitation, not a solved problem:** df11pack currently emits the
+source's schema. A user who needs output for a *newer* transformers must convert
+the config themselves. Making the target schema an explicit flag belongs in
+Phase 2's remaining work.
+
+## Status
+
+- **H9 remains open for diffusers.** This closed the transformers path end to end. A diffusers output still has not been produced or loaded.
