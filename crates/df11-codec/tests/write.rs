@@ -2,6 +2,7 @@
 
 use df11_codec::arch::ArchDef;
 use df11_codec::safetensors::SafeTensorsFile;
+use df11_codec::source::ModelSource;
 use df11_codec::write::{remainder_name, shard_name, write_directory, WriteOptions};
 use df11_fixtures::{architecture_defs, skip_if_missing, SourceModel};
 
@@ -51,7 +52,7 @@ fn the_written_directory_matches_the_official_one() {
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
     let def = ArchDef::from_toml(toml).expect("parses");
 
-    let src = SafeTensorsFile::open(set.source_dir.join("model.safetensors")).expect("source");
+    let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
     let out = outdir("dir");
     let report = write_directory(&src, &def, &out, &WriteOptions::default()).expect("writes");
 
@@ -146,7 +147,7 @@ fn a_tied_tensor_is_dropped_and_reported() {
     };
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
     let def = ArchDef::from_toml(toml).expect("parses");
-    let src = SafeTensorsFile::open(set.source_dir.join("model.safetensors")).expect("source");
+    let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
 
     let out = outdir("tied");
     let report = write_directory(&src, &def, &out, &WriteOptions::default()).expect("writes");
@@ -179,7 +180,7 @@ fn a_config_is_written_for_layouts_that_have_one() {
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
     let def = ArchDef::from_toml(toml).expect("parses");
     assert_eq!(def.layout, Layout::Transformers);
-    let src = SafeTensorsFile::open(set.source_dir.join("model.safetensors")).expect("source");
+    let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
 
     let out = outdir("cfg");
     let report = write_directory(&src, &def, &out, &WriteOptions::default()).expect("writes");
@@ -231,7 +232,7 @@ attrs = ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.
 "#,
     )
     .expect("parses");
-    let src = SafeTensorsFile::open(set.source_dir.join("model.safetensors")).expect("source");
+    let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
     let out = outdir("native");
     let report = write_directory(&src, &def, &out, &WriteOptions::default()).expect("writes");
     assert_eq!(report.config, None, "native output carries no config");

@@ -6,3 +6,4 @@ rust-version.workspace = true
 
 [dependencies]
 df11-codec = { path = "../df11-codec" }
+clap = { version = "4", features = ["derive"] }

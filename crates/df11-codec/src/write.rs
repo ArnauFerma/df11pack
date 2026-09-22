@@ -5,7 +5,8 @@ use crate::arch::{ArchDef, Layout};
 use crate::config::{build_config, ConfigMode};
 use crate::discover::{discover, DiscoverError};
 use crate::huffman::LutMode;
-use crate::safetensors::{write_file, Dtype, OutTensor, SafeTensorsFile, StError};
+use crate::safetensors::{write_file, Dtype, OutTensor, StError};
+use crate::source::ModelSource;
 use crate::unit::encode_unit;
 use crate::EncodeError;
 use std::collections::BTreeMap;
@@ -90,19 +91,16 @@ pub fn remainder_name(layout: Layout) -> &'static str {
 
 /// Compress a model into a DF11 directory.
 pub fn write_directory(
-    source: &SafeTensorsFile,
+    source: &ModelSource,
     def: &ArchDef,
     out_dir: &Path,
     opts: &WriteOptions,
 ) -> Result<WriteReport, WriteError> {
     std::fs::create_dir_all(out_dir)?;
-    let names: Vec<String> = source.names().map(String::from).collect();
+    let names: Vec<String> = source.names();
     let found = discover(def, &names)?;
 
-    let mut source_bytes: u64 = 0;
-    for n in &names {
-        source_bytes += source.info(n).map(|i| i.nbytes()).unwrap_or(0);
-    }
+    let source_bytes = source.total_bytes();
 
     let threads = *def.threads_per_block.first().unwrap_or(&512) as usize;
     let bpt = def.bytes_per_thread as usize;
@@ -173,9 +171,7 @@ pub fn write_directory(
     // share storage, and drops the tied view. The tie is a property of the model
     // config, so that is where we read it from -- not guessed from the bytes.
     let mut tied_dropped = Vec::new();
-    let tied = source
-        .dir()
-        .map(|d| d.join("config.json"))
+    let tied = Some(source.dir().join("config.json"))
         .filter(|p| p.is_file())
         .and_then(|p| std::fs::read(p).ok())
         .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
@@ -206,9 +202,7 @@ pub fn write_directory(
         });
     }
     // The source config drives both the tie check above and the output config.
-    let source_config: Option<serde_json::Value> = source
-        .dir()
-        .map(|d| d.join("config.json"))
+    let source_config: Option<serde_json::Value> = Some(source.dir().join("config.json"))
         .filter(|p| p.is_file())
         .and_then(|p| std::fs::read(p).ok())
         .and_then(|b| serde_json::from_slice(&b).ok());

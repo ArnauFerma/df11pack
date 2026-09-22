@@ -876,3 +876,34 @@ now in the runbook:
 The script's fail-fast design earned its keep on all three: each surfaced as a
 clear message naming the cause rather than as a confusing downstream failure, and
 the three items that were already working were not re-run.
+
+---
+
+# End of Phase 2 (writer path): the first full-model comparison
+
+`df11pack compress` on the full Qwen3-0.6B, against the official compressor on
+the same machine and the same input.
+
+| | official | df11pack | |
+|---|---|---|---|
+| Wall time | 788.9 s | **26.9 s** | **29.3× faster** |
+| Peak RSS | 2287.6 MiB | **598 MiB** | **3.8× less** |
+| Output | 869.5 MiB | 869.5 MiB | identical |
+| Ratio | 0.6065 | 0.607 | identical |
+| Tensors matching | — | **282 / 282** | byte-identical, dtype and shape included |
+
+df11pack is still **single-threaded** here: streaming and parallelism are Phase 3.
+Throughput is 16.4M weights/s against the official 0.558M/s.
+
+**What this says about H5.** The disk reads at ~852 MiB/s, which a saturating
+encoder would have to match at ~446M weights/s. At 16.4M/s we are still **27×
+short**, so on this machine the CPU, not the disk, is still the bottleneck — H5 is
+*not* yet satisfied by a single-threaded encoder, which is the honest reading. It
+closes or fails at the Phase 3 gate, where the chunked encoder and inter-unit
+parallelism land. What has already been removed is the interpreted per-symbol
+loop, worth 29×; the remaining 27× has to come from parallelism and I/O overlap,
+and may not all be there.
+
+**On memory.** 598 MiB peak for a 1.4 GiB model, against the official's 2.3 GiB,
+without any streaming yet — the whole unit is still held in memory. Phase 3's
+bounded-RAM work starts from a much better position than the plan assumed.
