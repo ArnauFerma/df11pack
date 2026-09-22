@@ -321,3 +321,65 @@ prefix table lacks key 0 and assert the leaked bytes match.
 This is exactly the failure mode the whole byte-identity criterion exists to
 catch, and it would not have been found by reading either codebase — only by
 comparing bytes against a real output.
+
+---
+
+## 0.6 — Format invariant checker
+
+`phase0/check_invariants.py`, results in
+[`../phase0/INVARIANTS_RESULTS.md`](../phase0/INVARIANTS_RESULTS.md). It passes on
+every real file tested: a published `DFloat11/Qwen3-4B-DF11` shard (100.9M
+weights, 4-level LUT, max code length 27) and all four of our own tier-0 units
+(15.7M weights each, max code length 25, min 2).
+
+**No invariant in DESIGN §1.3 was violated by any real file** — but two were
+stated wrongly in §1.3 itself and are corrected above under 0.2. The checker was
+built independently from the official source and arrived at both corrections
+before being told, which is why they are recorded as confirmed rather than
+assumed.
+
+### A corruption that got through
+
+The first version of the checker caught 10 of 10 injected corruptions. I then
+invented an eleventh outside its author's model of the format: set
+`output_positions[600] = output_positions[599]`. Still non-decreasing, trailing
+total untouched, `sign_mantissa` length unchanged — every checked property holds,
+and the file no longer decodes correctly. **It passed, exit 0.**
+
+The cause is worth stating carefully, because it generalises: the ten corruptions
+were derived from the same understanding of the format as the checker, so each
+one probed a property the checker already knew to look at. A test suite written
+by the same mind as the thing it tests inherits its blind spots. Only an
+adversary outside that model found this one.
+
+The fix is a two-sided bound rather than mere monotonicity. A 4096-byte chunk
+must contain many code starts, since a code is between `min_code_len` and
+`max_code_len` bits, both readable from the LUT lengths row:
+
+```
+ceil(bits / max_code_len)  <=  output_positions[i+1] - output_positions[i]  <=  floor(bits / min_code_len)
+```
+
+With max 25 and min 2 on our unit, a full chunk's delta must lie in [1311,
+16384]; the corruption's delta of 0 is now caught, naming the chunk and both
+bounds. Re-verified: 11 of 11 corruptions detected, all four real units still
+pass, and an independent second published shard passes.
+
+### A gap that remains open, deliberately
+
+Swapping two *individually valid* deltas between adjacent chunks passes
+everything. I confirmed this directly: exchanging chunks 500 and 501's real
+deltas of 12,337 and 12,391 leaves both values in band and the total intact, and
+the checker exits 0.
+
+Closing it would require counting real code starts from `gaps` + `luts` against
+the bitstream — a partial decode, not a structural check. That belongs to the
+decoder work, so it stays open and documented rather than half-solved. The same
+root cause leaves residual gaps for value swaps within a LUT row and among
+individual gap values: this tool verifies **structural self-consistency**, not
+**content correctness**. `INV-LIMIT-*` is the one category with no residual gap,
+since the check's entire content is the threshold.
+
+That boundary is the useful output here. It says precisely which class of
+encoder bug Phase 1 cannot rely on this tool to catch, and must catch by
+comparing bytes against fixtures instead.
