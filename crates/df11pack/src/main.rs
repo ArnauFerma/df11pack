@@ -1,5 +1,6 @@
 //! df11pack -- compress BF16 model weights into the DFloat11 format.
 
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -104,20 +105,42 @@ fn list_architectures() -> Result<(), String> {
     if entries.is_empty() {
         return Err(format!("no definitions found in {}", dir.display()));
     }
-    println!("{:<30} {:<16} {:>5}  SOURCE", "NAME", "LAYOUT", "UNITS");
+    // Written through a locked handle so a closed pipe -- `df11pack
+    // architectures | head` -- ends the command quietly instead of panicking,
+    // which is what Rust's println! does on EPIPE.
+    let stdout = io::stdout();
+    let mut w = stdout.lock();
+    let quiet = |r: io::Result<()>| -> Result<bool, String> {
+        match r {
+            Ok(()) => Ok(true),
+            Err(e) if e.kind() == io::ErrorKind::BrokenPipe => Ok(false),
+            Err(e) => Err(e.to_string()),
+        }
+    };
+
+    if !quiet(writeln!(
+        w,
+        "{:<30} {:<16} {:>5}  SOURCE",
+        "NAME", "LAYOUT", "UNITS"
+    ))? {
+        return Ok(());
+    }
     for p in entries {
         let Ok(text) = std::fs::read_to_string(&p) else {
             continue;
         };
-        match ArchDef::from_toml(&text) {
-            Ok(d) => println!(
+        let line = match ArchDef::from_toml(&text) {
+            Ok(d) => format!(
                 "{:<30} {:<16} {:>5}  {}",
                 d.name,
                 format!("{:?}", d.layout).to_lowercase(),
                 d.units.len(),
                 d.source
             ),
-            Err(e) => println!("{:<30} INVALID: {e}", p.display()),
+            Err(e) => format!("{:<30} INVALID: {e}", p.display()),
+        };
+        if !quiet(writeln!(w, "{line}"))? {
+            return Ok(());
         }
     }
     Ok(())
