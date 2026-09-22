@@ -1,0 +1,42 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# ChromaRadiance, native; adds nerf_blocks with a single-tensor unit.
+
+name = "chroma-radiance-comfyui"
+layout = "comfyui-native"
+format_version = "0.5.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "github.com/mingyi456/ComfyUI-DFloat11-Extended pattern_dict.py @ master"
+
+[[unit]]
+pattern = 'distilled_guidance_layer\.layers\.\d+'
+attrs = [
+    "in_layer",
+    "out_layer",
+]
+
+[[unit]]
+pattern = 'double_blocks\.\d+'
+attrs = [
+    "img_attn.qkv",
+    "img_attn.proj",
+    "img_mlp.0",
+    "img_mlp.2",
+    "txt_attn.qkv",
+    "txt_attn.proj",
+    "txt_mlp.0",
+    "txt_mlp.2",
+]
+
+[[unit]]
+pattern = 'single_blocks\.\d+'
+attrs = [
+    "linear1",
+    "linear2",
+]
+
+[[unit]]
+pattern = 'nerf_blocks\.\d+'
+attrs = [
+    "param_generator",
+]

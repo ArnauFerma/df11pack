@@ -5,6 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+toml = "0.8"
+serde = { workspace = true }
 
 [dev-dependencies]
 df11-fixtures = { path = "../df11-fixtures" }

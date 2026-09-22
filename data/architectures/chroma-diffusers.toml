@@ -1,0 +1,53 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# Chroma in the diffusers layout; distilled_guidance_layer is ONE unit of 12.
+
+name = "chroma-diffusers"
+layout = "diffusers"
+format_version = "0.2.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "DFloat11/Chroma-DF11"
+
+[[unit]]
+pattern = "distilled_guidance_layer"
+attrs = [
+    "in_proj",
+    "layers.0.linear_1",
+    "layers.0.linear_2",
+    "layers.1.linear_1",
+    "layers.1.linear_2",
+    "layers.2.linear_1",
+    "layers.2.linear_2",
+    "layers.3.linear_1",
+    "layers.3.linear_2",
+    "layers.4.linear_1",
+    "layers.4.linear_2",
+    "out_proj",
+]
+
+[[unit]]
+pattern = 'transformer_blocks\.\d+'
+attrs = [
+    "attn.to_q",
+    "attn.to_k",
+    "attn.to_v",
+    "attn.add_k_proj",
+    "attn.add_v_proj",
+    "attn.add_q_proj",
+    "attn.to_out.0",
+    "attn.to_add_out",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "ff_context.net.0.proj",
+    "ff_context.net.2",
+]
+
+[[unit]]
+pattern = 'single_transformer_blocks\.\d+'
+attrs = [
+    "proj_mlp",
+    "proj_out",
+    "attn.to_q",
+    "attn.to_k",
+    "attn.to_v",
+]

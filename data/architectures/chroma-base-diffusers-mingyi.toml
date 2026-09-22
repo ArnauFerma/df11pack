@@ -1,0 +1,43 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# Chroma, diffusers, community variant: guidance layer split per layer.
+
+name = "chroma-base-diffusers-mingyi"
+layout = "diffusers"
+format_version = "0.5.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "mingyi456/Chroma1-Base-DF11"
+
+[[unit]]
+pattern = 'distilled_guidance_layer\.layers\.\d+'
+attrs = [
+    "linear_1",
+    "linear_2",
+]
+
+[[unit]]
+pattern = 'transformer_blocks\.\d+'
+attrs = [
+    "attn.to_q",
+    "attn.to_k",
+    "attn.to_v",
+    "attn.add_k_proj",
+    "attn.add_v_proj",
+    "attn.add_q_proj",
+    "attn.to_out.0",
+    "attn.to_add_out",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "ff_context.net.0.proj",
+    "ff_context.net.2",
+]
+
+[[unit]]
+pattern = 'single_transformer_blocks\.\d+'
+attrs = [
+    "proj_mlp",
+    "proj_out",
+    "attn.to_q",
+    "attn.to_k",
+    "attn.to_v",
+]

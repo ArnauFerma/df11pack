@@ -436,3 +436,39 @@ pub fn limiter_cases() -> Option<Vec<LimiterCase>> {
     let f: LimiterFile = serde_json::from_slice(&std::fs::read(p).ok()?).ok()?;
     Some(f.cases)
 }
+
+/// A `pattern_dict` transcribed from a published official release.
+#[derive(Debug, Clone, Deserialize)]
+pub struct OfficialPatternDict {
+    pub repo: String,
+    pub version: Option<String>,
+    pub threads_per_block: Vec<u32>,
+    pub bytes_per_thread: u32,
+    /// Ordered: `serde_json` is built with `preserve_order`, and the order is
+    /// the concatenation order, which fixes every compressed byte.
+    pub pattern_dict: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Load the recorded official `pattern_dict`s, keyed by definition name.
+pub fn official_pattern_dicts() -> Option<std::collections::BTreeMap<String, OfficialPatternDict>> {
+    let root = workspace_root()?;
+    let p = root.join("phase0/fixtures/official_pattern_dicts.json");
+    serde_json::from_slice(&std::fs::read(p).ok()?).ok()
+}
+
+/// Every shipped architecture definition, as `(name, toml source)`.
+pub fn architecture_defs() -> Option<Vec<(String, String)>> {
+    let root = workspace_root()?;
+    let dir = root.join("data/architectures");
+    let mut out = Vec::new();
+    for e in std::fs::read_dir(dir).ok()? {
+        let e = e.ok()?;
+        let p = e.path();
+        if p.extension().is_some_and(|x| x == "toml") {
+            let name = p.file_stem()?.to_string_lossy().into_owned();
+            out.push((name, std::fs::read_to_string(&p).ok()?));
+        }
+    }
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    Some(out)
+}

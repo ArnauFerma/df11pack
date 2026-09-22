@@ -1,0 +1,39 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# FLUX.1 in the diffusers layout.
+
+name = "flux-dev-diffusers"
+layout = "diffusers"
+format_version = "0.2.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "DFloat11/FLUX.1-dev-DF11"
+
+[[unit]]
+pattern = 'transformer_blocks.\d+'
+attrs = [
+    "norm1.linear",
+    "norm1_context.linear",
+    "attn.to_q",
+    "attn.to_k",
+    "attn.to_v",
+    "attn.add_k_proj",
+    "attn.add_v_proj",
+    "attn.add_q_proj",
+    "attn.to_out.0",
+    "attn.to_add_out",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "ff_context.net.0.proj",
+    "ff_context.net.2",
+]
+
+[[unit]]
+pattern = 'single_transformer_blocks.\d+'
+attrs = [
+    "norm.linear",
+    "proj_mlp",
+    "proj_out",
+    "attn.to_q",
+    "attn.to_k",
+    "attn.to_v",
+]
