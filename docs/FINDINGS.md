@@ -383,3 +383,76 @@ since the check's entire content is the threshold.
 That boundary is the useful output here. It says precisely which class of
 encoder bug Phase 1 cannot rely on this tool to catch, and must catch by
 comparing bytes against fixtures instead.
+
+---
+
+## 0.4 / 0.2c confirmation — full Qwen3-0.6B, and a prediction that missed
+
+**Tier 1 completed on this machine.** Full Qwen3-0.6B, layers-only pattern, 28
+units, directory mode, `check_correctness=False`.
+
+| | Tier 0 (4 layers) | **Tier 1 (28 layers)** |
+|---|---|---|
+| Weights compressed | 62.9M | **440.4M** |
+| Wall time | 113.0 s | **788.9 s** |
+| RSS at start (torch only) | 328.1 MiB | 328.1 MiB |
+| RSS after model load | 360.7 MiB | **951.1 MiB** |
+| RSS after compression | 657.0 MiB | **1840.7 MiB** |
+| **Peak RSS** | 956.4 MiB | **2287.6 MiB** |
+| Size | 142.6 → 94.2 MiB (0.660) | **1433.7 → 869.5 MiB (0.607)** |
+
+Every unit passes `check_invariants.py`.
+
+### The verdict of 0.2c holds; its number did not
+
+0.2c predicted that tier 1 would complete here, and it did — that call was right,
+and it is what mattered for planning. The refined prediction recorded under 0.2,
+however, was **peak RSS in the 1.0–1.6 GiB range**. Measured: **2.29 GiB**. The
+prediction is wrong, by about 50% at the upper bound, and is left standing above
+as written.
+
+The error is instructive. I inferred from tier 0 that the model stays mmapped and
+barely enters RSS — loading it there cost only 32 MiB. That inference did not
+survive scaling: at tier 1, loading cost **591 MiB** of RSS. The tier-0 signal
+was not evidence of mmap behaviour, it was evidence that 136 MiB is small. I
+generalised from a measurement taken in the regime where the effect I was
+measuring could not show up.
+
+The practical consequence is that the margin was far thinner than believed. Peak
+touched 2.29 GiB on a machine with 3.6 GiB total and roughly 2.0 GiB nominally
+available; it completed only because page cache was evicted under pressure. The
+0.2c conclusion should be read as "tier 1 fits, with little room to spare",
+not "tier 1 fits comfortably".
+
+### H1 — first real data point
+
+Peak RSS / model size = 2287.6 / 1433.7 = **1.60×** under the layers-only
+pattern. H1 proposed "≈ 2× the model". The right order, below the stated figure,
+and this is the *cheap* pattern — the mainstream pattern, which adds a
+155.6M-weight embedding unit, would add roughly 1.9 GiB of transients on top and
+would not fit here at all. That is consistent with 0.2c's original reasoning and
+with the official README's ~48 GB for 12B Flux.
+
+Not yet a full H1 answer: this is one model at one size under one pattern, and
+the stage decomposition still needs `tracemalloc`.
+
+### H2 — strong evidence before profiling
+
+Throughput is essentially identical across a 7× change in workload:
+
+- tier 0: 62.9M weights / 113.0 s = **556,700 symbols/s**
+- tier 1: 440.4M weights / 788.9 s = **558,244 symbols/s**
+
+0.3% apart. Time is linear in symbol count with a negligible fixed component,
+which is what a per-symbol interpreted loop predicts and what a
+fixed-overhead-dominated or allocation-dominated cost would not. This does not
+replace the `py-spy` breakdown, but it is independent of it, and it already makes
+the central premise of the project hard to doubt: at ~558k symbols/s, Flux's
+11.8B weights would take about **5.9 hours** on this machine.
+
+### Ratio note
+
+Tier 1 compresses to 0.607 versus tier 0's 0.660, because the truncated model's
+sliced embedding is a much larger share of a much smaller file and is left
+uncompressed under this pattern. Compression ratio is therefore not comparable
+across tiers, and only per-unit comparisons are meaningful.
