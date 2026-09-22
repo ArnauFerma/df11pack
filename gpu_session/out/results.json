@@ -1,0 +1,148 @@
+{
+  "session": {
+    "timestamp": "2026-09-22T19:39:58.988551+00:00",
+    "total_elapsed_seconds": 25,
+    "cuda_smi_version": "12.4",
+    "resolved_versions": {
+      "torch": "2.6.0+cu124",
+      "cupy": "14.2.0",
+      "dfloat11": "unknown",
+      "transformers": "5.17.0",
+      "safetensors": "0.8.0",
+      "numpy": "2.4.6"
+    }
+  },
+  "items": {
+    "h7_decode_ptx": {
+      "item": "H7_decode_ptx_without_cupy",
+      "status": "CONFIRMED",
+      "summary": "decode.ptx loaded and executed via raw CUDA driver API (ctypes, no CuPy) produced output bit-for-bit identical to CuPy's decode of the same unit (15728640 elements, sha256 d522ee906ac0adaf...).",
+      "detail": {
+        "unit_file": "/root/df11pack/phase0/out/official/qwen3-trunc-layers-only-dir/model_layers_0.safetensors",
+        "gpu": "NVIDIA RTX A4000, 550.144.03, 16376 MiB",
+        "unit_prefix": "model.layers.0",
+        "n_elements": 15728640,
+        "n_bytes_encoded_exponent": 5233601,
+        "n_luts": 5,
+        "cupy_output_sha256": "d522ee906ac0adaf2bf620b2299259d1102065765ac085fcd38b1a7f73305236",
+        "cupy_output_len": 31457280,
+        "driver_api_output_sha256": "d522ee906ac0adaf2bf620b2299259d1102065765ac085fcd38b1a7f73305236",
+        "driver_api_output_len": 31457280,
+        "bit_for_bit_identical": true
+      },
+      "elapsed_seconds": 2.14,
+      "timestamp": "2026-09-22T19:39:45.832821+00:00",
+      "shell_elapsed_seconds": 3
+    },
+    "h6_reorder_inference": {
+      "item": "H6_reorder_inference",
+      "status": "ERROR",
+      "summary": "ImportError: cannot import name 'no_init_weights' from 'transformers.modeling_utils' (/root/df11pack/gpu_session/venv/lib/python3.11/site-packages/transformers/modeling_utils.py)",
+      "detail": {
+        "src_dir": "/root/df11pack/phase0/out/official/qwen3-trunc-layers-only-dir",
+        "reordered_shard": "/root/df11pack/phase0/out/h6/model_layers_0.reordered.safetensors",
+        "gpu": "NVIDIA RTX A4000, 550.144.03, 16376 MiB",
+        "vocab_size": 4096,
+        "input_ids": [
+          [
+            2732,
+            2607,
+            1653,
+            3264,
+            835,
+            763,
+            1731,
+            3431,
+            1033,
+            3795,
+            277,
+            1778,
+            1828,
+            2647,
+            3142,
+            3544
+          ]
+        ],
+        "traceback": "Traceback (most recent call last):\n  File \"/root/df11pack/gpu_session/test_h6_reorder_inference.py\", line 121, in main\n    logits_orig_a = run_forward(args.src_dir, args.src_dir, torch, transformers, DFloat11Model, device, input_ids)\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/df11pack/gpu_session/test_h6_reorder_inference.py\", line 78, in run_forward\n    model, config = build_skeleton_model(config_dir, torch, transformers)\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/df11pack/gpu_session/test_h6_reorder_inference.py\", line 68, in build_skeleton_model\n    from transformers.modeling_utils import no_init_weights\nImportError: cannot import name 'no_init_weights' from 'transformers.modeling_utils' (/root/df11pack/gpu_session/venv/lib/python3.11/site-packages/transformers/modeling_utils.py)\n"
+      },
+      "elapsed_seconds": 3.65,
+      "timestamp": "2026-09-22T19:39:50.340299+00:00",
+      "shell_elapsed_seconds": 5
+    },
+    "h11_repack_inference": {
+      "item": "H11_repack_load_and_inference",
+      "status": "ERROR",
+      "summary": "ImportError: cannot import name 'no_init_weights' from 'transformers.modeling_utils' (/root/df11pack/gpu_session/venv/lib/python3.11/site-packages/transformers/modeling_utils.py)",
+      "detail": {
+        "src_dir": "/root/df11pack/phase0/out/official/qwen3-trunc-layers-only-dir",
+        "gpu": "NVIDIA RTX A4000, 550.144.03, 16376 MiB",
+        "repack_single_rc": 0,
+        "repack_single_stderr": "collected 42 tensor keys from /root/df11pack/phase0/out/official/qwen3-trunc-layers-only-dir\nwrote /tmp/h11_ro4_ydaa/merged/model_merged.safetensors: 42 tensors, 94168262 bytes\n",
+        "repack_interleaved_rc": 0,
+        "repack_interleaved_stderr": "collected 42 tensor keys from /root/df11pack/phase0/out/official/qwen3-trunc-layers-only-dir\nwrote /tmp/h11_ro4_ydaa/interleaved/blob_00_of_4.bin.safetensors: 11 tensors, 9226961 bytes\nwrote /tmp/h11_ro4_ydaa/interleaved/blob_01_of_4.bin.safetensors: 11 tensors, 42018728 bytes\nwrote /tmp/h11_ro4_ydaa/interleaved/blob_02_of_4.bin.safetensors: 10 tensors, 832476 bytes\nwrote /tmp/h11_ro4_ydaa/interleaved/blob_03_of_4.bin.safetensors: 10 tensors, 42090022 bytes\n",
+        "verify_single_stdout": "42 tensors compared, 0 mismatches, 0 missing, 0 extra\nRESULT: PASS\n",
+        "verify_single_ok": true,
+        "verify_interleaved_stdout": "42 tensors compared, 0 mismatches, 0 missing, 0 extra\nRESULT: PASS\n",
+        "verify_interleaved_ok": true,
+        "vocab_size": 4096,
+        "input_ids": [
+          [
+            2732,
+            2607,
+            1653,
+            3264,
+            835,
+            763,
+            1731,
+            3431,
+            1033,
+            3795,
+            277,
+            1778,
+            1828,
+            2647,
+            3142,
+            3544
+          ]
+        ],
+        "traceback": "Traceback (most recent call last):\n  File \"/root/df11pack/gpu_session/test_h11_repack_inference.py\", line 178, in main\n    logits_orig_a = run_forward(args.src_dir, args.src_dir, torch, transformers, DFloat11Model, device, input_ids)\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/df11pack/gpu_session/test_h11_repack_inference.py\", line 93, in run_forward\n    model = build_skeleton_model(config_dir, torch, transformers)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/df11pack/gpu_session/test_h11_repack_inference.py\", line 83, in build_skeleton_model\n    from transformers.modeling_utils import no_init_weights\nImportError: cannot import name 'no_init_weights' from 'transformers.modeling_utils' (/root/df11pack/gpu_session/venv/lib/python3.11/site-packages/transformers/modeling_utils.py)\n"
+      },
+      "elapsed_seconds": 4.14,
+      "timestamp": "2026-09-22T19:39:55.437961+00:00",
+      "shell_elapsed_seconds": 5
+    },
+    "luts_correct_kernel": {
+      "item": "luts_correct_kernel_gate",
+      "status": "CONFIRMED",
+      "summary": "Zeroing the leaked LUT run (row 3, cols [0,128), originally 105) and decoding with the real, unmodified CUDA kernel produced output BIT-FOR-BIT IDENTICAL to decoding the original leaked file, across all 15728640 weights. The leaked positions are confirmed unreachable during decode. --luts=correct is safe to ship as specified in COMPATIBILITY.md.",
+      "detail": {
+        "unit_file": "/root/df11pack/phase0/out/official/qwen3-trunc-layers-only-dir/model_layers_0.safetensors",
+        "gpu": "NVIDIA RTX A4000, 550.144.03, 16376 MiB",
+        "unit_prefix": "model.layers.0",
+        "n_luts": 5,
+        "n_elements": 15728640,
+        "leaked_runs_found": [
+          {
+            "row": 3,
+            "start_col": 0,
+            "end_col": 128,
+            "value": 105
+          }
+        ],
+        "tested_run": {
+          "row": 3,
+          "start_col": 0,
+          "end_col": 128,
+          "leaked_value": 105
+        },
+        "patch_verified_surgical": true,
+        "decoded_leaked_sha256": "d522ee906ac0adaf2bf620b2299259d1102065765ac085fcd38b1a7f73305236",
+        "decoded_zeroed_sha256": "d522ee906ac0adaf2bf620b2299259d1102065765ac085fcd38b1a7f73305236",
+        "bit_for_bit_identical": true
+      },
+      "elapsed_seconds": 2.0,
+      "timestamp": "2026-09-22T19:39:58.497045+00:00",
+      "shell_elapsed_seconds": 2
+    }
+  }
+}

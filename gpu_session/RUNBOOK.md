@@ -205,3 +205,28 @@ This is the last step. Do it now, not "in a minute."
 At $0.17–0.25/hr this session costs on the order of **$0.05–0.10** total.
 The number that matters is not the GPU-second cost, it's not leaving the
 pod running after you're done — see "Stop the instance" above.
+
+---
+
+## Environment pins learned from the first run
+
+The first session hit three install problems in a row. All three are now known;
+`run_all.sh` has the first baked in, and the other two are one-liners.
+
+1. **torch must come from the index matching the card's driver.** Unpinned,
+   `pip install torch` pulls a cu128 wheel that refuses a CUDA 12.4 driver with
+   *"The NVIDIA driver on your system is too old (found version 12040)"*. Use
+   `--index-url https://download.pytorch.org/whl/cu124` (or the cu-version the
+   driver reports).
+2. **`setuptools<81`.** `dfloat11` 0.5.0 imports `pkg_resources`, which newer
+   setuptools removes: `ModuleNotFoundError: No module named 'pkg_resources'`.
+3. **`transformers==4.51.0`.** transformers 5.x removed `no_init_weights` from
+   `transformers.modeling_utils`, so `dfloat11` fails to import. 4.51.0 is the
+   version the tier-0 model's own `config.json` records.
+
+None of these are df11pack's problem at runtime — they are the *reference*
+implementation's dependency constraints, needed only to run the oracle.
+
+**Actual first-run cost:** RTX A4000 at $0.170/hr, 32 minutes wall including
+three failed install attempts and a re-run of two tests, so **about $0.09**. A
+clean run with the pins above should be nearer 15 minutes.

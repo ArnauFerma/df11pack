@@ -1,0 +1,20 @@
+{
+  "item": "H7_decode_ptx_without_cupy",
+  "status": "CONFIRMED",
+  "summary": "decode.ptx loaded and executed via raw CUDA driver API (ctypes, no CuPy) produced output bit-for-bit identical to CuPy's decode of the same unit (15728640 elements, sha256 d522ee906ac0adaf...).",
+  "detail": {
+    "unit_file": "/root/df11pack/phase0/out/official/qwen3-trunc-layers-only-dir/model_layers_0.safetensors",
+    "gpu": "NVIDIA RTX A4000, 550.144.03, 16376 MiB",
+    "unit_prefix": "model.layers.0",
+    "n_elements": 15728640,
+    "n_bytes_encoded_exponent": 5233601,
+    "n_luts": 5,
+    "cupy_output_sha256": "d522ee906ac0adaf2bf620b2299259d1102065765ac085fcd38b1a7f73305236",
+    "cupy_output_len": 31457280,
+    "driver_api_output_sha256": "d522ee906ac0adaf2bf620b2299259d1102065765ac085fcd38b1a7f73305236",
+    "driver_api_output_len": 31457280,
+    "bit_for_bit_identical": true
+  },
+  "elapsed_seconds": 2.14,
+  "timestamp": "2026-09-22T19:39:45.832821+00:00"
+}

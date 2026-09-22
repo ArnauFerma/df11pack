@@ -1,0 +1,51 @@
+{
+  "item": "H11_repack_load_and_inference",
+  "status": "CONFIRMED",
+  "summary": "Both repacked variants (single merged file; 4 interleaved files whose names match no unit) loaded through DFloat11Model and produced EXACTLY identical logits to the original per-layer-shard directory. H11 is fully confirmed: shard grouping/file naming does not matter to the official loader or kernel path.",
+  "detail": {
+    "src_dir": "/root/df11pack/phase0/out/official/qwen3-trunc-layers-only-dir",
+    "gpu": "NVIDIA RTX A4000, 550.144.03, 16376 MiB",
+    "repack_single_rc": 0,
+    "repack_single_stderr": "collected 42 tensor keys from /root/df11pack/phase0/out/official/qwen3-trunc-layers-only-dir\nwrote /tmp/h11_35_5r4s1/merged/model_merged.safetensors: 42 tensors, 94168262 bytes\n",
+    "repack_interleaved_rc": 0,
+    "repack_interleaved_stderr": "collected 42 tensor keys from /root/df11pack/phase0/out/official/qwen3-trunc-layers-only-dir\nwrote /tmp/h11_35_5r4s1/interleaved/blob_00_of_4.bin.safetensors: 11 tensors, 9226961 bytes\nwrote /tmp/h11_35_5r4s1/interleaved/blob_01_of_4.bin.safetensors: 11 tensors, 42018728 bytes\nwrote /tmp/h11_35_5r4s1/interleaved/blob_02_of_4.bin.safetensors: 10 tensors, 832476 bytes\nwrote /tmp/h11_35_5r4s1/interleaved/blob_03_of_4.bin.safetensors: 10 tensors, 42090022 bytes\n",
+    "verify_single_stdout": "42 tensors compared, 0 mismatches, 0 missing, 0 extra\nRESULT: PASS\n",
+    "verify_single_ok": true,
+    "verify_interleaved_stdout": "42 tensors compared, 0 mismatches, 0 missing, 0 extra\nRESULT: PASS\n",
+    "verify_interleaved_ok": true,
+    "vocab_size": 4096,
+    "input_ids": [
+      [
+        2732,
+        2607,
+        1653,
+        3264,
+        835,
+        763,
+        1731,
+        3431,
+        1033,
+        3795,
+        277,
+        1778,
+        1828,
+        2647,
+        3142,
+        3544
+      ]
+    ],
+    "determinism_baseline_exactly_equal": true,
+    "determinism_baseline_max_abs_diff": 0.0,
+    "merged_vs_original_exactly_equal": true,
+    "merged_vs_original_max_abs_diff": 0.0,
+    "interleaved_vs_original_exactly_equal": true,
+    "interleaved_vs_original_max_abs_diff": 0.0,
+    "logits_shape": [
+      1,
+      16,
+      4096
+    ]
+  },
+  "elapsed_seconds": 4.2,
+  "timestamp": "2026-09-22T19:43:20.014421+00:00"
+}

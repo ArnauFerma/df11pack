@@ -783,12 +783,12 @@ independent cross-check.
 | H3 | Units are independent | **CONFIRMED** | source; no shared state beyond configuration |
 | H4 | `dahuffman` reproducible byte-for-byte | **CONFIRMED, 2 caveats** | 682+300 histograms exact; argpartition ties load-bearing; `get_luts` leak must be reproduced |
 | H5 | Native encoder makes disk the bottleneck | **Deferred to Phase 3** | needs the encoder; baseline recorded |
-| H6 | Loaders ignore physical tensor order | **Confirmed structurally** | 3 independent checks + loader source; GPU confirmation batched |
-| H7 | `decode.ptx` loadable without CuPy | **Deferred** | the one GPU item; batched |
+| H6 | Loaders ignore physical tensor order | **CONFIRMED** | identical logits through the real kernel (GPU session) |
+| H7 | `decode.ptx` loadable without CuPy | **CONFIRMED** | raw CUDA driver API via ctypes, bit-identical to CuPy |
 | H8 | Uncompressed tensors identical (LLM) | **CONFIRMED** | 132/132 byte-identical across two models |
 | H9 | Same, diffusers | **OPEN** | no diffusers output locally; closes as a by-product of Phase 2 |
 | H10 | `config.json` rebuildable without heavy libs | **CONFIRMED** | stdlib rebuild, byte-for-byte on both fixtures |
-| H11 | Loader ignores shard grouping | **Confirmed structurally** | loader dispatches by tensor name; 2 repackings verified |
+| H11 | Loader ignores shard grouping | **CONFIRMED** | identical logits from merged and interleaved variants |
 | H12 | CPU decoder scales with cores | **Deferred to Phase 5** | needs the decoder |
 | H13 | Chroma approximator stays uncompressed | **REFUTED** | `in_proj`/`out_proj` are compressed, in one unit of 12 |
 
@@ -810,6 +810,69 @@ open.
 grades against this and needs neither Python, nor the official compressor, nor a
 large machine.
 
-**Deferred to one batched GPU session:** H7, H6's inference confirmation, H11's
-load confirmation, and the `--luts=correct` kernel test that gates that mode's
-release.
+**The batched GPU session has run** — H7, H6, H11 and the `--luts=correct` gate
+are all confirmed. See the section below. H5 and H12 remain deferred to Phases 3
+and 5, where the code they need exists.
+
+
+---
+
+# GPU session — all four deferred items confirmed
+
+One rented RTX A4000 (16 GB, driver 550.144.03, CUDA 12.4), **32 minutes,
+about $0.09**. 111 MiB uploaded; nothing downloaded from Hugging Face. The
+pre-registration in `gpu_session/EXPECTED.md` was written before the session.
+
+## H7 — `decode.ptx` without CuPy: **CONFIRMED**
+
+The kernel was loaded and run through the raw CUDA driver API via `ctypes`
+(`cuInit` → `cuCtxCreate` → `cuModuleLoadData` → `cuLaunchKernel`), with CuPy as
+the control. Both decoded the same 15,728,640-element unit to **bit-for-bit
+identical** output.
+
+**Consequence:** GPU verification can live inside the Rust binary. Open decision
+1 — "optional Python + CuPy shim, or CPU decoder only?" — is **closed**: neither
+is needed, and df11pack keeps its "no Python at runtime" property on the
+verification path too.
+
+## H6 — physical tensor order: **CONFIRMED, not merely structural**
+
+Loading the reordered shard through the real `DFloat11Model` and running the real
+kernel produced **exactly identical logits**, against a same-directory
+determinism baseline. Phase 0 could only show this structurally; it is now
+measured end to end.
+
+## H11 — shard grouping and file names: **CONFIRMED**
+
+Both repacked variants — a single merged file, and four interleaved files whose
+names match no unit, with one unit's tensors split across three of them — loaded
+and produced **exactly identical logits** to the original per-layer directory.
+
+**Consequence:** the writer has real freedom in how it groups tensors into files.
+The constraint that remains is the *placement* rule from 0.7 (norm tensors travel
+with their layer), which is about matching the official output, not about what
+the loader tolerates.
+
+## `--luts=correct` gate — **CONFIRMED, and the mode is now releasable**
+
+Zeroing the leaked LUT run — row 3, columns [0, 128), originally holding 105
+carried over from row 2 — and decoding with the real, unmodified CUDA kernel gave
+output **bit-for-bit identical** to decoding the original file, across all
+15,728,640 weights.
+
+So the inference that those positions are unreachable during decode was correct,
+and it is now measured rather than argued. Per `COMPATIBILITY.md`'s own rule, the
+mode may ship. Had it failed, the rule required removing the mode outright.
+
+## Environment findings, for anyone reproducing this
+
+Three pins the session needed, none of which were obvious in advance. They are
+now in the runbook:
+
+1. **`pip install torch` unpinned pulls a cu128 wheel** that refuses a CUDA 12.4 driver ("driver is too old, found version 12040"). Install from the index matching the card: `--index-url https://download.pytorch.org/whl/cu124`.
+2. **`dfloat11` 0.5.0 imports `pkg_resources`**, which setuptools ≥81 removes. Needs `setuptools<81`.
+3. **`dfloat11` 0.5.0 needs transformers 4.x.** transformers 5.x removed `no_init_weights` from `transformers.modeling_utils`, and the import fails. `transformers==4.51.0` works — the version the source model's own config records.
+
+The script's fail-fast design earned its keep on all three: each surfaced as a
+clear message naming the cause rather than as a confusing downstream failure, and
+the three items that were already working were not re-run.

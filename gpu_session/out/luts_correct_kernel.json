@@ -1,0 +1,32 @@
+{
+  "item": "luts_correct_kernel_gate",
+  "status": "CONFIRMED",
+  "summary": "Zeroing the leaked LUT run (row 3, cols [0,128), originally 105) and decoding with the real, unmodified CUDA kernel produced output BIT-FOR-BIT IDENTICAL to decoding the original leaked file, across all 15728640 weights. The leaked positions are confirmed unreachable during decode. --luts=correct is safe to ship as specified in COMPATIBILITY.md.",
+  "detail": {
+    "unit_file": "/root/df11pack/phase0/out/official/qwen3-trunc-layers-only-dir/model_layers_0.safetensors",
+    "gpu": "NVIDIA RTX A4000, 550.144.03, 16376 MiB",
+    "unit_prefix": "model.layers.0",
+    "n_luts": 5,
+    "n_elements": 15728640,
+    "leaked_runs_found": [
+      {
+        "row": 3,
+        "start_col": 0,
+        "end_col": 128,
+        "value": 105
+      }
+    ],
+    "tested_run": {
+      "row": 3,
+      "start_col": 0,
+      "end_col": 128,
+      "leaked_value": 105
+    },
+    "patch_verified_surgical": true,
+    "decoded_leaked_sha256": "d522ee906ac0adaf2bf620b2299259d1102065765ac085fcd38b1a7f73305236",
+    "decoded_zeroed_sha256": "d522ee906ac0adaf2bf620b2299259d1102065765ac085fcd38b1a7f73305236",
+    "bit_for_bit_identical": true
+  },
+  "elapsed_seconds": 2.0,
+  "timestamp": "2026-09-22T19:39:58.497045+00:00"
+}

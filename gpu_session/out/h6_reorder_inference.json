@@ -1,0 +1,42 @@
+{
+  "item": "H6_reorder_inference",
+  "status": "CONFIRMED",
+  "summary": "Physically reordering model_layers_0.safetensors' tensors (same names, dtypes, shapes, bytes; different data_offsets/header order) produced EXACTLY identical logits after loading through DFloat11Model and running the real CUDA kernel. H6 is fully confirmed, not just structurally.",
+  "detail": {
+    "src_dir": "/root/df11pack/phase0/out/official/qwen3-trunc-layers-only-dir",
+    "reordered_shard": "/root/df11pack/phase0/out/h6/model_layers_0.reordered.safetensors",
+    "gpu": "NVIDIA RTX A4000, 550.144.03, 16376 MiB",
+    "vocab_size": 4096,
+    "input_ids": [
+      [
+        2732,
+        2607,
+        1653,
+        3264,
+        835,
+        763,
+        1731,
+        3431,
+        1033,
+        3795,
+        277,
+        1778,
+        1828,
+        2647,
+        3142,
+        3544
+      ]
+    ],
+    "determinism_baseline_exactly_equal": true,
+    "determinism_baseline_max_abs_diff": 0.0,
+    "reorder_vs_original_exactly_equal": true,
+    "reorder_vs_original_max_abs_diff": 0.0,
+    "logits_shape": [
+      1,
+      16,
+      4096
+    ]
+  },
+  "elapsed_seconds": 3.9,
+  "timestamp": "2026-09-22T19:43:13.602836+00:00"
+}

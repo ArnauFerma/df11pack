@@ -219,9 +219,9 @@ on the official compressor's own runtime.
 - **Actions:** minimal native program that loads the PTX through the CUDA driver API and runs the kernel on a small known UC; compare against the CuPy path.
 - **Produces:** a yes/no with a working example either way.
 - **Verification:** bit-identical decoded output from both paths.
-- **Depends on:** 0.1. **Needs an NVIDIA GPU — rented.**
+- **Status: DONE — CONFIRMED.** Run in the batched GPU session; `decode.ptx` loads and executes through the raw CUDA driver API via `ctypes`, bit-identical to CuPy. Open decision 1 is closed: no shim is needed.
+- **Depends on:** 0.1. **Needed an NVIDIA GPU — rented, ~$0.09.**
 - **Effort:** 1–2 days.
-- **Consequence if refuted:** open decision 1 becomes live (optional Python+CuPy shim, or CPU decoder only).
 
 ### 0.11 — H5 groundwork: disk and encode-speed baselines
 
@@ -446,7 +446,7 @@ Carried from DESIGN §11 — listed here, not decided.
 2. **DESIGN §10's Phase 0 row says "H1–H12"**, omitting H13, which was added later to §2. The brief says H1–H13. This plan uses H1–H13.
 3. **Flux's ComfyUI double block: 10 or 8 linears?** The brief §4 says the ComfyUI double block has 10 linears (against 14 for diffusers), but DESIGN §1.7 lists Chroma's ComfyUI double block with 8 named `attr_names` and says the Chroma/Flux delta is only the modulations. Those two statements are hard to reconcile; step 0.9 derives the truth empirically from `split_positions` rather than from either document.
 4. **The diffusers concatenation order is unconfirmed**, as both documents note. It cannot be guessed, and step 1.8 depends on it, so step 0.9 is on the critical path to Phase 1 — worth starting its downloads first.
-5. **No local GPU.** H7 (0.10) and the whole GPU side of Phase 5 need rented hardware. The sibling repo's `RENT_A_GPU.md` covers the procedure.
+5. **~~No local GPU.~~** *Resolved.* The batched GPU session ran on a rented RTX A4000 for about $0.09 and confirmed H7, H6, H11 and the `--luts=correct` gate. Phase 5's GPU work will need another such session.
 6. **The development machine has 3 GB of RAM and 39 GB of disk** — measured during review, and tighter than anything DESIGN.md assumes. It does not constrain df11pack itself (~1.35 × N per worker; tier-0 units need single-digit MB) but it does constrain running the *official* compressor to produce fixtures. Hence the tiered corpus: tier 0 is sized so the reference tool fits in ~1 GB here. The one open question is 0.2c — whether the LLM `pattern_dict` puts Qwen3-0.6B's 155.6M-weight embedding in a single unit, which would put tier 1 out of reach locally. Developing on the constrained machine is treated as a feature: it tests the guiding principle continuously rather than at the end.
 
 7. **~~Large-RAM access is unknown.~~** *Resolved during review.* An earlier draft of this plan required ~64 GB for steps 0.4, 0.7, 0.9 and 0.12, on the assumption that real-model fixtures meant running the official compressor. They don't: the official team and the Extended maintainer both publish the compressed output on Hugging Face, and reading it is a streaming operation. Step 0.2b downloads those instead. The only residue is step 0.4's 12B endpoint for H1, which is optional and does not gate anything. It was a mistake to import the reference implementation's memory requirement into a plan whose entire purpose is to eliminate it.

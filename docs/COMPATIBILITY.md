@@ -49,7 +49,7 @@ oversight to be cleaned up later; it is the contract.
 | Mode | Flag | Byte-identical to official | Status |
 |---|---|---|---|
 | **Compat** (default) | `--luts=compat` | **Yes** | Supported |
-| **Correct** | `--luts=correct` | **No, by design** | **Experimental — see the gate below** |
+| **Correct** | `--luts=correct` | **No, by design** | **Gate passed — releasable** |
 
 ### `--luts=compat` — the default
 
@@ -58,7 +58,7 @@ table boundaries. Output is byte-identical to the official compressor for the
 same input and pattern. This is what you want unless you have a specific reason
 otherwise, and it is what the golden tests grade against.
 
-### `--luts=correct` — opt-in, and currently unverified
+### `--luts=correct` — opt-in, and now verified
 
 Fills the positions the official code leaves to leaked state with a deterministic
 `0x00` instead, so a LUT row describes only its own table.
@@ -69,24 +69,27 @@ continuations of the prefix that selected it, and positions before a table's
 first key are not valid continuations. If that holds, the leaked bytes are never
 read and replacing them changes nothing observable.
 
-**Why that argument is not yet good enough to ship unguarded:** it is a claim
-about the CUDA kernel's indexing behaviour that we have inferred, not measured.
-Nobody has run the official kernel over a `--luts=correct` file and compared the
-decoded tensor bit-for-bit against the source. Until that test exists and passes,
-this mode can produce a file that decodes *differently* on real hardware, and the
-difference would be silent.
+**That argument has now been measured, not merely made.** In the GPU session
+(FINDINGS, "GPU session"), the leaked run of a real unit — row 3, columns
+[0, 128), holding 105 carried over from row 2 — was zeroed, and both files were
+decoded with the real, unmodified CUDA kernel. The output was **bit-for-bit
+identical across all 15,728,640 weights**. The leaked positions are unreachable
+during decode.
 
-So the mode is gated:
+The mode may therefore ship. The gating below stays, because "safe" is not the
+same as "the default", and a file that is deliberately not byte-identical must
+never be mistaken for one that is:
 
 - it is **off by default** and cannot be reached implicitly;
 - using it prints a warning naming this document;
 - files it produces are stamped (see below) so they can never be mistaken for compat output;
 - the verification commands know not to expect byte-identity from them;
-- **it is not permitted in any released artefact until the kernel test in Phase 5 passes.** That test is a required exit-gate item, not a nice-to-have.
+- it was not permitted in any released artefact until the kernel test passed. **It has passed**, so this condition is met.
 
-If the kernel test ever *fails* — that is, the leaked bytes turn out to be
-reachable — then `--luts=correct` is not "more correct", it is simply wrong, and
-it must be removed rather than documented around.
+The rule that governed this, recorded before the test ran: had it failed — had
+the leaked bytes turned out to be reachable — `--luts=correct` would not have been
+"more correct", it would simply have been wrong, and it would have been removed
+rather than documented around. It passed, so it stays.
 
 ---
 
