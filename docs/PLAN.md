@@ -122,8 +122,9 @@ on the official compressor's own runtime.
 - **Effort:** 1 day, mostly download time.
 - **Why this step exists:** the pass criterion is "byte-identical to the official compressor's output". That needs the output, not the compressor. Reading a published DF11 file is a streaming read bounded by its largest tensor — a few hundred MB — so every real-model question below drops from ~64 GB to a laptop.
 
-### 0.2c — Does the LLM pattern put the embedding in one UC?
+### 0.2c — Does the LLM pattern put the embedding in one UC? — **DONE**
 
+- **Status:** resolved. Full write-up in [`FINDINGS.md`](FINDINGS.md). Short version: the pattern is a per-model choice; `Qwen3-4B-DF11` compresses only `model.layers.\d+`, while 8B and above add `lm_head` and `model.embed_tokens` as **standalone single-tensor units**. No 0.6B release exists, so the choice is ours. Under layers-only the largest unit here is 15.73M weights and the official compressor is predicted to fit in ~1.6 GiB; under the mainstream pattern it is 155.58M weights and ~3.3 GiB, which does not fit. **Tier 1 runs locally under layers-only**, pending empirical confirmation once 0.1 exists. Two consequences promoted into Phase 1: single-tensor units are mainstream rather than an edge case, and step 1.8's schema must express them.
 - **Goal:** find out whether tier 1 is runnable on this machine, before planning around it.
 - **Inputs:** the official example `pattern_dict` for Qwen-class LLMs; the on-disk Qwen3-0.6B.
 - **Actions:** the file holds 751.6M weights in 311 tensors, of which **two are 155.6M each**: `model.embed_tokens.weight` and `lm_head.weight`, which are **byte-identical** (`tie_word_embeddings: true`, yet both are stored). Determine from the official `pattern_dict` whether either falls inside a compression unit. If neither does, the largest UC is a per-layer group of a few million weights and the official compressor runs here in a few hundred MB — tier 1 needs no special machine. If one does, that single UC's `.tolist()` alone is ~1.24 GB and the official tool will not fit in 3 GB; tier 1 then needs a rented 4–8 GB box for one run, and the fixture is kept forever after.
