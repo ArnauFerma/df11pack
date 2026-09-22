@@ -139,7 +139,9 @@ pub fn encode_chunked(
     let mut pos: Vec<u32> = vec![0; n_blocks_pos];
     let mut pos_set = vec![false; n_blocks_pos];
 
-    let per_chunk: Vec<(Vec<(usize, u32)>, Vec<(usize, u32)>)> = chunks
+    /// Per chunk: the (window, gap) and (block, element) entries it opens.
+    type Opened = (Vec<(usize, u32)>, Vec<(usize, u32)>);
+    let per_chunk: Vec<Opened> = chunks
         .par_iter()
         .zip(starts.par_iter())
         .enumerate()

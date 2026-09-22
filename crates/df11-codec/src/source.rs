@@ -114,7 +114,7 @@ impl ModelSource {
     /// for a tied embedding pair is twice the largest tensor in the model -- the
     /// single biggest allocation the writer would otherwise make.
     pub fn tensors_equal(&self, a: &str, b: &str) -> Result<bool, StError> {
-        use std::io::{Read, Seek, SeekFrom};
+        use std::io::Read;
         let (ia, ib) = match (self.info(a), self.info(b)) {
             (Some(x), Some(y)) => (x.clone(), y.clone()),
             _ => return Ok(false),
@@ -136,7 +136,6 @@ impl ModelSource {
             }
             left -= n as u64;
         }
-        let _ = SeekFrom::Start(0);
         Ok(true)
     }
 
