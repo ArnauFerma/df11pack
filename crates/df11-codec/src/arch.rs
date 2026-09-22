@@ -109,7 +109,7 @@ impl ArchDef {
         if self.format_version.trim().is_empty() {
             return Err(ArchError::Empty("format_version"));
         }
-        if self.threads_per_block.is_empty() || self.threads_per_block.iter().any(|&t| t == 0) {
+        if self.threads_per_block.is_empty() || self.threads_per_block.contains(&0) {
             return Err(ArchError::BadNumber("threads_per_block"));
         }
         if self.bytes_per_thread == 0 {
