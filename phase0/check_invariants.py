@@ -201,6 +201,8 @@ def check_unit(path, data_start, unit_name, tensors, failures):
     # --- Read the small tensors (luts, output_positions, gaps, split_positions) ---
     luts_raw = read_tensor_bytes(path, data_start, luts_info)
     luts = np.frombuffer(luts_raw, dtype=np.uint8).reshape(luts_info["shape"])
+    min_code_len = None  # filled in below if the lens row is well-formed; used by INV-OUTPOS-DELTA
+    max_code_len = None  # ditto
 
     op_raw = read_tensor_bytes(path, data_start, op_info)
     if op_bytes % 4 != 0:
@@ -240,6 +242,7 @@ def check_unit(path, data_start, unit_name, tensors, failures):
         # > 32 bits -- is checked directly here instead.) ---------------------
         lens_row = luts[-1]
         max_len = int(lens_row.max())
+        max_code_len = max_len
         if max_len > MAX_CODE_LEN:
             bad_symbols = np.nonzero(lens_row > MAX_CODE_LEN)[0].tolist()
             fail(
@@ -247,6 +250,16 @@ def check_unit(path, data_start, unit_name, tensors, failures):
                 f"luts lens row has max code length {max_len} > {MAX_CODE_LEN} "
                 f"(symbols {bad_symbols[:10]}{'...' if len(bad_symbols) > 10 else ''})",
             )
+
+        # min_code_len: smallest length among symbols that actually occur in
+        # the codebook (lens_row entries are 0 for symbols that never occur --
+        # those are not real codeword lengths and must be excluded, or every
+        # file would spuriously report min_code_len == 0).
+        used = lens_row[lens_row > 0]
+        if used.size == 0:
+            fail("INV-GAPS-MAXLEN", "luts lens row has no nonzero entries (empty codebook)")
+        else:
+            min_code_len = int(used.min())
 
     # --- INV-OUTPOS-COUNT / MONO / TOTAL -------------------------------------
     if op_u32 is not None:
@@ -279,6 +292,46 @@ def check_unit(path, data_start, unit_name, tensors, failures):
                     f"(total weight count) {n_elements} "
                     f"(note: trailing value is an ELEMENT count, not the encoded byte length "
                     f"{n_bytes} -- see module docstring)",
+                )
+
+        # --- INV-OUTPOS-DELTA: per-chunk element count is bounded by the
+        # codebook's known min/max code length. INV-OUTPOS-MONO alone (diff
+        # >= 0) is far weaker than what the format actually guarantees: a
+        # 4096-byte chunk (the last chunk: whatever bytes remain) holds
+        # `chunk_bytes * 8` bits, and every code is between min_code_len and
+        # max_code_len bits, so the number of codes that BEGIN in that chunk
+        # is bounded on both sides:
+        #
+        #   ceil(chunk_bits / max_code_len) <= delta <= floor(chunk_bits / min_code_len)
+        #
+        # A delta that is non-decreasing but far outside this band (e.g. 0,
+        # from two adjacent chunks made to alias) still passes MONO but
+        # cannot correspond to a real chunk -- the CUDA kernel would begin
+        # writing at the wrong output index for every element after it,
+        # silently corrupting the decode. This was found empirically to be
+        # missed by the original ten-invariant suite (see
+        # INVARIANTS_RESULTS.md, "A corruption that got through").
+        if actual_count >= 2 and min_code_len and max_code_len:
+            n_chunks = actual_count - 1
+            diffs = np.diff(op_u32.astype(np.int64))
+            chunk_bytes_arr = np.full(n_chunks, CHUNK_BYTES, dtype=np.int64)
+            last_bytes = n_bytes - (n_chunks - 1) * CHUNK_BYTES
+            chunk_bytes_arr[-1] = last_bytes
+            valid = chunk_bytes_arr > 0
+            bits_arr = chunk_bytes_arr * 8
+            lo_arr = -(-bits_arr // max_code_len)  # ceil division
+            hi_arr = bits_arr // min_code_len
+            bad = valid & ((diffs < lo_arr) | (diffs > hi_arr))
+            if bad.any():
+                bad_idx = np.nonzero(bad)[0]
+                i = int(bad_idx[0])
+                fail(
+                    "INV-OUTPOS-DELTA",
+                    f"{len(bad_idx)} chunk(s) violate the code-length bound; first at chunk {i} "
+                    f"(bytes={int(chunk_bytes_arr[i])}, bits={int(bits_arr[i])}): output_positions "
+                    f"delta {int(diffs[i])} is outside [{int(lo_arr[i])}, {int(hi_arr[i])}] = "
+                    f"[ceil(bits/max_code_len={max_code_len}), floor(bits/min_code_len={min_code_len})] "
+                    f"-- output_positions[{i}]={int(op_u32[i])}, output_positions[{i + 1}]={int(op_u32[i + 1])}",
                 )
 
     # --- INV-GAPS-SHAPE: 5 bits/window, padded to multiple of 512 windows ---

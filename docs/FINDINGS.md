@@ -224,3 +224,100 @@ the model itself is mmapped. Revised prediction for full Qwen3-0.6B under the
 layers-only pattern: **peak RSS in the 1.0–1.6 GiB range**, against ~2.0 GiB
 available. The original 0.2c prediction of ~1.6 GiB stands as an upper bound.
 Measurement follows in 0.4.
+
+---
+
+## 0.5 / H4 — Reproducing `dahuffman` exactly
+
+**Verdict: H4 CONFIRMED**, with two caveats that are themselves the valuable part.
+Full detail in [`../phase0/H4_RESULTS.md`](../phase0/H4_RESULTS.md); spec in
+`phase0/h4_codec_spec.py` (numpy only, never imports dahuffman).
+
+**Core codebook: exact.** 682/682 histograms matched in the agent's suite. I
+re-verified independently on 300 fresh histograms with a different seed —
+including all-frequencies-equal cases, which is where tie-breaking is most
+exposed — and got 300/300. The rule:
+
+> dahuffman's heap items are `(total_frequency, [(symbol, (bits, value)), ...])`.
+> Every live symbol belongs to exactly one node, so two nodes' first list
+> elements are never equal, and a frequency tie is always resolved by comparing
+> each node's **representative** — the first symbol it was built from — never the
+> `(bits, value)` tail. A representative is inherited from whichever child sorted
+> smaller at merge time (structural inheritance, not "smallest symbol in the
+> subtree"). EOF is injected at frequency 1 and compares as an unconditional
+> minimum, so it wins every tie it takes part in.
+
+That key is a total order, so it is portable to Rust without reference to
+Python's `heapq`.
+
+### Caveat 1 — `np.argpartition`'s tie order is load-bearing on real models
+
+The brief allowed a documented divergence here on the assumption it was a corner
+case. It is not, for any model that reaches the 32-bit cap.
+
+Measured by exhaustively probing every single-swap alternative selection at every
+ambiguous boundary across the suite (2,513 probes, 77 ambiguous iterations), the
+result splits cleanly on the boundary frequency:
+
+- boundary value **== 1**: ties are inert — **0 of 2,429** probes changed anything. Forcing an already-frequency-1 symbol to frequency 1 is a no-op.
+- boundary value **> 1**: ties are decisive — **84 of 84** probes changed the resulting codebook, in **7 of 7** ambiguous iterations.
+
+And the second regime is the realistic one: of 135 histograms shaped like real
+billion-parameter BF16 exponent distributions, 5 reached the 32-bit limiter, and
+in **every one** the final table-determining iteration had boundary value 2 with
+13–21 tied candidates competing for a single slot.
+
+**Consequence:** a byte-identical Rust port must reproduce numpy 2.5.3's exact
+`argpartition` tie order, not merely *a* valid k-smallest selection. This
+promotes the brief's "documented exception" from a footnote to a real porting
+task, and it is deterministic, so it is tractable — introselect on identical
+input is reproducible. It must be pinned to a numpy version in the fixtures.
+
+### Caveat 2 — `get_luts` has a real bug, and byte-identity requires reproducing it
+
+This is the most consequential finding of the session so far.
+
+The official `get_luts` fills each prefix table with a carry-forward loop:
+
+```python
+for i in range(256):
+    if i in bytes_dict:
+        curr_val = bytes_dict[i]
+    luts[pi, i] = curr_val
+```
+
+`curr_val` is **function-scoped, not loop-scoped**, so it survives across
+iterations of the outer `pi` loop. Two distinct consequences:
+
+1. **A crash.** If the *first* prefix table has no key `0`, `curr_val` is unbound
+   on the first write — `UnboundLocalError`. The agent hit this in 21 of 682
+   synthetic histograms, and in 0 of 135 realistic ones.
+2. **Silent leakage, which actually happens on real data.** For any table after
+   the first that lacks key `0`, the positions before its first key are filled
+   with the **trailing value of the previous table**.
+
+I confirmed (2) in our own official output rather than in theory. In
+`model_layers_0.safetensors`, prefix table 2 ends with value 105 at key 192, and
+table 3 is `{128: 96}` — it has no key 0. The real file contains:
+
+```
+row 2, positions 192..255  ->  105
+row 3, positions   0..127  ->  105     <-- leaked from row 2
+row 3, positions 128..255  ->   96
+```
+
+So **128 bytes of that LUT row carry state from a different table.** Those
+positions are probably unreachable during decode, which is why the bug has gone
+unnoticed — but they are real bytes in the file, and our criterion is
+byte-identity.
+
+**Consequence for Phase 1, step 1.6:** the LUT builder must reproduce this
+carry-over exactly, including across table boundaries. An implementation that
+"does the right thing" — zero-filling, or restarting `curr_val` per table —
+produces a *more correct* LUT and **fails byte-identity on real models**. This is
+now a required test case, not an edge case: build a unit whose second or later
+prefix table lacks key 0 and assert the leaked bytes match.
+
+This is exactly the failure mode the whole byte-identity criterion exists to
+catch, and it would not have been found by reading either codebase — only by
+comparing bytes against a real output.

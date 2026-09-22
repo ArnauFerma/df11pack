@@ -193,6 +193,52 @@ def find_fib_chain_for_max_len(lo, hi, filler=0):
     raise AssertionError(f"couldn't find chain for range [{lo},{hi}]")
 
 
+def h_fib_chain_multiplicity(n_levels, mult, label=None):
+    """Fibonacci-value backbone where each frequency LEVEL is duplicated
+    across `mult` distinct symbols. This keeps the Huffman tree "chainy"
+    enough to push max code length high while ALSO creating genuine
+    argpartition boundary ties (more than min_k candidates share the
+    smallest values) -- unlike a plain fib chain, where only the first
+    two levels (both =1) ever tie exactly at the number of slots needed.
+    """
+    fibs = _fib_chain(n_levels)
+    freqs = {}
+    sym = 0
+    for f in fibs:
+        for _ in range(mult):
+            freqs[sym] = f
+            sym += 1
+    return freqs, (label or f"fib_multiplicity(n_levels={n_levels},mult={mult})")
+
+
+def realistic_bf16_like(seed, n_params, peak=128, sigma=6, tail_span=60):
+    """Synthesize an exponent-byte histogram shaped like a real bf16/fp16
+    weight tensor: a narrow Gaussian bulk of huge counts plus a long thin
+    tail with realistic small outlier counts (down to 1..3), instead of
+    the fully synthetic/degenerate shapes used elsewhere in this file.
+    Used to check whether the pathological "EOF lands on code value 0"
+    LUT edge case (see H4_RESULTS.md) can plausibly occur on real model
+    data, not just engineered corner cases.
+    """
+    import math
+    rng = random.Random(seed)
+    freqs = {}
+    weights = {}
+    total_mass = 0.0
+    lo, hi = max(0, peak - tail_span), min(255, peak + tail_span)
+    for e in range(lo, hi + 1):
+        z = (e - peak) / sigma
+        w = math.exp(-0.5 * z * z)
+        weights[e] = w
+        total_mass += w
+    for e, w in weights.items():
+        count = int(n_params * w / total_mass)
+        if count <= 0:
+            count = rng.randint(1, 3)
+        freqs[e] = count
+    return freqs, f"realistic_bf16(seed={seed},n_params={n_params},sigma={sigma})"
+
+
 def h_random(seed):
     rng = random.Random(seed)
     n = rng.randint(2, 256)
@@ -229,8 +275,21 @@ class Result:
         self.lut_mismatches = []
         self.tie_iterations = 0
         self.tie_iterations_with_ambiguity = 0
+        self.tie_iterations_with_ambiguity_probed = 0
+        self.tie_iterations_changed_any = 0
         self.tie_sensitivity_changed = 0
         self.tie_sensitivity_tested = 0
+        # boundary_value == 1 is a mathematically inert tie: forcing an
+        # already-frequency-1 symbol to frequency 1 is a no-op, so which
+        # one gets chosen among the tied candidates cannot matter. We
+        # split stats by this to avoid diluting the boundary_value > 1
+        # signal, which is the one that actually matters.
+        self.tie_bv1_tested = 0
+        self.tie_bv1_changed = 0
+        self.tie_bvgt1_tested = 0
+        self.tie_bvgt1_changed = 0
+        self.tie_bvgt1_iterations = 0
+        self.tie_bvgt1_iterations_changed_any = 0
         self.eof_row0_always_set_before_read = True
         self.luts_triggered = 0  # histograms where the 32-bit loop ran
         self.max_lut_levels_seen = 0
@@ -290,12 +349,13 @@ def compare_32bit(freqs, label, res):
 
 def _probe_tie_sensitivity(freqs, iteration, res):
     """For an argpartition call that had a real tie at the boundary
-    (more candidates at boundary_value than slots), construct an
-    ALTERNATIVE valid min_k-selection that swaps out one of the chosen
-    boundary-value indices for a different not-chosen boundary-value
-    index, rebuild the compressed table with build_huffman_table, and
-    check whether the resulting per-symbol code lengths differ from the
-    ones argpartition's actual choice produced.
+    (more candidates at boundary_value than slots), enumerate EVERY
+    single-swap alternative selection (swap one chosen boundary-value
+    index for one not-chosen boundary-value index), rebuild the
+    compressed table with build_huffman_table for each, and check
+    whether the resulting per-symbol code lengths differ from the ones
+    argpartition's actual choice produced. Records, per ambiguous
+    iteration, how many of the probed alternatives changed the result.
     """
     keys = list(freqs.keys())
     freq_arr = np.array(list(freqs.values()))
@@ -309,30 +369,46 @@ def _probe_tie_sensitivity(freqs, iteration, res):
     if not not_selected_boundary or not selected_boundary:
         return  # no alternative choice actually exists
 
-    res.tie_sensitivity_tested += 1
-
-    swap_out = selected_boundary[0]
-    swap_in = next(iter(not_selected_boundary))
-    alt_selected = (selected - {swap_out}) | {swap_in}
-
     orig_keys = [keys[i] for i in selected]
-    alt_keys = [keys[i] for i in alt_selected]
-
     orig_compressed = _copy(freqs)
     for k in orig_keys:
         orig_compressed[k] = 1
-    alt_compressed = _copy(freqs)
-    for k in alt_keys:
-        alt_compressed[k] = 1
-
     orig_tbl = spec.build_huffman_table(orig_compressed)
-    alt_tbl = spec.build_huffman_table(alt_compressed)
-
     orig_lengths = {s: b for s, (b, v) in orig_tbl.items() if isinstance(s, int)}
-    alt_lengths = {s: b for s, (b, v) in alt_tbl.items() if isinstance(s, int)}
 
-    if orig_lengths != alt_lengths:
-        res.tie_sensitivity_changed += 1
+    any_probe = False
+    changed_any = False
+    bv_is_one = boundary_value == 1
+    if not bv_is_one:
+        res.tie_bvgt1_iterations += 1
+    for swap_out in selected_boundary:
+        for swap_in in not_selected_boundary:
+            any_probe = True
+            res.tie_sensitivity_tested += 1
+            alt_selected = (selected - {swap_out}) | {swap_in}
+            alt_keys = [keys[i] for i in alt_selected]
+            alt_compressed = _copy(freqs)
+            for k in alt_keys:
+                alt_compressed[k] = 1
+            alt_tbl = spec.build_huffman_table(alt_compressed)
+            alt_lengths = {s: b for s, (b, v) in alt_tbl.items() if isinstance(s, int)}
+            changed = orig_lengths != alt_lengths
+            if bv_is_one:
+                res.tie_bv1_tested += 1
+                res.tie_bv1_changed += 1 if changed else 0
+            else:
+                res.tie_bvgt1_tested += 1
+                res.tie_bvgt1_changed += 1 if changed else 0
+            if changed:
+                res.tie_sensitivity_changed += 1
+                changed_any = True
+
+    if any_probe:
+        res.tie_iterations_with_ambiguity_probed += 1
+        if changed_any:
+            res.tie_iterations_changed_any += 1
+            if not bv_is_one:
+                res.tie_bvgt1_iterations_changed_any += 1
 
 
 def compare_luts(our_table, label, res):
@@ -408,6 +484,20 @@ def main():
         cases.append(h_fib_chain(n, filler=0, label=f"trigger32(n={n})"))
         cases.append(h_fib_chain(n, filler=30, label=f"trigger32_filler(n={n})"))
 
+    # 32-bit-limit trigger WITH genuine argpartition boundary ties: each
+    # frequency "level" duplicated across several symbols so more
+    # candidates than slots share the min-k boundary value.
+    for n_levels, mult in ((35, 4), (38, 4), (40, 4), (42, 3), (45, 3)):
+        cases.append(h_fib_chain_multiplicity(n_levels, mult))
+
+    # realistic (Gaussian-bulk + thin tail) model-exponent-shaped
+    # histograms, to check whether pathological edge cases found via
+    # engineered inputs can plausibly occur on real model data.
+    for seed in range(15):
+        for n_params in (1_000_000, 50_000_000, 7_000_000_000):
+            for sigma in (3, 6, 10):
+                cases.append(realistic_bf16_like(seed, n_params, sigma=sigma))
+
     for seed in range(400):
         cases.append(h_random(seed))
 
@@ -434,8 +524,15 @@ def main():
     print(f"Histograms triggering the 32-bit-limit loop : {res.luts_triggered}")
     print(f"argpartition calls total (loop iterations)  : {res.tie_iterations}")
     print(f"  ...with a genuine boundary tie            : {res.tie_iterations_with_ambiguity}")
-    print(f"  tie-sensitivity probes actually runnable  : {res.tie_sensitivity_tested}")
+    print(f"  ...ambiguous iterations actually probed   : {res.tie_iterations_with_ambiguity_probed}")
+    print(f"  ...ambiguous iterations where >=1 swap changed the table: {res.tie_iterations_changed_any}")
+    print(f"  tie-sensitivity single-swap probes run    : {res.tie_sensitivity_tested}")
     print(f"  probes where final lengths CHANGED        : {res.tie_sensitivity_changed}")
+    print(f"  -- split by boundary_value --")
+    print(f"  boundary_value==1 probes: {res.tie_bv1_tested}, changed: {res.tie_bv1_changed}")
+    print(f"  boundary_value>1  probes: {res.tie_bvgt1_tested}, changed: {res.tie_bvgt1_changed}")
+    print(f"  boundary_value>1  ambiguous iterations: {res.tie_bvgt1_iterations}, "
+          f"with >=1 swap that changed the table: {res.tie_bvgt1_iterations_changed_any}")
     print(f"Max LUT levels observed (excluding len row) : {res.max_lut_levels_seen}")
     print(f"EOF/row0-always-set-before-read invariant held: {res.eof_row0_always_set_before_read}")
     print()
