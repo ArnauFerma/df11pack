@@ -1,0 +1,10 @@
+[package]
+name = "df11-codec"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+df11-fixtures = { path = "../df11-fixtures" }

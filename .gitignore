@@ -28,3 +28,6 @@
 
 # Fixture manifest is tracked; the large outputs it hashes are not
 !/phase0/fixtures/MANIFEST.json
+
+# Rust
+/target/

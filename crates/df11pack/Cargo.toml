@@ -1,0 +1,8 @@
+[package]
+name = "df11pack"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+df11-codec = { path = "../df11-codec" }
