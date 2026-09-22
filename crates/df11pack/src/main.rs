@@ -104,10 +104,7 @@ fn list_architectures() -> Result<(), String> {
     if entries.is_empty() {
         return Err(format!("no definitions found in {}", dir.display()));
     }
-    println!(
-        "{:<30} {:<16} {:>5}  {}",
-        "NAME", "LAYOUT", "UNITS", "SOURCE"
-    );
+    println!("{:<30} {:<16} {:>5}  SOURCE", "NAME", "LAYOUT", "UNITS");
     for p in entries {
         let Ok(text) = std::fs::read_to_string(&p) else {
             continue;

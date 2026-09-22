@@ -40,13 +40,13 @@ fn opens_a_single_file() {
 fn opens_a_directory_of_shards_and_unifies_them() {
     let d = dir("sharded");
     write_file(
-        &d.join("part-1.safetensors"),
+        d.join("part-1.safetensors"),
         &[t("a", 1, 4)],
         &BTreeMap::new(),
     )
     .unwrap();
     write_file(
-        &d.join("part-2.safetensors"),
+        d.join("part-2.safetensors"),
         &[t("b", 2, 8)],
         &BTreeMap::new(),
     )
@@ -90,7 +90,7 @@ fn a_sharded_source_reads_identically_to_a_single_file() {
             })
             .collect();
         write_file(
-            &d.join(format!("model-{}-of-3.safetensors", part + 1)),
+            d.join(format!("model-{}-of-3.safetensors", part + 1)),
             &tensors,
             &BTreeMap::new(),
         )
@@ -129,13 +129,13 @@ fn a_sharded_source_reads_identically_to_a_single_file() {
 fn a_tensor_declared_by_two_shards_is_an_error_not_a_coin_flip() {
     let d = dir("dup");
     write_file(
-        &d.join("x.safetensors"),
+        d.join("x.safetensors"),
         &[t("same", 1, 4)],
         &BTreeMap::new(),
     )
     .unwrap();
     write_file(
-        &d.join("y.safetensors"),
+        d.join("y.safetensors"),
         &[t("same", 9, 4)],
         &BTreeMap::new(),
     )
