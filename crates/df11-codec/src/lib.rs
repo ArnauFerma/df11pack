@@ -40,3 +40,153 @@ pub fn split_fields(bf16_le: &[u8]) -> (Vec<u8>, Vec<u8>) {
     }
     (exponents, sign_mantissa)
 }
+
+use std::fmt;
+
+/// Exponents 240..=255 collide with the LUT's "jump to table 256-v" convention,
+/// so the kernel would misread them. DESIGN 1.3.
+pub const RESERVED_EXPONENT_MIN: u8 = 240;
+/// The kernel holds `n_elements` in an `int`.
+pub const MAX_UNIT_WEIGHTS: u64 = (1 << 31) - 1;
+/// The kernel holds `n_bytes` in an `int`, and `output_positions` is `uint32`.
+pub const MAX_UNIT_BYTES: u64 = (1 << 31) - 1;
+/// A LUT value >= 240 encodes a jump to table `256 - v`, bounding the count.
+pub const MAX_PREFIX_TABLES: usize = 16;
+/// `gaps` stores a 5-bit offset per 64-bit window, which requires this.
+pub const MAX_CODE_BITS: u32 = 32;
+
+/// A condition that must abort encoding rather than produce a file.
+///
+/// Every variant carries the measured value, so the message is actionable
+/// rather than merely a refusal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EncodeError {
+    /// An exponent in the range the LUT jump convention reserves.
+    ReservedExponent {
+        value: u8,
+        index: usize,
+    },
+    TooManyWeights {
+        weights: u64,
+    },
+    TooManyBytes {
+        bytes: u64,
+    },
+    TooManyPrefixTables {
+        tables: usize,
+    },
+    /// A code the 32-bit limiter failed to bring within range.
+    CodeTooLong {
+        bits: u32,
+    },
+}
+
+impl fmt::Display for EncodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ReservedExponent { value, index } => write!(
+                f,
+                "exponent {value} at weight {index} is in the reserved range \
+                 {RESERVED_EXPONENT_MIN}..=255 (infinities or NaNs); the LUT jump \
+                 convention cannot represent it, so no file was written"
+            ),
+            Self::TooManyWeights { weights } => write!(
+                f,
+                "unit has {weights} weights, over the kernel's limit of {MAX_UNIT_WEIGHTS}; \
+                 split the unit"
+            ),
+            Self::TooManyBytes { bytes } => write!(
+                f,
+                "unit encodes to {bytes} bytes, over the kernel's limit of {MAX_UNIT_BYTES}; \
+                 split the unit"
+            ),
+            Self::TooManyPrefixTables { tables } => write!(
+                f,
+                "codebook needs {tables} prefix tables, over the limit of {MAX_PREFIX_TABLES}"
+            ),
+            Self::CodeTooLong { bits } => write!(
+                f,
+                "longest code is {bits} bits, over the limit of {MAX_CODE_BITS}; \
+                 the 32-bit limiter failed"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for EncodeError {}
+
+/// Counts of each exponent value in one compression unit.
+#[derive(Debug, Clone)]
+pub struct Histogram {
+    counts: [u64; 256],
+    total: u64,
+}
+
+impl Histogram {
+    /// Count exponents, rejecting any in the reserved range.
+    ///
+    /// The check runs here rather than later so that a model which cannot be
+    /// represented fails before anything is written.
+    pub fn build(exponents: &[u8]) -> Result<Self, EncodeError> {
+        let mut counts = [0u64; 256];
+        for (index, &e) in exponents.iter().enumerate() {
+            if e >= RESERVED_EXPONENT_MIN {
+                return Err(EncodeError::ReservedExponent { value: e, index });
+            }
+            counts[e as usize] += 1;
+        }
+        Ok(Histogram {
+            counts,
+            total: exponents.len() as u64,
+        })
+    }
+
+    pub fn counts(&self) -> &[u64; 256] {
+        &self.counts
+    }
+
+    pub fn total(&self) -> u64 {
+        self.total
+    }
+
+    /// How many distinct exponent values occur.
+    pub fn distinct(&self) -> usize {
+        self.counts.iter().filter(|&&c| c > 0).count()
+    }
+
+    /// The exponent values that occur, ascending.
+    pub fn present_symbols(&self) -> Vec<u8> {
+        (0..=255u8)
+            .filter(|&s| self.counts[s as usize] > 0)
+            .collect()
+    }
+}
+
+/// Reject a unit the kernel's 32-bit fields cannot address.
+pub fn check_unit_limits(weights: u64, encoded_bytes: u64) -> Result<(), EncodeError> {
+    if weights > MAX_UNIT_WEIGHTS {
+        return Err(EncodeError::TooManyWeights { weights });
+    }
+    if encoded_bytes > MAX_UNIT_BYTES {
+        return Err(EncodeError::TooManyBytes {
+            bytes: encoded_bytes,
+        });
+    }
+    Ok(())
+}
+
+/// Reject a codebook needing more prefix tables than the jump convention allows.
+pub fn check_prefix_tables(tables: usize) -> Result<(), EncodeError> {
+    if tables > MAX_PREFIX_TABLES {
+        return Err(EncodeError::TooManyPrefixTables { tables });
+    }
+    Ok(())
+}
+
+/// Reject a code longer than `gaps` can describe.
+pub fn check_code_len(bits: u32) -> Result<(), EncodeError> {
+    if bits > MAX_CODE_BITS {
+        return Err(EncodeError::CodeTooLong { bits });
+    }
+    Ok(())
+}
