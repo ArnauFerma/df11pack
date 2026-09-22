@@ -396,3 +396,43 @@ impl SourceModel {
         Ok(out)
     }
 }
+
+/// One generated case for the 32-bit code-length limiter.
+///
+/// No real fixture reaches the limiter, so these come from the H4 Python spec
+/// (itself validated against `dahuffman`). See `phase0/gen_limiter_cases.py`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct LimiterCase {
+    pub name: String,
+    pub freqs: Vec<(u8, u64)>,
+    pub max_bits_uncapped: u32,
+    pub triggered: bool,
+    pub max_bits_final: u32,
+    pub iterations: usize,
+    /// True when the limiter had to choose among equal frequencies above 1.
+    pub ambiguous: bool,
+    pub first_ambiguous: Option<AmbiguousDetail>,
+    /// Symbol (as a decimal string) -> code length.
+    pub lengths: std::collections::BTreeMap<String, u32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AmbiguousDetail {
+    pub min_k: usize,
+    pub boundary_value: u64,
+    pub tied: usize,
+    pub slots: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct LimiterFile {
+    cases: Vec<LimiterCase>,
+}
+
+/// Load the generated limiter cases, or `None` if they are absent.
+pub fn limiter_cases() -> Option<Vec<LimiterCase>> {
+    let root = workspace_root()?;
+    let p = root.join("phase0/fixtures/limiter_cases.json");
+    let f: LimiterFile = serde_json::from_slice(&std::fs::read(p).ok()?).ok()?;
+    Some(f.cases)
+}

@@ -110,6 +110,51 @@ Never stamp compat output. Never emit correct output unstamped.
 
 ---
 
+## The 32-bit limiter: refuse rather than guess
+
+When a unit's longest Huffman code exceeds 32 bits, the official encoder demotes
+the least frequent symbols to frequency 1 and rebuilds, repeating until the code
+fits. It selects them with `np.argpartition`, **whose ordering among equal values
+NumPy does not specify**.
+
+That ambiguity is not academic. Measured across 2,513 probes (FINDINGS 0.5):
+
+- boundary frequency **1**: inert — 0 of 2,429 probes changed anything, because demoting an already-frequency-1 symbol is a no-op;
+- boundary frequency **above 1**: decisive — **84 of 84** probes changed the resulting codebook.
+
+How close is this? Real units measured here run 24–27 bits against the limit of
+32: tier-1's worst is 26, and a published `Qwen3-4B` shard reaches 27. Code length
+grows with unit size, so a 622M-weight embedding unit — the standalone-unit case
+that every published DF11 LLM at 8B and above uses — plausibly approaches it. The
+limiter is reachable, not theoretical.
+
+**df11pack's rule.** The choice is not always ambiguous, and where it is forced we
+are provably identical. So:
+
+| situation | behaviour |
+|---|---|
+| limiter never fires | normal encode |
+| fires, no tie at the boundary | selection is forced; byte-identical |
+| fires, tie at boundary frequency 1 | inert; byte-identical |
+| **fires, tie at boundary frequency > 1** | **abort** with `AmbiguousLimiterTie` |
+
+The refusal names the measured numbers — `min_k`, the boundary frequency, how
+many symbols are tied and how many slots exist — so it is diagnosable rather than
+merely obstructive, and it points here.
+
+This is deliberately narrower than the original brief, which allowed a blanket
+"different but valid" result wherever `argpartition` was involved. That would have
+meant emitting files that silently differ from the official compressor's with no
+way to know which. The rule above converts an unbounded silent divergence into a
+bounded, detected, loud one: df11pack is either byte-identical or it refuses.
+
+The alternative — reimplementing NumPy's introselect to reproduce its tie order
+exactly — was considered and not taken. It would pin the project to one NumPy
+version forever, and an upstream change to that selection would break
+compatibility silently, which is the failure mode this rule exists to eliminate.
+
+---
+
 ## Format divergence more generally
 
 The same reasoning governs any future change to the on-disk format, including

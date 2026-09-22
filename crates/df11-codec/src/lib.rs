@@ -81,6 +81,18 @@ pub enum EncodeError {
     CodeTooLong {
         bits: u32,
     },
+    /// The 32-bit limiter had to choose between symbols of equal frequency, and
+    /// the choice changes the codebook, so byte-identity cannot be guaranteed.
+    ///
+    /// The official encoder resolves this with `np.argpartition`, whose ordering
+    /// among equal elements NumPy does not specify. Rather than emit a file that
+    /// might silently differ, df11pack refuses. See `docs/COMPATIBILITY.md`.
+    AmbiguousLimiterTie {
+        min_k: usize,
+        boundary_frequency: u64,
+        tied: usize,
+        slots: usize,
+    },
 }
 
 impl fmt::Display for EncodeError {
@@ -105,6 +117,21 @@ impl fmt::Display for EncodeError {
             Self::TooManyPrefixTables { tables } => write!(
                 f,
                 "codebook needs {tables} prefix tables, over the limit of {MAX_PREFIX_TABLES}"
+            ),
+            Self::AmbiguousLimiterTie {
+                min_k,
+                boundary_frequency,
+                tied,
+                slots,
+            } => write!(
+                f,
+                "the 32-bit code-length limiter reached an ambiguous tie at k={min_k}: \
+                 {tied} symbols share frequency {boundary_frequency} but only {slots} \
+                 can be demoted. The official encoder picks among them with \
+                 np.argpartition, whose order NumPy leaves unspecified, and the choice \
+                 changes the codebook. df11pack will not emit a file that might \
+                 silently differ; compress this unit with the official compressor, or \
+                 see docs/COMPATIBILITY.md"
             ),
             Self::CodeTooLong { bits } => write!(
                 f,

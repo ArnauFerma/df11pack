@@ -244,3 +244,91 @@ pub fn build_luts(cb: &Codebook) -> Result<Vec<[u8; 256]>, EncodeError> {
     rows.push(cb.lengths());
     Ok(rows)
 }
+
+/// A codebook plus how much work the limiter had to do to get it.
+///
+/// `iterations` is 0 when the uncapped code already fitted. It is recorded
+/// because it pins *which* demotion produced the codebook, not merely that some
+/// demotion did: a limiter that demotes the wrong number of symbols can still
+/// converge on the same table one iteration later, and nothing about the table
+/// alone would reveal it.
+#[derive(Clone, Debug)]
+pub struct LimitedBuild {
+    pub codebook: Codebook,
+    pub iterations: usize,
+}
+
+/// Build a codebook whose longest code fits in 32 bits, as the format requires.
+///
+/// Mirrors `dfloat11_utils.get_32bit_codec`: if the uncapped code already fits,
+/// return it. Otherwise, for `min_k = 2, 3, ...`, demote the `min_k` least
+/// frequent symbols to frequency 1 **in a fresh copy of the original
+/// frequencies** — each iteration restarts from the original, it does not
+/// compound — rebuild, and stop once the longest code fits.
+///
+/// # Ties
+///
+/// The official encoder selects those `min_k` symbols with `np.argpartition`,
+/// whose ordering among equal values NumPy does not specify. When more symbols
+/// share the boundary frequency than there are slots, the choice is
+/// **implementation-defined and it changes the resulting codebook** — measured at
+/// 84 out of 84 probes when the boundary frequency exceeds 1 (FINDINGS 0.5).
+///
+/// One case is safe: when the boundary frequency is 1, demoting an
+/// already-frequency-1 symbol is a no-op, so every choice gives the same result
+/// (0 of 2429 probes differed). df11pack proceeds there and refuses otherwise,
+/// rather than emitting a file that might silently differ.
+pub fn build_limited(freqs: &[(u8, u64)]) -> Result<LimitedBuild, EncodeError> {
+    let full = Codebook::build(freqs);
+    if full.max_bits() <= crate::MAX_CODE_BITS {
+        return Ok(LimitedBuild {
+            codebook: full,
+            iterations: 0,
+        });
+    }
+
+    for min_k in 2..=freqs.len() {
+        // Ascending by (frequency, symbol): the symbol order matches the index
+        // order NumPy sees, since frequencies arrive ascending by symbol.
+        let mut order: Vec<(u8, u64)> = freqs.to_vec();
+        order.sort_by_key(|&(s, f)| (f, s));
+
+        let boundary_frequency = order[min_k - 1].1;
+        let tied = order
+            .iter()
+            .filter(|&&(_, f)| f == boundary_frequency)
+            .count();
+        let slots = order[..min_k]
+            .iter()
+            .filter(|&&(_, f)| f == boundary_frequency)
+            .count();
+
+        if tied > slots && boundary_frequency > 1 {
+            return Err(EncodeError::AmbiguousLimiterTie {
+                min_k,
+                boundary_frequency,
+                tied,
+                slots,
+            });
+        }
+
+        let demote: Vec<u8> = order[..min_k].iter().map(|&(s, _)| s).collect();
+        let mut next: Vec<(u8, u64)> = freqs.to_vec();
+        for (s, f) in next.iter_mut() {
+            if demote.contains(s) {
+                *f = 1;
+            }
+        }
+        let cb = Codebook::build(&next);
+        if cb.max_bits() <= crate::MAX_CODE_BITS {
+            return Ok(LimitedBuild {
+                codebook: cb,
+                // min_k starts at 2, so this is how many loop iterations ran.
+                iterations: min_k - 1,
+            });
+        }
+    }
+    Err(EncodeError::CodeTooLong {
+        bits: full.max_bits(),
+    })
+}
