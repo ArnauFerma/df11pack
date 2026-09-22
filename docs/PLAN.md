@@ -15,27 +15,57 @@ rough. They exclude model download time and waiting on rented hardware.
 
 ## Resource inventory
 
+### The development machine is the binding constraint
+
+Measured, not assumed: **3 GB of total RAM** (~2 GB available) and **39 GB free
+disk**. Every sizing decision below follows from those two numbers, and they are
+tighter than anything in DESIGN.md contemplates.
+
+This is not a handicap to work around — it is the target environment. The guiding
+principle says anyone must be able to compress models on a modest machine. If
+df11pack is developed on one, that property is tested continuously instead of
+being asserted and discovered false at the end.
+
+What it does constrain is the **reference** side: the official compressor is the
+thing that needs RAM, and we need to run it to produce fixtures. Hence the
+tiered corpus below, whose first tier is sized so the official tool fits
+comfortably in ~1 GB.
+
 ### Hardware
 
 | Resource | Needed by | Note |
 |---|---|---|
-| Any machine, ≥8 GB RAM | **All of Phase 0 and Phase 1**, including real Flux and Chroma | Both the synthetic corpus and the real-model work are bounded by the largest single tensor, not by model size. Nothing here instantiates a model. |
+| **This machine (3 GB RAM, 39 GB disk)** | **All of Phase 1, and Phase 0 tiers 0 and 2** | Sufficient for the whole development spine. df11pack's own budget is ~1.35 × N per worker; on tier 0 that is single-digit MB. |
 | **~64 GB RAM — optional, one step** | Step 0.4 only, and only to confirm H1 *at full scale* | This is the RAM the **official** compressor needs (~48 GB peak on 12B Flux), not anything df11pack needs. H1 is the hypothesis that this peak is unnecessary — it motivates the project but constrains no design decision. Without such a machine, measure the scaling curve on the models that do fit and cite the official README's figure for the endpoint. |
 | **NVIDIA GPU** | Steps 0.10 (H7), 0.11 (`check_correctness` path), and Phase 5 | Verification only. There is no local GPU, so these steps need rented hardware; the sibling repo `../bf16-exponent-compression/RENT_A_GPU.md` already documents a working rental and setup procedure. |
-| An old machine (4 cores / 8 GB / HDD) | Phase 3 exit gate, Phase 9-equivalent metrics | This is the machine the guiding principle is written for. Identify it early; if none is available, emulate with cgroup memory limits and `--workers 1`. |
+| A machine with **4–8 GB** | Tier 1 only: running the *official* compressor on full Qwen3-0.6B | Needed only if step 0.2c finds that the LLM `pattern_dict` puts the 155.6M-weight embedding in a single UC — see 0.2c. Rentable by the hour; not on the critical path. |
+| An old machine (4 cores / 8 GB / HDD) | Phase 3 exit gate, success metrics | The development machine already is the low-RAM reference. What it may not provide is an HDD and a multi-core comparison point; emulate with cgroup limits and `--workers 1` where it cannot. |
 
-### Models to download
+### Corpus, in three tiers
 
-| Model | Size | Needed by | Source |
-|---|---|---|---|
-| Qwen3-0.6B (BF16) | ~1.2 GB | 0.2 onward — the main real-model workhorse | HF, plus the official example `pattern_dict` |
+**Tier 0 — the development spine.** Models small enough that the *official*
+compressor runs locally in well under 1 GB, so every fixture is produced and
+compared on this machine, with no downloads and no rentals. This is where Phase 1
+is graded. Built in step 0.2.
+
+**Tier 1 — one real LLM.** Full Qwen3-0.6B, already on disk. Proves the encoder
+on a real weight distribution rather than a synthetic one.
+
+**Tier 2 — real diffusion models, read-only.** The published DF11 releases,
+used for structural questions only (which tensors exist, `split_positions`, LUT
+shapes). Never compressed locally. Disk-bound: 39 GB free means one
+source/release pair at a time, deleted before fetching the next.
+
+| Model | Tier | Size | Needed by | Source |
+|---|---|---|---|---|
+| Truncated Qwen3-0.6B + synthetic cases | 0 | <100 MB each | 0.2, and all of Phase 1 | Generated locally from the model below |
+| **Qwen3-0.6B (BF16) — already on disk** | 1 | 1.5 GB | 0.2, 0.2c, 0.12 | `../bf16-exponent-compression/real_model/model.safetensors`, already used by the sibling project. **No download needed.** |
 | **Official pre-compressed DF11 releases** | ~11–17 GB each | **0.2b, 0.7, 0.8, 0.9, 0.12** | `DFloat11/Chroma-DF11`, `DFloat11/FLUX.1-dev-DF11`, `DFloat11/FLUX.1-schnell-DF11` (diffusers layout) and `mingyi456/Chroma1-Base-DF11` (ComfyUI-native). These **are** the official compressor's output — downloading them replaces running it. See 0.2b. |
 | `lodestones/Chroma1-HD` | ~18 GB | 0.7, 0.9 (as the *source* side of the comparison) | single-file, ComfyUI-native layout |
 | `imnotednamode/Chroma-v36-dc-diffusers` (`subfolder="transformer"`) | ~18 GB | 0.8 (H10), 0.9, 1.8 | diffusers layout; also settles the §1.7 "still to verify" item |
-| Flux BF16 (both layouts) | ~24 GB each | 0.7, 0.12 | The source side for the Flux comparisons; the synthetic reduced Flux covers development |
+| Flux BF16 (both layouts) | 2 | ~24 GB each | 0.7, 0.12 | Source side for the Flux comparisons. **Does not fit alongside its DF11 release** in 39 GB — fetch, compare, delete, one at a time, or defer to Phase 2. |
 
-The synthetic corpus (cases 2, 3 and 4 of DESIGN §8) is **generated locally**, not
-downloaded, and is the only corpus most steps need.
+Tier 0 is the only corpus most steps need, and it is generated, not downloaded.
 
 ### Software to pin
 
@@ -75,8 +105,8 @@ on the official compressor's own runtime.
 
 - **Goal:** have every test corpus from DESIGN §8 on disk, in a documented layout.
 - **Inputs:** 0.1.
-- **Actions:** download Qwen3-0.6B; write generator scripts for the reduced synthetic Flux in **both** layouts (instantiate `FluxTransformer2DModel` with a reduced config for diffusers, the ComfyUI equivalent class for native), for the sharded diffusers variant with `index.json`, and for the adversarial distributions (2/3/4 LUT levels, the 32-bit limit path, single-exponent UC, awkward sizes, exponents 240–255, single-tensor UC, very small UC). Start the Chroma downloads in the background — they are large and gate steps 0.8–0.9.
-- **Produces:** `phase0/corpus/` with a manifest (name, layout, size, generator seed, sha256 per file).
+- **Actions:** build **tier 0 first**: (a) a truncated Qwen3-0.6B — take the on-disk model, keep 2–4 transformer layers, drop or shrink the embedding, and write a fresh safetensors of well under 100 MB, so the official compressor runs on it in a few hundred MB of RAM; (b) write generator scripts for the reduced synthetic Flux in **both** layouts (instantiate `FluxTransformer2DModel` with a reduced config for diffusers, the ComfyUI equivalent class for native), for the sharded diffusers variant with `index.json`, and for the adversarial distributions (2/3/4 LUT levels, the 32-bit limit path, single-exponent UC, awkward sizes, exponents 240–255, single-tensor UC, very small UC). Start the Chroma downloads in the background — they are large and gate steps 0.8–0.9.
+- **Produces:** `phase0/corpus/` with a manifest (name, tier, layout, size, generator seed, sha256 per file), plus the measured official-compressor peak RSS for each tier-0 case, so the corpus is provably runnable here.
 - **Verification:** each synthetic model loads with the loader of its own ecosystem; the adversarial cases provably hit the paths they claim to (assert on the codebook the official `get_32bit_codec` builds).
 - **Depends on:** 0.1.
 - **Effort:** 3 days. The adversarial generators are most of it — hitting the 32-bit limit path on purpose is fiddly.
@@ -91,6 +121,17 @@ on the official compressor's own runtime.
 - **Depends on:** 0.1.
 - **Effort:** 1 day, mostly download time.
 - **Why this step exists:** the pass criterion is "byte-identical to the official compressor's output". That needs the output, not the compressor. Reading a published DF11 file is a streaming read bounded by its largest tensor — a few hundred MB — so every real-model question below drops from ~64 GB to a laptop.
+
+### 0.2c — Does the LLM pattern put the embedding in one UC?
+
+- **Goal:** find out whether tier 1 is runnable on this machine, before planning around it.
+- **Inputs:** the official example `pattern_dict` for Qwen-class LLMs; the on-disk Qwen3-0.6B.
+- **Actions:** the file holds 751.6M weights in 311 tensors, of which **two are 155.6M each**: `model.embed_tokens.weight` and `lm_head.weight`, which are **byte-identical** (`tie_word_embeddings: true`, yet both are stored). Determine from the official `pattern_dict` whether either falls inside a compression unit. If neither does, the largest UC is a per-layer group of a few million weights and the official compressor runs here in a few hundred MB — tier 1 needs no special machine. If one does, that single UC's `.tolist()` alone is ~1.24 GB and the official tool will not fit in 3 GB; tier 1 then needs a rented 4–8 GB box for one run, and the fixture is kept forever after.
+- **Produces:** a yes/no that decides whether the 4–8 GB row in the hardware table is ever exercised.
+- **Verification:** confirm by running the official compressor on tier 1 under a memory cap and observing either success or a clean OOM at the predicted unit.
+- **Depends on:** 0.1.
+- **Effort:** half a day.
+- **Second finding, recorded here:** those two identical 296.8 MiB tensors mean a tied-embedding LLM presents df11pack with two units whose input bytes are identical, so their entire output would be identical too. Deduplicating them would halve the work for this whole model class — and would **break the byte-identity criterion**, because the official compressor emits both. So: detect and report it, never act on it by default. Revisit as an opt-in flag after v1. The sibling project hit the same duplication from the other direction, where it mattered for weight counts rather than for work.
 
 ### 0.3 — H2: where does the time go
 
@@ -196,7 +237,7 @@ on the official compressor's own runtime.
 
 - **Goal:** freeze the official outputs that Phase 1 will be graded against, so Phase 1 needs neither Python nor a large machine.
 - **Inputs:** everything above.
-- **Actions:** for every corpus case, store the official output tensors plus the intermediate artefacts (histogram, codebook, LUTs, `gaps`, `output_positions`, `split_positions`) with a manifest and per-tensor sha256. For the small and synthetic cases these come from running the official compressor locally; for the real models they come from the 0.2b downloads. Keep the large ones out of git (see `.gitignore`) with a documented regeneration script and recorded hashes.
+- **Actions:** for every corpus case, store the official output tensors plus the intermediate artefacts (histogram, codebook, LUTs, `gaps`, `output_positions`, `split_positions`) with a manifest and per-tensor sha256. Tier 0 and (per 0.2c) tier 1 come from running the official compressor locally — these are the fixtures that matter, because they are produced from a source we control end to end. Tier 2 comes from the 0.2b downloads. Keep the large ones out of git (see `.gitignore`) with a documented regeneration script and recorded hashes.
 - **Produces:** `fixtures/` plus `fixtures/MANIFEST.json`, each entry tagged `locally-compressed` or `published-release` so a byte-identity failure on a published-release fixture is triaged against its provenance caveat before being treated as an encoder bug.
 - **Verification:** the regeneration script reproduces identical hashes on a second machine.
 - **Depends on:** 0.2–0.9, 0.2b.
@@ -218,12 +259,15 @@ on the official compressor's own runtime.
 tensor for it, byte-identical to the official compressor. Single-threaded, no
 streaming, no file writing yet.
 
-**Phase exit gate:** byte-for-byte identity against the Phase 0 fixtures on corpus
-cases 1, 2 and 4 (Qwen3-0.6B, synthetic Flux both layouts, all adversarial
-distributions), including a correct abort on the exponents 240–255 case.
+**Phase exit gate:** byte-for-byte identity against the tier-0 fixtures —
+truncated Qwen3, synthetic Flux in both layouts, and every adversarial
+distribution — including a correct abort on the exponents 240–255 case. Full
+Qwen3-0.6B (tier 1) is the first thing tried after the gate, not part of it.
 
-**Phase effort:** ~12–16 days. No GPU and no large-RAM machine: it runs entirely
-against the fixtures from 0.12.
+**Phase effort:** ~12–16 days. No GPU, no downloads, no rentals: it runs entirely
+against the tier-0 fixtures on the development machine. Tier-0 units are small
+enough that the whole encode chain fits in single-digit MB, so memory is never
+the thing under test here — correctness is.
 
 ### 1.1 — Cargo workspace skeleton
 
@@ -397,4 +441,6 @@ Carried from DESIGN §11 — listed here, not decided.
 3. **Flux's ComfyUI double block: 10 or 8 linears?** The brief §4 says the ComfyUI double block has 10 linears (against 14 for diffusers), but DESIGN §1.7 lists Chroma's ComfyUI double block with 8 named `attr_names` and says the Chroma/Flux delta is only the modulations. Those two statements are hard to reconcile; step 0.9 derives the truth empirically from `split_positions` rather than from either document.
 4. **The diffusers concatenation order is unconfirmed**, as both documents note. It cannot be guessed, and step 1.8 depends on it, so step 0.9 is on the critical path to Phase 1 — worth starting its downloads first.
 5. **No local GPU.** H7 (0.10) and the whole GPU side of Phase 5 need rented hardware. The sibling repo's `RENT_A_GPU.md` covers the procedure.
-6. **~~Large-RAM access is unknown.~~** *Resolved during review.* An earlier draft of this plan required ~64 GB for steps 0.4, 0.7, 0.9 and 0.12, on the assumption that real-model fixtures meant running the official compressor. They don't: the official team and the Extended maintainer both publish the compressed output on Hugging Face, and reading it is a streaming operation. Step 0.2b downloads those instead. The only residue is step 0.4's 12B endpoint for H1, which is optional and does not gate anything. It was a mistake to import the reference implementation's memory requirement into a plan whose entire purpose is to eliminate it.
+6. **The development machine has 3 GB of RAM and 39 GB of disk** — measured during review, and tighter than anything DESIGN.md assumes. It does not constrain df11pack itself (~1.35 × N per worker; tier-0 units need single-digit MB) but it does constrain running the *official* compressor to produce fixtures. Hence the tiered corpus: tier 0 is sized so the reference tool fits in ~1 GB here. The one open question is 0.2c — whether the LLM `pattern_dict` puts Qwen3-0.6B's 155.6M-weight embedding in a single unit, which would put tier 1 out of reach locally. Developing on the constrained machine is treated as a feature: it tests the guiding principle continuously rather than at the end.
+
+7. **~~Large-RAM access is unknown.~~** *Resolved during review.* An earlier draft of this plan required ~64 GB for steps 0.4, 0.7, 0.9 and 0.12, on the assumption that real-model fixtures meant running the official compressor. They don't: the official team and the Extended maintainer both publish the compressed output on Hugging Face, and reading it is a streaming operation. Step 0.2b downloads those instead. The only residue is step 0.4's 12B endpoint for H1, which is optional and does not gate anything. It was a mistake to import the reference implementation's memory requirement into a plan whose entire purpose is to eliminate it.
