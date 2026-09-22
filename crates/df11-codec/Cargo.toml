@@ -7,6 +7,7 @@ rust-version.workspace = true
 [dependencies]
 toml = "0.8"
 serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 df11-fixtures = { path = "../df11-fixtures" }

@@ -44,6 +44,7 @@ pub fn split_fields(bf16_le: &[u8]) -> (Vec<u8>, Vec<u8>) {
 pub mod arch;
 pub mod bitstream;
 pub mod huffman;
+pub mod safetensors;
 pub mod unit;
 
 use std::fmt;
