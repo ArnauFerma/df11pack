@@ -1,0 +1,16 @@
+LICENCE — NOT YET DECIDED
+=========================
+
+This project has no licence yet. It is an open decision, tracked as item 3 in
+docs/DESIGN.md §11 and in docs/PLAN.md.
+
+Context for the decision:
+
+- The official DFloat11 implementation (https://github.com/LeanModels/DFloat11)
+  is Apache-2.0. Replicating its file format and its codebook-construction
+  algorithm is compatible with any permissive licence.
+- If this project ever redistributes `decode.ptx` (or any other artefact taken
+  from the official repository), that file's licence and attribution
+  requirements must be respected and reproduced.
+
+Until the decision is made and this file is replaced, no licence is granted.

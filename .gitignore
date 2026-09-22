@@ -1,0 +1,21 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Phase 0 measurement scratch
+/phase0/env/
+/phase0/out/
+/phase0/models/
+*.prof
+*.svg
+
+# Models and generated artefacts
+*.safetensors
+*.bin
+*.ptx
+/fixtures/large/
+
+# OS / editor
+.DS_Store
+*.swp
