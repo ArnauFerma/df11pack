@@ -71,6 +71,13 @@ Read from the encoder and from the kernel (`decode.cu`):
   - **no real exponent may be 240–255** (enormous values, Inf or NaN), and
   - the number of prefix tables is bounded (≤ 16).
   If a model violates this, we must abort with a clear error, never emit a file.
+  **Carry-forward leakage [CONFIRMED by measurement, 0.5].** The official
+  `get_luts` fills each table with a carry-forward loop whose accumulator is
+  function-scoped, so a table after the first that lacks key `0` begins filled
+  with the *previous* table's trailing value. Verified in a real official output:
+  128 bytes of one row held the prior row's value. Byte-identity therefore
+  requires reproducing this. See [`COMPATIBILITY.md`](COMPATIBILITY.md) for the
+  default (`--luts=compat`) and the gated opt-out (`--luts=correct`).
 - `split_positions`: int64, the **internal** boundaries of the concatenated tensors — for n tensors it has **n−1** entries, equal to `cumsum(sizes)[:-1]`. The total is *not* stored here; it is `len(sign_mantissa)`. Empty for a single-tensor unit (a bare `nn.Linear` or `nn.Embedding`). **The concatenation order is the order of `attr_names` in the `pattern_dict`.** [CONFIRMED by measurement, 0.1/0.2: a 7-tensor unit produced 6 entries.]
 - **Kernel 32-bit limits**: `n_bytes` and `n_elements` are `int` and `output_positions` is `uint32`. A UC cannot exceed 2³¹−1 weights or 2³¹−1 bytes of bitstream. Flux is far from this (max ~340M), but an LLM with a huge UC (e.g. giant embeddings) could hit it. This must be checked before encoding.
 - Output names per UC: `<uc>.luts`, `.encoded_exponent`, `.sign_mantissa`, `.output_positions`, `.gaps`, `.split_positions`. The compressed `.weight` tensors disappear; the rest of the state_dict (biases, norms, layers outside the pattern) is preserved.

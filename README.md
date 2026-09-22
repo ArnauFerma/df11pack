@@ -37,6 +37,8 @@ and conversion between layouts.
 
 - [`docs/DESIGN.md`](docs/DESIGN.md) — the design: format invariants, architecture, checkpoints, verification, test plan.
 - [`docs/PLAN.md`](docs/PLAN.md) — ordered implementation plan; Phase 0 and Phase 1 in detail.
+- [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) — what the output promises, and the one place it deliberately does not.
+- [`docs/FINDINGS.md`](docs/FINDINGS.md) — Phase 0 measurements and what they changed.
 
 ## Upstream
 

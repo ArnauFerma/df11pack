@@ -456,3 +456,51 @@ Tier 1 compresses to 0.607 versus tier 0's 0.660, because the truncated model's
 sliced embedding is a much larger share of a much smaller file and is left
 uncompressed under this pattern. Compression ratio is therefore not comparable
 across tiers, and only per-unit comparisons are meaningful.
+
+---
+
+## Where the bytes actually go — and what an alternative index would buy
+
+Measured directly from two real official units (tier-0 layer 0 and tier-1 layer
+27, both 15,728,640 weights). Not modelled.
+
+| Tensor | Bytes | Share of unit | bits/weight |
+|---|---|---|---|
+| `sign_mantissa` | 15,728,640 | **73.6%** | 8.0000 |
+| `encoded_exponent` | 5,233,601 | 24.5% | 2.6619 |
+| `gaps` | 408,960 | **1.91%** | 0.2080 |
+| `output_positions` | 5,116 | **0.024%** | 0.0026 |
+| `luts` | 1,280 | 0.006% | 0.0007 |
+| `split_positions` | 48 | 0.000% | 0.0000 |
+| **total** | 21,377,645 | | **10.873** |
+
+The second unit agrees to three decimals, so this is the shape of a DF11 unit in
+general, not a quirk of one layer.
+
+**Three consequences.**
+
+1. **`output_positions` is already free.** At 0.024% of the unit, replacing its
+   uint32 entries with an 8-bit index and a warp prefix-sum — the idea from the
+   sibling `bf16-exponent-compression` project — would save **0.018% of the
+   output**. That idea was measured there against a format whose index cost 4.4%
+   at BLOCK=64; DF11's 4096-byte chunks are ~64× coarser, so the overhead it
+   targets has already been engineered away. There is nothing to win here.
+
+2. **If any index cost matters in DF11, it is `gaps`, at 1.91%** — eighty times
+   `output_positions`. But that cost is not inefficiency, it is what buys
+   parallel decode: 5 bits per 64-bit window is the price of letting a thread
+   start mid-stream without decoding from the block start. Shrinking it means
+   larger windows and proportionally more work per thread — a speed/size
+   trade-off, not an encoding win.
+
+3. **The remaining headroom over the entropy bound is ~2.7%.** The sibling
+   project measured this exact model family's field entropies as H(exp) = 2.645
+   and H(mant) = 6.973 bits, joint 10.578 bits/weight. DF11 here achieves
+   **10.873** — within **0.295 bits/weight**, or 2.7%, of that bound. Nearly all
+   of the remainder is the untouched 8.000 bits/weight of `sign_mantissa`, which
+   the same project showed to be near-incompressible.
+
+So DF11's format is close to the measured floor for this approach, and the
+distance left is concentrated in the field that is hardest to move. Any future
+format work should be justified against these numbers rather than against
+intuition about index overhead.

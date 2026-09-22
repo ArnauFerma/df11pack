@@ -319,18 +319,19 @@ the thing under test here — correctness is.
 
 ### 1.6 — Hierarchical LUT builder
 
-- **Goal:** the `(n_prefixes + 1, 256)` uint8 LUTs with the ≥240 jump convention.
-- **Actions:** port `get_luts`; enforce the ≤16-table bound.
-- **Produces:** the LUT builder.
-- **Verification:** LUT tensors byte-identical to the fixtures, including the adversarial 2/3/4-level cases.
+- **Goal:** the `(n_prefixes + 1, 256)` uint8 LUTs with the ≥240 jump convention, in **both** modes from the start.
+- **Actions:** port `get_luts` including its carry-forward accumulator, which leaks across prefix tables (DESIGN §1.3, FINDINGS §0.5) — this is the default `--luts=compat` path and it must reproduce the leak exactly. Then add `--luts=correct`, which deterministically zero-fills those positions, behind the gate specified in [`COMPATIBILITY.md`](COMPATIBILITY.md): off by default, warns on use, stamps `df11pack_luts="correct"` into the safetensors `__metadata__`, and is barred from any released artefact until the Phase 5 kernel test passes. Enforce the ≤16-table bound in both.
+- **Produces:** the LUT builder with a mode switch; the metadata stamp; the warning.
+- **Verification:** in compat mode, LUT tensors byte-identical to the fixtures including the adversarial 2/3/4-level cases **and** a purpose-built case whose second or later prefix table lacks key `0`, asserting the leaked bytes match. In correct mode, assert the two outputs differ in exactly the positions predicted and nowhere else, and that the stamp is present. A test that never observes the leak is not evidence the leak is reproduced.
 - **Depends on:** 1.5.
-- **Effort:** 2 days.
+- **Effort:** 3 days (was 2; the second mode and the leak fixture are the addition).
 
 ### 1.7 — Bit writer, `gaps`, `output_positions`
 
 - **Goal:** the bitstream itself, single-threaded, plus the two index tensors.
 - **Actions:** a 64-bit accumulator bit writer, MSB-first within each byte, branchless in the common path; emit EOF and pad to a byte boundary; derive `gaps` (5 bits per 64-bit window, padded with zeros to a multiple of 512 windows, then `packbits`-equivalent) and `output_positions` (uint32 stored as a uint8 view, one entry per 4096-byte chunk, with the trailing `len(data)`) **in the same pass**, exactly as DESIGN §5.3 step 4 requires.
 - **Produces:** `encoded_exponent`, `gaps`, `output_positions`.
+- **Structural requirement:** `gaps` and `output_positions` are produced by a **swappable index component**, not inline in the bit writer. The two are derived in the same pass for speed, so the seam is an interface the pass calls, not a separate pass. This costs nothing now and is what makes any future alternative index scheme additive rather than a rewrite — see [`COMPATIBILITY.md`](COMPATIBILITY.md) "Format divergence". It does **not** imply any such scheme will be built.
 - **Verification:** all three byte-identical to the fixtures on every corpus case; the 0.6 invariant checker passes on the produced tensors.
 - **Depends on:** 1.6.
 - **Effort:** 3 days.
@@ -401,7 +402,11 @@ against the source without materialising the decoded UC), and the GPU path via
 the official kernel.
 **Exit gate:** deliberately injected errors in the bitstream, in `gaps` and in
 `output_positions` are all caught and localised; **H12 measured** across core
-counts.
+counts; and **the `--luts=correct` kernel test passes** — run the official kernel
+over a `--luts=correct` file and confirm the decoded tensor is bit-identical to
+the source, proving the leaked LUT positions are genuinely unreachable. Until
+this passes, `--luts=correct` ships in no released artefact; if it fails, the mode
+is removed rather than documented around.
 **Needs:** a rented NVIDIA GPU for the kernel path.
 Rough effort: 10–14 days.
 
