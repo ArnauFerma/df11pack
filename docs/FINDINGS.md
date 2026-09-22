@@ -514,3 +514,82 @@ So DF11's format is close to the measured floor for this approach, and the
 distance left is concentrated in the field that is hardest to move. Any future
 format work should be justified against these numbers rather than against
 intuition about index overhead.
+
+---
+
+## 0.7 / H8, H9 — are the uncompressed tensors passed through untouched?
+
+**H8 (LLM path): CONFIRMED by measurement.** Every non-unit tensor in both local
+official outputs was compared against the same-named tensor in its source
+safetensors: dtype, shape, and streaming SHA-256 of the bytes.
+
+| Model | Source tensors | Non-unit output tensors | Byte-identical | Altered |
+|---|---|---|---|---|
+| tier-0 truncated | 47 | 18 | **18 / 18** | 0 |
+| tier-1 full Qwen3-0.6B | 311 | 114 | **114 / 114** | 0 |
+
+**132 of 132 byte-identical across two model sizes.** No tensor was invented,
+cast, renamed or altered. I re-verified a sample of five independently, including
+norms from two different layer shards and both remainder tensors: 5 of 5
+identical.
+
+Every absent tensor is explained: the seven compressed linears per layer (that is
+the compression), and `lm_head.weight`, dropped because `tie_word_embeddings` makes
+transformers share its storage with `model.embed_tokens.weight` — the same tie
+that breaks single-file mode (0.2).
+
+**H9 (diffusers path): NOT settled by measurement here.** No diffusers-layout
+output was produced locally, and downloading a multi-GB diffusion model was not
+justified for this question. What supports it is analysis only: `compress_model`
+is a single function shared verbatim by both layouts, and the detach-then-shard
+mechanism below is layout-agnostic. DESIGN §1.6 records it as confirmed from
+source reading. **Recorded as open**, to be closed when a diffusers output exists
+— most cheaply as a by-product of Phase 2 rather than as its own download.
+
+### The placement rule nobody would guess
+
+Non-unit tensors do not all stay put. The four norm tensors per layer —
+`input_layernorm.weight`, `post_attention_layernorm.weight`,
+`self_attn.q_norm.weight`, `self_attn.k_norm.weight` — are byte-identical but
+**physically relocated into their layer's own shard**, not left in the remainder
+file.
+
+Verified by counting rather than asserting. `model_layers_0.safetensors` holds 10
+tensors: the 6 DF11 unit tensors plus exactly those 4 norms. The remainder
+`model.safetensors` holds only two tensors in the entire model:
+`model.embed_tokens.weight` and `model.norm.weight`.
+
+The cause is in `compress_model`: it detaches the whole layer submodule
+(`setattr(parent, child, None)`) and then saves `sub_module.state_dict()` — *all*
+of that submodule's state, not only the attributes named in the `pattern_dict`.
+
+**Consequence for Phase 2.** df11pack's writer must replicate this placement, not
+merely the unit tensors' placement. A writer that emits the unit tensors into the
+shard and leaves every non-unit tensor in the remainder file produces a
+tensor-for-tensor identical *set* with a different *distribution across files* —
+which H11 may or may not forgive, and which would not be caught by any per-tensor
+comparison. This is exactly the class of bug the per-file checks would miss.
+
+## 0.8 / H6 — does physical tensor order matter?
+
+**Structurally confirmed; inference-level open.**
+
+A real shard (`model_layers_0.safetensors`, 21,383,221 bytes, 10 tensors) was
+rewritten with fully reversed physical byte order and header key order, keeping
+names, dtypes, shapes and bytes. Verified three independent ways: an independent
+header parser (10/10 tensors SHA-256 identical, on-disk order confirmed
+reordered), `check_invariants.py` (both files pass), and the real Rust-backed
+`safetensors` reader.
+
+Reading `load_and_replace_tensors` confirms the loader dispatches purely by
+tensor-name string — regex pattern match plus module-path navigation over
+`loaded_tensors.items()` — never by position or file order.
+
+**What remains unproven**, and it is not a formality: nothing here loaded the
+reordered file through `DFloat11Model.from_pretrained` or ran the CUDA kernel
+over it. That needs a GPU. The cupy stub raises rather than silently skipping, so
+this could not have been accidentally glossed. Also untested: redistributing
+tensors *across* shard files, as opposed to reordering within one — which is
+precisely what H11 asks and what the placement rule above makes non-trivial.
+
+Both go on the batched GPU session with H7.
