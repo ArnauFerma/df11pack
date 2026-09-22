@@ -47,6 +47,7 @@ pub mod discover;
 pub mod huffman;
 pub mod safetensors;
 pub mod unit;
+pub mod write;
 
 use std::fmt;
 

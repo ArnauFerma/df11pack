@@ -192,6 +192,11 @@ impl SafeTensorsFile {
         self.tensors.get(name)
     }
 
+    /// The directory the file lives in, where a sibling `config.json` would be.
+    pub fn dir(&self) -> Option<&Path> {
+        self.path.parent()
+    }
+
     pub fn metadata(&self) -> &BTreeMap<String, String> {
         &self.metadata
     }
