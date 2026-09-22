@@ -35,6 +35,7 @@ struct RawSet {
     provenance: String,
     note: String,
     output_dir: String,
+    source_dir: String,
     shards: u64,
     unit_tensors: u64,
     non_unit_tensors: u64,
@@ -50,6 +51,8 @@ struct RawManifest {
 #[derive(Debug)]
 pub struct FixtureSet {
     pub name: String,
+    /// Directory of the BF16 model this output was compressed from.
+    pub source_dir: PathBuf,
     /// `"locally-compressed"` or `"published-release"`. A byte-identity failure
     /// against a published release must be triaged against its provenance
     /// caveat before being treated as an encoder bug.
@@ -205,6 +208,7 @@ impl Fixtures {
             }
             sets.push(FixtureSet {
                 name: s.name,
+                source_dir: resolve(&root, &s.source_dir),
                 provenance: s.provenance,
                 note: s.note,
                 shards: s.shards,
@@ -352,5 +356,43 @@ pub fn assert_matches(fixture: &TensorFixture, actual: &[u8]) {
             fixture.file.display(),
             d
         );
+    }
+}
+
+/// Reader for the BF16 source model a fixture set was compressed from.
+///
+/// Phase 1 needs the encoder's *input*, not just its output: to grade
+/// `sign_mantissa` byte-for-byte you must feed in exactly the bytes the official
+/// compressor fed in, concatenated in `attr_names` order.
+pub struct SourceModel {
+    path: PathBuf,
+}
+
+impl SourceModel {
+    pub fn open(set: &FixtureSet) -> Option<Self> {
+        let p = set.source_dir.join("model.safetensors");
+        p.is_file().then_some(SourceModel { path: p })
+    }
+
+    /// Raw little-endian bytes of one tensor.
+    pub fn tensor(&self, name: &str) -> std::io::Result<Vec<u8>> {
+        let (off, base) = locate(&self.path, name)?;
+        let mut f = File::open(&self.path)?;
+        f.seek(SeekFrom::Start(base + off.0))?;
+        let mut buf = vec![0u8; (off.1 - off.0) as usize];
+        f.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+
+    /// The concatenated BF16 buffer for one unit, in `attr_names` order.
+    ///
+    /// The order is load-bearing: it fixes `split_positions` and therefore every
+    /// compressed byte. See FINDINGS 0.9.
+    pub fn unit_input(&self, unit: &str, attr_names: &[&str]) -> std::io::Result<Vec<u8>> {
+        let mut out = Vec::new();
+        for a in attr_names {
+            out.extend_from_slice(&self.tensor(&format!("{unit}.{a}.weight"))?);
+        }
+        Ok(out)
     }
 }
