@@ -41,6 +41,7 @@ pub fn split_fields(bf16_le: &[u8]) -> (Vec<u8>, Vec<u8>) {
     (exponents, sign_mantissa)
 }
 
+pub mod bitstream;
 pub mod huffman;
 
 use std::fmt;
