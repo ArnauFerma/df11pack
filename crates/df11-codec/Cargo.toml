@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+rayon = "1"
 regex = "1"
 toml = "0.8"
 serde = { workspace = true }

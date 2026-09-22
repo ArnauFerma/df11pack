@@ -135,7 +135,7 @@ pub fn encode(
 }
 
 /// Look up a symbol's code, or EOF's.
-pub(crate) fn code_for(cb: &Codebook, s: Sym) -> crate::huffman::Code {
+pub fn code_for(cb: &Codebook, s: Sym) -> crate::huffman::Code {
     cb.entries()
         .iter()
         .find(|(sym, _)| *sym == s)

@@ -239,3 +239,99 @@ attrs = ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.
     assert!(!out.join("config.json").exists());
     let _ = std::fs::remove_dir_all(&out);
 }
+
+#[test]
+fn the_worker_count_follows_the_ram_budget() {
+    use df11_codec::write::worker_count;
+    let unit = 15_728_640u64; // a real Qwen3 layer unit
+    let per_worker = (unit as f64 * 1.35) as u64; // ~21 MiB
+
+    // No budget: use every core.
+    let none = WriteOptions::default();
+    assert_eq!(worker_count(&none, unit, 8), 8);
+
+    // A budget for exactly four workers.
+    let four = WriteOptions {
+        ram_budget: Some(per_worker * 4),
+        ..Default::default()
+    };
+    assert_eq!(worker_count(&four, unit, 8), 4);
+
+    // Never more than the cores available.
+    assert_eq!(worker_count(&four, unit, 2), 2);
+
+    // A budget too small for even one unit still makes progress.
+    let tiny = WriteOptions {
+        ram_budget: Some(1024),
+        ..Default::default()
+    };
+    assert_eq!(
+        worker_count(&tiny, unit, 8),
+        1,
+        "a budget below one unit must still run, single-threaded"
+    );
+
+    // An explicit count overrides the budget.
+    let forced = WriteOptions {
+        ram_budget: Some(per_worker * 4),
+        workers: Some(7),
+        ..Default::default()
+    };
+    assert_eq!(worker_count(&forced, unit, 8), 7);
+}
+
+/// Parallelism must not change a byte. Compress the same model with one worker
+/// and with many, and require identical files.
+#[test]
+fn worker_count_never_changes_the_output() {
+    let Some(fx) = skip_if_missing("worker_count_never_changes_the_output") else {
+        return;
+    };
+    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(defs) = architecture_defs() else {
+        return;
+    };
+    let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
+    let def = ArchDef::from_toml(toml).expect("parses");
+    let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
+
+    let a = outdir("w1");
+    let b = outdir("w4");
+    write_directory(
+        &src,
+        &def,
+        &a,
+        &WriteOptions {
+            workers: Some(1),
+            ..Default::default()
+        },
+    )
+    .expect("one worker");
+    write_directory(
+        &src,
+        &def,
+        &b,
+        &WriteOptions {
+            workers: Some(4),
+            ..Default::default()
+        },
+    )
+    .expect("four workers");
+
+    let mut n = 0;
+    for e in std::fs::read_dir(&a).unwrap() {
+        let p = e.unwrap().path();
+        let name = p.file_name().unwrap().to_string_lossy().to_string();
+        let other = b.join(&name);
+        assert!(other.exists(), "{name} missing from the 4-worker run");
+        assert_eq!(
+            std::fs::read(&p).unwrap(),
+            std::fs::read(&other).unwrap(),
+            "{name}: differs between 1 and 4 workers"
+        );
+        n += 1;
+    }
+    assert_eq!(n, 6, "4 shards + remainder + config");
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}

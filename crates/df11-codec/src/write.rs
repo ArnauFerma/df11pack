@@ -19,6 +19,32 @@ pub struct WriteOptions {
     /// Default `Compat`. `Correct` is not byte-identical, by design, and stamps
     /// the output; see `docs/COMPATIBILITY.md`.
     pub lut_mode: LutMode,
+    /// Upper bound on resident memory, in bytes. Workers are limited so that
+    /// roughly `1.35 x N_max` bytes per worker fits inside it (DESIGN 5.2).
+    /// `None` means "use every core", which is only safe when memory is ample.
+    pub ram_budget: Option<u64>,
+    /// Force a worker count, overriding the budget calculation.
+    pub workers: Option<usize>,
+}
+
+/// How many units to encode at once, given the budget and the largest unit.
+///
+/// A worker holds roughly `sign_mantissa` (N bytes) plus the encoded exponents
+/// (~0.34 N) — call it 1.35 N — so the budget divided by that is how many fit.
+/// Always at least one: a budget too small for a single unit still has to make
+/// progress rather than refuse.
+pub fn worker_count(opts: &WriteOptions, largest_unit_weights: u64, cores: usize) -> usize {
+    if let Some(w) = opts.workers {
+        return w.max(1);
+    }
+    let by_budget = match opts.ram_budget {
+        Some(b) => {
+            let per_worker = ((largest_unit_weights as f64) * 1.35).max(1.0);
+            ((b as f64) / per_worker).floor() as usize
+        }
+        None => cores,
+    };
+    by_budget.clamp(1, cores.max(1))
 }
 
 /// What a run produced.
@@ -105,6 +131,22 @@ pub fn write_directory(
     let threads = *def.threads_per_block.first().unwrap_or(&512) as usize;
     let bpt = def.bytes_per_thread as usize;
 
+    let largest = found
+        .units
+        .iter()
+        .map(|u| {
+            u.tensors
+                .iter()
+                .map(|n| source.info(n).map(|i| i.nbytes() / 2).unwrap_or(0))
+                .sum::<u64>()
+        })
+        .max()
+        .unwrap_or(0);
+    let cores = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1);
+    let workers = worker_count(opts, largest, cores);
+
     let mut shards = Vec::new();
     let mut limited_units = Vec::new();
     let mut output_bytes: u64 = 0;
@@ -117,55 +159,80 @@ pub fn write_directory(
         meta.insert("df11pack_luts".to_string(), "correct".to_string());
     }
 
-    for u in &found.units {
-        let owned: Vec<Vec<u8>> = u
-            .tensors
-            .iter()
-            .map(|n| source.read(n))
-            .collect::<Result<_, _>>()?;
-        let refs: Vec<&[u8]> = owned.iter().map(|v| v.as_slice()).collect();
-        let enc = encode_unit(&u.name, &refs, threads, bpt).map_err(|e| WriteError::Encode {
-            unit: u.name.clone(),
-            source: e,
-        })?;
-        if enc.limiter_iterations > 0 {
-            limited_units.push(u.name.clone());
-        }
-        drop(owned);
+    // Units are independent (H3), so they encode in parallel. The pool is sized
+    // by the RAM budget rather than by core count, because each worker holds a
+    // whole unit.
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(workers)
+        .build()
+        .map_err(|e| WriteError::Io(std::io::Error::other(e.to_string())))?;
 
-        let mut out: Vec<OutTensor> = Vec::with_capacity(6 + u.siblings.len());
-        let rows = enc.luts.len() as u64;
-        for (name, data) in enc.tensors() {
-            let (dtype, shape) = if name.ends_with(".luts") {
-                (Dtype::new(Dtype::U8), vec![rows, 256])
-            } else if name.ends_with(".split_positions") {
-                (Dtype::new(Dtype::I64), vec![(data.len() / 8) as u64])
-            } else {
-                (Dtype::new(Dtype::U8), vec![data.len() as u64])
-            };
-            out.push(OutTensor {
-                name,
-                dtype,
-                shape,
-                data,
-            });
+    type UnitResult = Result<(String, u64, Option<String>), WriteError>;
+    let results: Vec<UnitResult> = pool.install(|| {
+        use rayon::prelude::*;
+        found
+            .units
+            .par_iter()
+            .map(|u| -> UnitResult {
+                let owned: Vec<Vec<u8>> = u
+                    .tensors
+                    .iter()
+                    .map(|n| source.read(n))
+                    .collect::<Result<_, _>>()?;
+                let refs: Vec<&[u8]> = owned.iter().map(|v| v.as_slice()).collect();
+                let enc =
+                    encode_unit(&u.name, &refs, threads, bpt).map_err(|e| WriteError::Encode {
+                        unit: u.name.clone(),
+                        source: e,
+                    })?;
+                drop(owned);
+                let limited = (enc.limiter_iterations > 0).then(|| u.name.clone());
+
+                let mut out: Vec<OutTensor> = Vec::with_capacity(6 + u.siblings.len());
+                let rows = enc.luts.len() as u64;
+                for (name, data) in enc.tensors() {
+                    let (dtype, shape) = if name.ends_with(".luts") {
+                        (Dtype::new(Dtype::U8), vec![rows, 256])
+                    } else if name.ends_with(".split_positions") {
+                        (Dtype::new(Dtype::I64), vec![(data.len() / 8) as u64])
+                    } else {
+                        (Dtype::new(Dtype::U8), vec![data.len() as u64])
+                    };
+                    out.push(OutTensor {
+                        name,
+                        dtype,
+                        shape,
+                        data,
+                    });
+                }
+                // Siblings travel with their unit, as upstream does (FINDINGS 0.7).
+                for s in &u.siblings {
+                    let info = source.info(s).expect("discovered from this file").clone();
+                    out.push(OutTensor {
+                        name: s.clone(),
+                        dtype: info.dtype.clone(),
+                        shape: info.shape.clone(),
+                        data: source.read(s)?,
+                    });
+                }
+                let fname = shard_name(&u.name);
+                let path = out_dir.join(&fname);
+                write_file(&path, &out, &meta)?;
+                let sz = std::fs::metadata(&path)?.len();
+                Ok((fname, sz, limited))
+            })
+            .collect()
+    });
+
+    for r in results {
+        let (fname, sz, limited) = r?;
+        output_bytes += sz;
+        if let Some(l) = limited {
+            limited_units.push(l);
         }
-        // The siblings travel with their unit, as upstream does (FINDINGS 0.7).
-        for s in &u.siblings {
-            let info = source.info(s).expect("discovered from this file").clone();
-            out.push(OutTensor {
-                name: s.clone(),
-                dtype: info.dtype.clone(),
-                shape: info.shape.clone(),
-                data: source.read(s)?,
-            });
-        }
-        let fname = shard_name(&u.name);
-        let path = out_dir.join(&fname);
-        write_file(&path, &out, &meta)?;
-        output_bytes += std::fs::metadata(&path)?.len();
         shards.push(fname);
     }
+    limited_units.sort();
 
     // Tied tensors: upstream's save_pretrained refuses to write two tensors that
     // share storage, and drops the tied view. The tie is a property of the model
@@ -182,7 +249,7 @@ pub fn write_directory(
         const TIED_SOURCE: &str = "model.embed_tokens.weight";
         if found.passthrough.iter().any(|n| n == TIED_VIEW)
             && found.passthrough.iter().any(|n| n == TIED_SOURCE)
-            && source.read(TIED_VIEW)? == source.read(TIED_SOURCE)?
+            && source.tensors_equal(TIED_VIEW, TIED_SOURCE)?
         {
             tied_dropped.push(TIED_VIEW.to_string());
         }

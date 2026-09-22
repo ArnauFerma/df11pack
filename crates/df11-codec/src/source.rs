@@ -13,9 +13,9 @@ use std::path::{Path, PathBuf};
 #[derive(Debug)]
 pub struct ModelSource {
     dir: PathBuf,
-    files: Vec<SafeTensorsFile>,
+    pub(crate) files: Vec<SafeTensorsFile>,
     /// tensor name -> index into `files`
-    index: BTreeMap<String, usize>,
+    pub(crate) index: BTreeMap<String, usize>,
 }
 
 impl ModelSource {
@@ -106,6 +106,38 @@ impl ModelSource {
             .get(name)
             .ok_or_else(|| StError::NotFound(name.to_string()))?;
         self.files[*i].read(name)
+    }
+
+    /// Whether two tensors hold identical bytes, compared in chunks.
+    ///
+    /// Reading both into memory to compare them costs their combined size, which
+    /// for a tied embedding pair is twice the largest tensor in the model -- the
+    /// single biggest allocation the writer would otherwise make.
+    pub fn tensors_equal(&self, a: &str, b: &str) -> Result<bool, StError> {
+        use std::io::{Read, Seek, SeekFrom};
+        let (ia, ib) = match (self.info(a), self.info(b)) {
+            (Some(x), Some(y)) => (x.clone(), y.clone()),
+            _ => return Ok(false),
+        };
+        if ia.nbytes() != ib.nbytes() {
+            return Ok(false);
+        }
+        let (fa, fb) = (self.index[a], self.index[b]);
+        let mut ra = self.files[fa].open_at(&ia)?;
+        let mut rb = self.files[fb].open_at(&ib)?;
+        let mut left = ia.nbytes();
+        let (mut ba, mut bb) = (vec![0u8; 1 << 20], vec![0u8; 1 << 20]);
+        while left > 0 {
+            let n = (left as usize).min(ba.len());
+            ra.read_exact(&mut ba[..n]).map_err(StError::Io)?;
+            rb.read_exact(&mut bb[..n]).map_err(StError::Io)?;
+            if ba[..n] != bb[..n] {
+                return Ok(false);
+            }
+            left -= n as u64;
+        }
+        let _ = SeekFrom::Start(0);
+        Ok(true)
     }
 
     /// Total bytes of tensor data.

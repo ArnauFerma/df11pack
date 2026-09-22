@@ -35,6 +35,12 @@ enum Command {
         /// LUT semantics. `compat` is byte-identical to the official compressor.
         #[arg(long, value_enum, default_value_t = LutModeArg::Compat)]
         luts: LutModeArg,
+        /// Memory budget, e.g. 512M or 4G. Workers are sized to fit inside it.
+        #[arg(long)]
+        ram: Option<String>,
+        /// Force a worker count, overriding --ram.
+        #[arg(long)]
+        workers: Option<usize>,
     },
     /// List the available architecture definitions.
     Architectures,
@@ -146,7 +152,29 @@ fn list_architectures() -> Result<(), String> {
     Ok(())
 }
 
-fn compress(source: &Path, arch: &str, out: &Path, luts: LutModeArg) -> Result<(), String> {
+/// Parse a size like `512M`, `4G`, `1500000`.
+fn parse_size(s: &str) -> Result<u64, String> {
+    let s = s.trim();
+    let (num, mult) = match s.chars().last() {
+        Some('K') | Some('k') => (&s[..s.len() - 1], 1u64 << 10),
+        Some('M') | Some('m') => (&s[..s.len() - 1], 1u64 << 20),
+        Some('G') | Some('g') => (&s[..s.len() - 1], 1u64 << 30),
+        _ => (s, 1),
+    };
+    num.trim()
+        .parse::<u64>()
+        .map(|v| v * mult)
+        .map_err(|_| format!("could not parse size {s:?}; try 512M or 4G"))
+}
+
+fn compress(
+    source: &Path,
+    arch: &str,
+    out: &Path,
+    luts: LutModeArg,
+    ram: Option<String>,
+    workers: Option<usize>,
+) -> Result<(), String> {
     let def = load_arch(arch)?;
     let model = ModelSource::open(source).map_err(|e| format!("{}: {e}", source.display()))?;
 
@@ -160,8 +188,14 @@ fn compress(source: &Path, arch: &str, out: &Path, luts: LutModeArg) -> Result<(
         );
     }
 
+    let ram_budget = match &ram {
+        Some(s) => Some(parse_size(s)?),
+        None => None,
+    };
     let opts = WriteOptions {
         lut_mode: luts.into(),
+        ram_budget,
+        workers,
     };
     let report = write_directory(&model, &def, out, &opts).map_err(|e| e.to_string())?;
 
@@ -204,7 +238,9 @@ fn main() -> ExitCode {
             arch,
             out,
             luts,
-        } => compress(&source, &arch, &out, luts),
+            ram,
+            workers,
+        } => compress(&source, &arch, &out, luts, ram, workers),
         Command::Architectures => list_architectures(),
     };
     match r {

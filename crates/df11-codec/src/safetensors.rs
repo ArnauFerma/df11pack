@@ -209,6 +209,13 @@ impl SafeTensorsFile {
         self.tensors.is_empty()
     }
 
+    /// A reader positioned at the start of a tensor's data.
+    pub fn open_at(&self, info: &TensorInfo) -> Result<File, StError> {
+        let mut f = File::open(&self.path)?;
+        f.seek(SeekFrom::Start(self.data_start + info.offsets.0))?;
+        Ok(f)
+    }
+
     /// Read one tensor's raw little-endian bytes.
     pub fn read(&self, name: &str) -> Result<Vec<u8>, StError> {
         let info = self

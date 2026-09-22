@@ -1,7 +1,8 @@
 //! Assembling one compression unit: source tensors in, the six DF11 tensors out.
 
 use crate::arch::ArchDef;
-use crate::bitstream::{encode, Encoded};
+use crate::bitstream::Encoded;
+use crate::chunked::{encode_chunked, DEFAULT_CHUNK};
 use crate::huffman::{build_limited, build_luts};
 use crate::{check_unit_limits, split_fields, EncodeError, Histogram};
 
@@ -93,11 +94,12 @@ pub fn encode_unit(
         bytes,
         gaps,
         output_positions,
-    } = encode(
+    } = encode_chunked(
         &exponents,
         &built.codebook,
         bytes_per_thread,
         threads_per_block,
+        DEFAULT_CHUNK,
     );
 
     check_unit_limits(total_weights, bytes.len() as u64)?;

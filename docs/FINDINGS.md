@@ -976,3 +976,67 @@ Phase 2's remaining work.
 ## Status
 
 - **H9 remains open for diffusers.** This closed the transformers path end to end. A diffusers output still has not been produced or loaded.
+
+---
+
+# Phase 3, first half: the chunked encoder and inter-unit parallelism
+
+Developed and verified on the local machine — an **i3-2365M, 2 physical cores at
+1.4 GHz, 3.6 GB RAM**. Scaling beyond 2 cores has not been measured and is not
+claimed.
+
+## Correctness first
+
+The chunked encoder (DESIGN §5.3) computes each chunk's bit length from its own
+histogram and the codebook, prefix-sums those to give every chunk its exact
+starting bit offset, and lets all chunks pack in parallel. Only bytes straddling a
+boundary are shared, and they combine with OR because each side writes only its
+own bits. `gaps` and `output_positions` fall out of the same offsets.
+
+It is **byte-identical to the serial encoder** on synthetic streams, degenerate
+streams, every chunk size from 1 to 2²⁰, and all four real units. Chunk size is a
+scheduling choice that provably cannot change output.
+
+Five mutations, all caught. One is worth naming: **removing the EOF tail byte was
+caught only by the real-unit test.** Every synthetic stream happened to end
+byte-aligned, so the tail never ran. Real data covered a case the synthetic corpus
+did not.
+
+Whole-model output is identical across 1, 4 and budget-selected worker counts.
+
+## Measured, on 2 physical cores
+
+| | official | df11pack, 1 worker | df11pack, 4 threads |
+|---|---|---|---|
+| Wall | 788.9 s | 28.4 s | **11.8 s** |
+| Peak RSS | 2287.6 MiB | 381 MiB | 653 MiB |
+
+**66.9× faster than the official compressor and 3.5× smaller in memory**, on a
+2012 ultrabook. Parallel speedup is 2.41× on 2 physical cores.
+
+## A memory bug the budget work exposed
+
+Peak RSS was 678 MiB at one worker, for a model whose largest unit needs ~70 MiB.
+The cause: the tied-embedding check read **both** `lm_head.weight` and
+`model.embed_tokens.weight` into memory to compare them — 297 MiB each, the two
+largest tensors in the model, for a boolean. Comparing them in 1 MiB chunks
+instead dropped peak to **381 MiB**, a 44% reduction for a change that touches one
+line of intent.
+
+## What the RAM budget does not yet do
+
+`--ram` sizes the worker pool, and the arithmetic is DESIGN §5.2's: ~1.35 N bytes
+per worker. **That constant is currently wrong, and the budget is advisory rather
+than binding.** Two reasons, both honest consequences of streaming not being
+implemented yet:
+
+1. A worker still materialises the concatenated unit (2 N bytes) and the exponent
+   stream (N) alongside `sign_mantissa` (N) and the encoded output (~0.34 N) —
+   about **4.3 N**, not 1.35 N. The 1.35 N figure is the post-streaming target,
+   not today's cost.
+2. The remainder file is written by materialising each passthrough tensor, so peak
+   is floored by the largest one — 297 MiB here regardless of budget.
+
+So `--ram 512M` currently selects a worker count without guaranteeing 512 MiB.
+Making the budget binding is the rest of Phase 3, and the claim should not be made
+until it is.
