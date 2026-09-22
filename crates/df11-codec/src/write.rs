@@ -2,6 +2,7 @@
 #![allow(unused_imports)]
 
 use crate::arch::{ArchDef, Layout};
+use crate::config::{build_config, ConfigMode};
 use crate::discover::{discover, DiscoverError};
 use crate::huffman::LutMode;
 use crate::safetensors::{write_file, Dtype, OutTensor, SafeTensorsFile, StError};
@@ -32,6 +33,9 @@ pub struct WriteReport {
     pub tied_dropped: Vec<String>,
     /// Units where the 32-bit limiter had to run.
     pub limited_units: Vec<String>,
+    /// The config file written, if the layout has one. ComfyUI-native output is
+    /// a single file with no config, so this is `None` there.
+    pub config: Option<String>,
 }
 
 #[derive(Debug)]
@@ -201,6 +205,33 @@ pub fn write_directory(
             data: source.read(n)?,
         });
     }
+    // The source config drives both the tie check above and the output config.
+    let source_config: Option<serde_json::Value> = source
+        .dir()
+        .map(|d| d.join("config.json"))
+        .filter(|p| p.is_file())
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| serde_json::from_slice(&b).ok());
+
+    let config = match def.layout {
+        // ComfyUI-native output is a single file and carries no config; the
+        // Extended node discards it (DESIGN 5.5).
+        Layout::ComfyuiNative => None,
+        layout => {
+            let mode = if layout == Layout::Diffusers {
+                // What every published diffusers release actually ships.
+                ConfigMode::Minimal
+            } else {
+                ConfigMode::PreserveSource
+            };
+            let cfg = build_config(source_config.as_ref(), def, mode);
+            let path = out_dir.join("config.json");
+            std::fs::write(&path, serde_json::to_vec_pretty(&cfg).unwrap_or_default())?;
+            output_bytes += std::fs::metadata(&path)?.len();
+            Some("config.json".to_string())
+        }
+    };
+
     let remainder = remainder_name(def.layout).to_string();
     let rpath = out_dir.join(&remainder);
     write_file(&rpath, &rem, &meta)?;
@@ -214,5 +245,6 @@ pub fn write_directory(
         output_bytes,
         tied_dropped,
         limited_units,
+        config,
     })
 }

@@ -165,3 +165,76 @@ fn a_tied_tensor_is_dropped_and_reported() {
     );
     let _ = std::fs::remove_dir_all(&out);
 }
+
+#[test]
+fn a_config_is_written_for_layouts_that_have_one() {
+    use df11_codec::arch::Layout;
+    let Some(fx) = skip_if_missing("a_config_is_written_for_layouts_that_have_one") else {
+        return;
+    };
+    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(defs) = architecture_defs() else {
+        return;
+    };
+    let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
+    let def = ArchDef::from_toml(toml).expect("parses");
+    assert_eq!(def.layout, Layout::Transformers);
+    let src = SafeTensorsFile::open(set.source_dir.join("model.safetensors")).expect("source");
+
+    let out = outdir("cfg");
+    let report = write_directory(&src, &def, &out, &WriteOptions::default()).expect("writes");
+    assert_eq!(report.config.as_deref(), Some("config.json"));
+
+    let written: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(out.join("config.json")).expect("read"))
+            .expect("json");
+    // Preserve mode: the source's own keys survive, plus ours.
+    assert_eq!(written["hidden_size"], serde_json::json!(1024));
+    assert_eq!(written["tie_word_embeddings"], serde_json::json!(true));
+    assert_eq!(
+        written["dfloat11_config"]["bytes_per_thread"],
+        serde_json::json!(8)
+    );
+    // The official Qwen3 pattern leaves its dots unescaped -- `model.layers.\d+`
+    // -- while Chroma's escapes them. Publishers are inconsistent, and the
+    // definition must round-trip whichever it was given, byte for byte.
+    let pd = written["dfloat11_config"]["pattern_dict"]
+        .as_object()
+        .expect("pattern_dict object");
+    assert_eq!(
+        pd.keys().collect::<Vec<_>>(),
+        vec!["model.layers.\\d+"],
+        "the pattern must round-trip exactly as the official release wrote it"
+    );
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn comfyui_native_output_has_no_config() {
+    let Some(fx) = skip_if_missing("comfyui_native_output_has_no_config") else {
+        return;
+    };
+    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    // Reuse the Qwen pattern but declare the native layout, which is what
+    // decides whether a config is emitted.
+    let def = ArchDef::from_toml(
+        r#"
+name = "native-probe"
+layout = "comfyui-native"
+format_version = "0.5.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "test"
+[[unit]]
+pattern = 'model\.layers\.\d+'
+attrs = ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.o_proj", "mlp.gate_proj", "mlp.up_proj", "mlp.down_proj"]
+"#,
+    )
+    .expect("parses");
+    let src = SafeTensorsFile::open(set.source_dir.join("model.safetensors")).expect("source");
+    let out = outdir("native");
+    let report = write_directory(&src, &def, &out, &WriteOptions::default()).expect("writes");
+    assert_eq!(report.config, None, "native output carries no config");
+    assert!(!out.join("config.json").exists());
+    let _ = std::fs::remove_dir_all(&out);
+}
