@@ -7,6 +7,8 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Manual runs build and package everything but publish nothing: a dry run.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -43,7 +45,7 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          name=df11pack-${GITHUB_REF_NAME}-${{ matrix.target }}
+          name=df11pack-${GITHUB_REF_NAME//\//-}-${{ matrix.target }}
           mkdir "$name"
           cp README.md LICENSE CHANGELOG.md "$name/"
           if [ "${{ matrix.archive }}" = zip ]; then
@@ -60,6 +62,7 @@ jobs:
 
   publish:
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
