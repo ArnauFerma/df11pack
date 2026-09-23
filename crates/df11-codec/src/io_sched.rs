@@ -94,6 +94,16 @@ pub fn parse_rotational(s: &str) -> Option<bool> {
 }
 
 /// The kernel device name backing a path, e.g. `sda` or `nvme0n1`.
+///
+/// Linux only (`/sys/dev/block`); elsewhere the device type is unknown and reads
+/// default to concurrent, which `--io sequential` overrides.
+#[cfg(not(unix))]
+fn device_name_for(_path: &Path) -> Option<String> {
+    None
+}
+
+/// The kernel device name backing a path, e.g. `sda` or `nvme0n1`.
+#[cfg(unix)]
 fn device_name_for(path: &Path) -> Option<String> {
     // st_dev gives major:minor; /sys/dev/block/<major>:<minor> links to the device.
     use std::os::unix::fs::MetadataExt;
