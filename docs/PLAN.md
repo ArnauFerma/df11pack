@@ -455,7 +455,7 @@ Rough effort: 10–14 days.
 damage without the source, value errors with it — and located to unit and chunk
 (FINDINGS, Phase 6).
 
-### Phase 7 — Remaining architectures — **DONE for Extended; `qwen3-8b` open**
+### Phase 7 — Remaining architectures — **DONE for Extended and `qwen3-8b`**
 
 All 19 models in Extended's `pattern_dict.py`, pinned to commit `414506d`
 (`phase0/import_extended.py`, parsed with `ast`, never executed), generated into
@@ -464,7 +464,7 @@ that the three already shipped (Flux, Chroma, ChromaRadiance) still match upstre
 Each has a synthetic model compressed by the official tool, and df11pack's output is
 byte-identical for all of them (`tests/synthetic.rs`); `verify --level full` passes
 on each official output.
-**Still open:** `qwen3-8b` (standalone embedding units) has no fixture; the official
+**Still open:** the official
 LLM examples beyond Qwen3 are not yet added; and synthetic models prove the
 definition is reproduced, not that it fits a real checkpoint's names.
 

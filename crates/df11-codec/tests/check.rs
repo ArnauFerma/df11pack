@@ -445,5 +445,5 @@ fn the_checker_passes_every_synthetic_official_output() {
         assert_eq!(i.units, f.units, "{name}");
         n += 1;
     }
-    assert!(n >= 21, "checked {n}");
+    assert!(n >= 22, "checked {n}");
 }

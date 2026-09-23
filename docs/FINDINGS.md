@@ -1474,3 +1474,10 @@ regenerated only when named explicitly. Every new set uses `zlib.crc32(name)`.
 
 `df11pack architectures` printed the layout as `comfyuinative`; it now prints the
 name the definition files use, `comfyui-native`.
+
+## `qwen3-8b`, the last uncovered definition
+
+A stand-in with standalone `lm_head` (Linear) and `model.embed_tokens` (Embedding)
+units, and a `save_pretrained` stand-in writing `model.safetensors`, run through
+the official tool: **byte-identical**, and it passes `verify --level full`. Every
+shipped definition now has a byte-identity test.

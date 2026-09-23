@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-23T12:43:29.475252+00:00",
+  "generated": "2026-09-23T14:04:18.229298+00:00",
   "note": "Per-tensor sha256 of official DFloat11 output. Phase 1 grades byte-identity against these.",
   "sets": [
     {
@@ -15423,6 +15423,414 @@
             ],
             "bytes": 40,
             "sha256": "b1babc6346e4081c3c1c7f9f53f6c60199bc7f4c649f89dbc002ed6f6291a718"
+          }
+        }
+      }
+    },
+    {
+      "name": "synthetic-qwen3-8b",
+      "provenance": "locally-compressed",
+      "note": "Synthetic qwen3-8b: definition's module names, hidden 256, every pattern instantiated (digit runs 0 and 1, every class member).",
+      "output_dir": "/home/cindy/proj3cts/compression/df11pack/phase0/out/official/synthetic-qwen3-8b",
+      "source_dir": "/home/cindy/proj3cts/compression/df11pack/phase0/corpus/synthetic/qwen3-8b",
+      "shards": 5,
+      "unit_tensors": 24,
+      "non_unit_tensors": 23,
+      "total_bytes": 3701747,
+      "json_sha256": {
+        "config.json": "c63ffe180b7c9fe29455cd3c30a7f0028cc856483285b16adb61996ea5f8e0dd"
+      },
+      "files": {
+        "lm_head.safetensors": {
+          "lm_head.bias": {
+            "dtype": "BF16",
+            "shape": [
+              776
+            ],
+            "bytes": 1552,
+            "sha256": "c240ddbc48cc16c0c85e0de5392ca4a96714c43f5adb5af60678ad9685fe9ab7"
+          },
+          "lm_head.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              64326
+            ],
+            "bytes": 64326,
+            "sha256": "45ec00d56dcc65cac2024c2bd613eb4692026846cf07116fa0cb69f56dc0fd02"
+          },
+          "lm_head.gaps": {
+            "dtype": "U8",
+            "shape": [
+              5120
+            ],
+            "bytes": 5120,
+            "sha256": "3c47412a34cb87a54e1ab3103a0beae3b30f4fa8c392035f50d6f2eeaa49bccc"
+          },
+          "lm_head.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "f6a5e7c7ba1cf7a39a389fce81711a2d06bb30dd9a5c02a9fdcf8417378d4b7b"
+          },
+          "lm_head.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              68
+            ],
+            "bytes": 68,
+            "sha256": "f974c30ff9732d78a46ba98a951684a382130319f290aa12d73be2e731c3c910"
+          },
+          "lm_head.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              198656
+            ],
+            "bytes": 198656,
+            "sha256": "95147ae231a8c08aa90f12f4b99c66b4748213090c4c72f352ffadb62a23ab35"
+          },
+          "lm_head.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              0
+            ],
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "model.safetensors": {
+          "final_layer.linear.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "a2ee741475205ae8f37b50e8cd94c60c0e85cd2897bf5bb94880e162b72ae51a"
+          },
+          "final_layer.linear.weight": {
+            "dtype": "BF16",
+            "shape": [
+              64,
+              256
+            ],
+            "bytes": 32768,
+            "sha256": "6d69cff1d7a434bd4bc3ee9adba40c6e715d74e08407e04c8fedba82496c4066"
+          },
+          "img_in.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "397f7c506b94e5c5b2e98ba5cb8fd6689ef5f19710ac073980ace2b7eb29bd83"
+          },
+          "img_in.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256,
+              64
+            ],
+            "bytes": 32768,
+            "sha256": "d917debf7cf2207dcf78eb19cdeca29685187392bb8713d725dd624811bfe014"
+          }
+        },
+        "model_embed_tokens.safetensors": {
+          "model.embed_tokens.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              85557
+            ],
+            "bytes": 85557,
+            "sha256": "20f0f5b5809aef161c8a1ae18f7b044c9d6fd202bd3952834be61ad73abd8b61"
+          },
+          "model.embed_tokens.gaps": {
+            "dtype": "U8",
+            "shape": [
+              6720
+            ],
+            "bytes": 6720,
+            "sha256": "4293338c2252d929a4fee832576a8382c9b6e3885fd2c1d3f3a554a2e4e69132"
+          },
+          "model.embed_tokens.luts": {
+            "dtype": "U8",
+            "shape": [
+              5,
+              256
+            ],
+            "bytes": 1280,
+            "sha256": "d03bdc077c88b0aeec8c67ded5f4bb4d12c3c3b2fca15c4a2fcc0fedbc83d59c"
+          },
+          "model.embed_tokens.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              88
+            ],
+            "bytes": 88,
+            "sha256": "1491639db4d1e4b559abf27f8839d59c4ba96d7f65002eb86b7358b070f6b7f0"
+          },
+          "model.embed_tokens.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              264192
+            ],
+            "bytes": 264192,
+            "sha256": "e3549929d53dd2ea4a118f984a778f3a199188f7f9a1ed0271d9ad5df7cc867b"
+          },
+          "model.embed_tokens.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              0
+            ],
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "model_layers_0.safetensors": {
+          "model.layers.0.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              358244
+            ],
+            "bytes": 358244,
+            "sha256": "4595664a37bc1b8a5beffa6eb21dec5598b4808bbb72b4f2a717df68a1974622"
+          },
+          "model.layers.0.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "2bec1db21ded5f8780a745d7b12f8302cb4b0a29cebd5d4ab22a3368d08475e0"
+          },
+          "model.layers.0.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "fcfd6034f62dd12fd822ab32bf3a3b076c116725d23ea7a4bb1d4d9f5792b82a"
+          },
+          "model.layers.0.gaps": {
+            "dtype": "U8",
+            "shape": [
+              28160
+            ],
+            "bytes": 28160,
+            "sha256": "1e5f5474377e6535c9166fcdccccd612105bdfccddcea7d9e9b30bf7a9d0f637"
+          },
+          "model.layers.0.luts": {
+            "dtype": "U8",
+            "shape": [
+              5,
+              256
+            ],
+            "bytes": 1280,
+            "sha256": "550a4785409415d435d6db4d5fd620d500540cabacf5778b79e411d85352c4d1"
+          },
+          "model.layers.0.mlp.down_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              824
+            ],
+            "bytes": 1648,
+            "sha256": "a2a5338bd619677fa50a8adedd78982a4d69f343e945441c35a85ea73f6886fd"
+          },
+          "model.layers.0.mlp.gate_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              296
+            ],
+            "bytes": 592,
+            "sha256": "a74609f5c6fd0dab8f63460625cf487deeb7f1aebe21e3ec5663e1af48522b99"
+          },
+          "model.layers.0.mlp.up_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              560
+            ],
+            "bytes": 1120,
+            "sha256": "bc43962c8792283fd58d80958b4ce68a6a01ec12e6545d4c2ba4b1e47f67711d"
+          },
+          "model.layers.0.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              356
+            ],
+            "bytes": 356,
+            "sha256": "dbd4a12478ebec0b935de71e47a33bf7cacdb722a3149d82de3b04cdf79891d1"
+          },
+          "model.layers.0.self_attn.k_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              528
+            ],
+            "bytes": 1056,
+            "sha256": "61e916c9d8193149693e4c141872b3ce80f5d01b73115c6df44787f92565554b"
+          },
+          "model.layers.0.self_attn.o_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1056
+            ],
+            "bytes": 2112,
+            "sha256": "f4b1f3fce9f0bf2c7d831e05a22624ad73fa4329bd005f76c9d38ebce9e990ad"
+          },
+          "model.layers.0.self_attn.q_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              264
+            ],
+            "bytes": 528,
+            "sha256": "6117f9d5026da8226baed0ee055cb98392f5625b0e9d544e357fa4e1fb6942bb"
+          },
+          "model.layers.0.self_attn.v_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              792
+            ],
+            "bytes": 1584,
+            "sha256": "623fce36d85fe82664cf54b2046fbf5b2a9b757e95a384200d8a8646633e0d52"
+          },
+          "model.layers.0.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              1105920
+            ],
+            "bytes": 1105920,
+            "sha256": "3f1521c2e99df70fc313346126032913433d54be9d0ff1cff95d012ade70a84a"
+          },
+          "model.layers.0.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              6
+            ],
+            "bytes": 48,
+            "sha256": "c4cf0c327127a4ea7a213a5ac60b9aadab6ae200680d2af825db4b9c84fde013"
+          }
+        },
+        "model_layers_1.safetensors": {
+          "model.layers.1.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              358144
+            ],
+            "bytes": 358144,
+            "sha256": "7de88926951ae8722747ecffd2a74eabb09260c3aeefcb66364275327ce4dd6a"
+          },
+          "model.layers.1.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "a1ba140517a87e7397e5c61b8f3583bb696ff845c4804da88f376072bc3a8335"
+          },
+          "model.layers.1.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "9235227038056ee73343805fce8340c0d6b8f5e3138ea02dc832471201c05493"
+          },
+          "model.layers.1.gaps": {
+            "dtype": "U8",
+            "shape": [
+              28160
+            ],
+            "bytes": 28160,
+            "sha256": "089100c4eec5aa3d9f355414f50920d9068b06be5222d87e4353cf42290f1f1c"
+          },
+          "model.layers.1.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "efea398d9ff3ed146e904da3eaaa37038eafef024e33046c0de5dda831dc6c74"
+          },
+          "model.layers.1.mlp.down_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              824
+            ],
+            "bytes": 1648,
+            "sha256": "053d6249f22b9412e96a98a40e92a55a155af529cff5711df0de3d2db77ee173"
+          },
+          "model.layers.1.mlp.gate_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              296
+            ],
+            "bytes": 592,
+            "sha256": "8b19c5d89cc9d6d82e9a8f6cb100b45a200cb66f874ec8607fcce7c4e653c4cb"
+          },
+          "model.layers.1.mlp.up_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              560
+            ],
+            "bytes": 1120,
+            "sha256": "55581d7d2d9c15266bb2c97f3375bcf066e6a5a14ff2784cdcb64a85c3c16a77"
+          },
+          "model.layers.1.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              356
+            ],
+            "bytes": 356,
+            "sha256": "88a8a70422b16f5dcdc9b8d6fc8b36d74561c85c620ac8cc335d09a36befac12"
+          },
+          "model.layers.1.self_attn.k_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              528
+            ],
+            "bytes": 1056,
+            "sha256": "7049f0df4fd0ec59b1b5b6e0d9ebde17768b044270c5c620ba19694f1bde59d6"
+          },
+          "model.layers.1.self_attn.o_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1056
+            ],
+            "bytes": 2112,
+            "sha256": "4ddb1f674a611d52354f8fa5f944eeac057db0fd80992fe5dceabc20a2e39399"
+          },
+          "model.layers.1.self_attn.q_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              264
+            ],
+            "bytes": 528,
+            "sha256": "2c7c49aedd0f5c536c7978398b6ccfabeefbc01f9d85290e0992e764ff4d9e89"
+          },
+          "model.layers.1.self_attn.v_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              792
+            ],
+            "bytes": 1584,
+            "sha256": "5b3a39b35e9de1edcf5fc0e4ad119f604fcd752b17800d06a56577304b7171f4"
+          },
+          "model.layers.1.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              1105920
+            ],
+            "bytes": 1105920,
+            "sha256": "eb6e9194651352ffcf8b01d0941cf1380e786dfb54214a8a083e6ddecf954da6"
+          },
+          "model.layers.1.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              6
+            ],
+            "bytes": 48,
+            "sha256": "c4cf0c327127a4ea7a213a5ac60b9aadab6ae200680d2af825db4b9c84fde013"
           }
         }
       }

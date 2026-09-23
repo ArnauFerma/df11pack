@@ -134,9 +134,10 @@ def build(name):
             units = instances(pattern)
         for unit in units:
             if not attrs:
-                # Empty attrs: the matched module is itself a Linear; its bias is
-                # the sibling.
-                put(m, unit, lin(H, 3 * H + 8))
+                # Empty attrs: the matched module is itself one tensor -- an
+                # Embedding for token embeddings, else a Linear whose bias is the
+                # sibling. Upstream treats both the same way.
+                put(m, unit, nn.Embedding(4 * H + 8, H) if "embed" in unit else lin(H, 3 * H + 8))
                 continue
             for k, a in enumerate(attrs):
                 put(m, f"{unit}.{a}", lin(*(shape_for(a) if name in ORIGINAL else generic_shape(k))))
@@ -146,11 +147,15 @@ def build(name):
     put(m, "img_in", lin(64, H))
     put(m, "final_layer.linear", lin(H, 64))
 
+    # Stand-ins for save_pretrained: the remainder file each library writes.
+    remainder = ("diffusion_pytorch_model.safetensors" if "diffusers" in name
+                 else "model.safetensors" if name.startswith("qwen3") else None)
+
     def save_pretrained(path):
         save_file({k: v.contiguous() for k, v in m.state_dict().items()},
-                  str(Path(path) / "diffusion_pytorch_model.safetensors"))
+                  str(Path(path) / remainder))
 
-    if "diffusers" in name:
+    if remainder:
         m.save_pretrained = save_pretrained
 
     torch.manual_seed(abs(hash(name)) % (2**31) if name in ORIGINAL else seed_for(name))

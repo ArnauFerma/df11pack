@@ -114,7 +114,7 @@ fn every_definition_matches_the_official_output() {
         "flux-dev-diffusers",
         "chroma-diffusers",
     ];
-    const UNCOVERED: [&str; 1] = ["qwen3-8b"]; // standalone embedding units; no fixture yet
+    const UNCOVERED: [&str; 0] = [];
     let mut checked = 0;
     for (name, _) in architecture_defs().expect("definitions") {
         if ELSEWHERE.contains(&name.as_str()) || UNCOVERED.contains(&name.as_str()) {
@@ -128,5 +128,5 @@ fn every_definition_matches_the_official_output() {
         check(&set, &name);
         checked += 1;
     }
-    assert!(checked >= 17, "checked {checked}");
+    assert!(checked >= 18, "checked {checked}");
 }
