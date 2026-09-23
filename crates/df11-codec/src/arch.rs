@@ -26,6 +26,17 @@ pub enum Layout {
     ComfyuiNative,
 }
 
+impl Layout {
+    /// The name a definition file uses.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Layout::Transformers => "transformers",
+            Layout::Diffusers => "diffusers",
+            Layout::ComfyuiNative => "comfyui-native",
+        }
+    }
+}
+
 /// One compression unit pattern.
 #[derive(Debug, Clone, Deserialize)]
 pub struct UnitPattern {

@@ -1416,3 +1416,61 @@ the parallel one is the remaining H12 work.
 Erratum found while writing this: COMPATIBILITY.md said `--luts=correct` output is
 also stamped `df11pack_version`. The code never wrote it. The document now matches
 the code.
+
+---
+
+# Phase 7 — The remaining architectures
+
+## Source, pinned
+
+Extended's `pattern_dict.py` at commit `414506d` holds 19 models. It is parsed with
+`ast.literal_eval`, never executed, and only the data is kept
+(`phase0/fixtures/extended_pattern_dicts.json`, with the file's SHA-256); the
+repository has no licence file, so its source is not copied. The three models we
+already shipped matched upstream exactly. 16 new definitions were generated;
+`definitions_still_match_the_official_pattern_dicts` now covers all 24.
+
+## What the new patterns needed
+
+The official compressor matches with `re.fullmatch` and walks patterns in dict
+order. Three shapes in the new definitions are not like Flux:
+
+| upstream | issue | handling |
+|---|---|---|
+| ACEStep15 `layers\.\d++` | Python 3.11+ reads it as a *possessive* quantifier. The Rust engine accepts the same text as the nested `(\d+)+`, which matches the same strings **only at the end of a pattern** | a trailing `\d++` is translated to `\d+` (provably equivalent under fullmatch); a possessive anywhere else is refused. Mutation note: dropping the translation is an equivalent mutant for exactly that reason — the refusal is what the tests pin |
+| SDXL `output_blocks\.[678]\.0` | character classes | work as-is; tested |
+| ErnieImage `adaLN_modulation.1` | unescaped dots match any character | same in both engines; no change |
+
+Two more rules from reading the official walk, both refusals rather than guesses:
+
+- **Nested units** are refused. Upstream detaches weights as it walks, so an inner
+  unit fails there; here the inner unit's tensors would also be the outer unit's
+  siblings and be written twice. No shipped definition nests.
+- **Attrs on a module that has its own `.weight`** are refused. Upstream ignores the
+  attrs when the matched module is an `nn.Linear` or `nn.Embedding`, and uses them
+  otherwise; tensor names cannot tell which. No shipped definition hits it.
+
+## Byte-identity, all 17 sets
+
+`make_synthetic.py` now instantiates any pattern (digit runs as 0 and 1, every member
+of a character class), gives every attribute in a unit a distinct size, and builds
+single-tensor units as a bare Linear. The official compressor ran on all 17 (2–37M
+weights each, 260 s total, 437 MiB peak). **df11pack matched every one, byte for byte,
+on the first run**, and the Phase 6 checker passes on all 21 synthetic official
+outputs at `full`.
+
+What this does and does not show: the official tool walks `named_modules()`, so it
+cannot tell these models from the real classes, and the definition is reproduced
+exactly. It does **not** show that a real checkpoint of that model uses these module
+names, or needs no key prefix beyond `model.diffusion_model.`. That needs one real
+file per architecture.
+
+## Found in passing
+
+`make_synthetic.py` seeded from `hash(name)`, which Python randomises per process.
+The four original fixtures therefore cannot be regenerated bit-exactly. They stay
+frozen by SHA-256 in MANIFEST.json (and a test pins a window inside one), and are
+regenerated only when named explicitly. Every new set uses `zlib.crc32(name)`.
+
+`df11pack architectures` printed the layout as `comfyuinative`; it now prints the
+name the definition files use, `comfyui-native`.

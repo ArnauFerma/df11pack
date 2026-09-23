@@ -268,3 +268,96 @@ fn discovery_on_the_real_model_matches_the_official_shards() {
         "everything else stays outside the units"
     );
 }
+
+// ---- Phase 7: pattern shapes the Extended definitions introduce ----
+
+fn def_of(units: &str) -> ArchDef {
+    ArchDef::from_toml(&format!(
+        "name = \"t\"\nlayout = \"comfyui-native\"\nformat_version = \"0.5.0\"\n\
+         threads_per_block = [512]\nbytes_per_thread = 8\nsource = \"test\"\n{units}"
+    ))
+    .expect("valid")
+}
+
+/// ACEStep15 upstream writes `layers\.\d++`. Python's `re` (3.11+) reads that as a
+/// possessive quantifier; under fullmatch, a possessive quantifier at the very
+/// end matches exactly what the greedy one does, since nothing follows it to
+/// backtrack for. The Rust engine has no possessive syntax, so it must be read
+/// as greedy there -- not rejected, and not silently misparsed.
+#[test]
+fn a_trailing_possessive_digit_run_matches_like_python() {
+    let d = def_of("[[unit]]\npattern = 'enc\\.layers\\.\\d++'\nattrs = [\"q\"]\n");
+    let got = discover(
+        &d,
+        &names(&[
+            "enc.layers.0.q.weight",
+            "enc.layers.12.q.weight",
+            "enc.layersX3.q.weight",
+        ]),
+    )
+    .expect("a trailing \\d++ must be accepted");
+    let units: Vec<&str> = got.units.iter().map(|u| u.name.as_str()).collect();
+    assert_eq!(units, ["enc.layers.0", "enc.layers.12"]);
+}
+
+/// A possessive quantifier anywhere else can change what matches; the engine
+/// cannot reproduce it, so it must be refused rather than approximated.
+#[test]
+fn a_possessive_quantifier_mid_pattern_is_refused() {
+    let d = def_of("[[unit]]\npattern = 'a\\d++\\.b'\nattrs = [\"q\"]\n");
+    let e = discover(&d, &names(&["a1.b.q.weight"])).expect_err("must refuse");
+    assert!(matches!(e, DiscoverError::BadPattern { .. }), "{e}");
+}
+
+/// Units must not nest. The official compressor detaches a unit's weights as it
+/// goes, so a unit inside another fails upstream; here it would also claim the
+/// inner unit's tensors as the outer one's siblings, writing them twice.
+#[test]
+fn nested_units_are_refused() {
+    let d = def_of(
+        "[[unit]]\npattern = 'blk\\.\\d+'\nattrs = [\"a\"]\n\
+         [[unit]]\npattern = 'blk\\.\\d+\\.inner'\nattrs = [\"b\"]\n",
+    );
+    let e = discover(&d, &names(&["blk.0.a.weight", "blk.0.inner.b.weight"]))
+        .expect_err("nesting must be refused");
+    assert!(matches!(e, DiscoverError::NestedUnits { .. }), "{e}");
+}
+
+/// Upstream: when the matched module is itself an nn.Linear or nn.Embedding, its
+/// own weight is compressed and the attrs are ignored. From tensor names alone a
+/// module with its own `.weight` could be either case, so a definition that
+/// gives attrs for such a module is ambiguous and must be refused.
+#[test]
+fn attrs_on_a_module_with_its_own_weight_are_refused() {
+    let d = def_of("[[unit]]\npattern = 'proj'\nattrs = [\"1\"]\n");
+    let e =
+        discover(&d, &names(&["proj.weight", "proj.1.weight"])).expect_err("ambiguous module kind");
+    assert!(matches!(e, DiscoverError::AmbiguousModule { .. }), "{e}");
+}
+
+/// Character classes, as SDXL uses them, select exactly the listed indices.
+#[test]
+fn a_character_class_pattern_selects_only_its_indices() {
+    let d = def_of("[[unit]]\npattern = 'out\\.[01]\\.0'\nattrs = [\"e\"]\n");
+    let got = discover(
+        &d,
+        &names(&["out.0.0.e.weight", "out.1.0.e.weight", "out.2.0.e.weight"]),
+    )
+    .unwrap();
+    let units: Vec<&str> = got.units.iter().map(|u| u.name.as_str()).collect();
+    assert_eq!(units, ["out.0.0", "out.1.0"]);
+    assert!(got.passthrough.contains(&"out.2.0.e.weight".to_string()));
+}
+
+/// `\\d++` is a literal backslash then a possessive `d++` -- not the digit class.
+/// And a pattern with a possessive earlier on is refused even if it also ends in
+/// `\d++`.
+#[test]
+fn only_a_genuine_trailing_digit_class_is_translated() {
+    for p in ["a\\\\\\\\d++", "a\\\\d++\\\\.b\\\\d++"] {
+        let d = def_of(&format!("[[unit]]\npattern = \"{p}\"\nattrs = [\"q\"]\n"));
+        let e = discover(&d, &names(&["a1.b2.q.weight", "a\\ddd.q.weight"]))
+            .expect_err(&format!("{p} must be refused"));
+        assert!(matches!(e, DiscoverError::BadPattern { .. }), "{p}: {e}");
+    }
+}

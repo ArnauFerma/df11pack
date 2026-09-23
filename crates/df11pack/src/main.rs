@@ -203,7 +203,7 @@ fn list_architectures() -> Result<(), String> {
             Ok(d) => format!(
                 "{:<30} {:<16} {:>5}  {}",
                 d.name,
-                format!("{:?}", d.layout).to_lowercase(),
+                d.layout.as_str(),
                 d.units.len(),
                 d.source
             ),

@@ -97,3 +97,36 @@ fn flux_diffusers_matches_the_official_output() {
 fn chroma_diffusers_matches_the_official_output() {
     check("synthetic-chroma-diffusers", "chroma-diffusers");
 }
+
+/// Phase 7: every other definition, each against its own synthetic model
+/// compressed by the official tool.
+#[test]
+fn every_definition_matches_the_official_output() {
+    let Some(fx) = skip_if_missing("every_definition_matches_the_official_output") else {
+        return;
+    };
+    // Covered elsewhere, or not yet at all -- named, so a new definition without a
+    // fixture fails here instead of passing unnoticed.
+    const ELSEWHERE: [&str; 5] = [
+        "qwen3-4b",     // tier0 / tier1, real weights
+        "flux-comfyui", // the four original synthetic tests above
+        "chroma-comfyui",
+        "flux-dev-diffusers",
+        "chroma-diffusers",
+    ];
+    const UNCOVERED: [&str; 1] = ["qwen3-8b"]; // standalone embedding units; no fixture yet
+    let mut checked = 0;
+    for (name, _) in architecture_defs().expect("definitions") {
+        if ELSEWHERE.contains(&name.as_str()) || UNCOVERED.contains(&name.as_str()) {
+            continue;
+        }
+        let set = format!("synthetic-{name}");
+        assert!(
+            fx.set(&set).is_some(),
+            "{name}: no synthetic fixture; run phase0/make_synthetic.py {name}"
+        );
+        check(&set, &name);
+        checked += 1;
+    }
+    assert!(checked >= 17, "checked {checked}");
+}

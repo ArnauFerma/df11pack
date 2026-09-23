@@ -1,0 +1,18 @@
+{
+ "flux-schnell-comfyui": "FluxSchnell",
+ "longcat-image-comfyui": "LongCatImage",
+ "ovis-image-comfyui": "OvisImage",
+ "flux2-comfyui": "Flux2",
+ "flux2-alt-comfyui": "Flux2-alt",
+ "cosmos-t2i-predict2-comfyui": "CosmosT2IPredict2",
+ "anima-comfyui": "Anima",
+ "lumina2-comfyui": "Lumina2",
+ "zimage-comfyui": "ZImage",
+ "zimage-pixel-space-comfyui": "ZImagePixelSpace",
+ "krea2-comfyui": "Krea2",
+ "qwen-image21-comfyui": "QwenImage21",
+ "ernie-image-comfyui": "ErnieImage",
+ "lens-comfyui": "Lens",
+ "sdxl-comfyui": "SDXL",
+ "acestep15-comfyui": "ACEStep15"
+}

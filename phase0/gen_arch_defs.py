@@ -5,7 +5,9 @@ wrong -- Phase 0 showed that deriving these orders by reading class definitions
 produces the right set of attributes in the wrong order (FINDINGS 0.9).
 
 Input:  phase0/fixtures/official_pattern_dicts.json, transcribed from published
-        releases' own dfloat11_config and from Extended's pattern_dict.py.
+        releases' own dfloat11_config and from Extended's pattern_dict.py;
+        phase0/fixtures/extended_pattern_dicts.json (import_extended.py), every
+        other Extended model, all ComfyUI-native.
 Output: data/architectures/<name>.toml
 """
 import json, pathlib
@@ -29,9 +31,53 @@ def esc(s):
     return "'" + s + "'" if "\\" in s or '"' in s else '"' + s + '"'
 
 
+# Extended models already defined from official_pattern_dicts.json. The generator
+# checks they have not drifted from the pinned import rather than emitting twice.
+EXTENDED_EXISTING = {"Flux": "flux-comfyui", "Chroma": "chroma-comfyui",
+                     "ChromaRadiance": "chroma-radiance-comfyui"}
+
+
+# Where splitting on case gives a poor name.
+NAMES = {"CosmosT2IPredict2": "cosmos-t2i-predict2", "LongCatImage": "longcat-image"}
+
+
+def kebab(model):
+    if model in NAMES:
+        return NAMES[model]
+    out = ""
+    for i, c in enumerate(model):
+        if c.isupper() and i and (model[i - 1].islower() or model[i - 1].isdigit()):
+            out += "-"
+        out += c.lower()
+    return out
+
+
+def extended(root, fx):
+    ext = json.loads((root / "phase0/fixtures/extended_pattern_dicts.json").read_text())
+    src = f"github.com/mingyi456/ComfyUI-DFloat11-Extended pattern_dict.py @ {ext['commit'][:7]}"
+    names = {}
+    for model, pairs in ext["models"].items():
+        pd = {p: a for p, a in pairs}
+        if model in EXTENDED_EXISTING:
+            key = EXTENDED_EXISTING[model]
+            assert fx[key]["pattern_dict"] == pd and list(fx[key]["pattern_dict"]) == list(pd), \
+                f"{key} has drifted from Extended {model} @ {ext['commit'][:7]}"
+            continue
+        key = f"{kebab(model)}-comfyui"
+        names[key] = model
+        LAYOUT[key] = "comfyui-native"
+        DESC[key] = f"{model} in the ComfyUI-native layout, from Extended's pattern_dict."
+        fx[key] = {"pattern_dict": pd, "repo": src, "threads_per_block": [512],
+                   "bytes_per_thread": 8, "version": "0.5.0"}
+    # Definition name -> upstream model, so the drift test can find each one's
+    # pinned transcription.
+    (root / "phase0/fixtures/extended_def_names.json").write_text(json.dumps(names, indent=1) + "\n")
+
+
 def main():
     root = pathlib.Path(__file__).resolve().parent.parent
     fx = json.loads((root / "phase0/fixtures/official_pattern_dicts.json").read_text())
+    extended(root, fx)
     outdir = root / "data/architectures"
     outdir.mkdir(parents=True, exist_ok=True)
     for key, d in fx.items():

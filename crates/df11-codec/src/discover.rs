@@ -44,6 +44,18 @@ pub enum DiscoverError {
         units: Vec<String>,
     },
     NoUnitsFound,
+    /// One unit lies inside another. Upstream detaches weights as it goes and
+    /// fails; here the inner unit's tensors would also be the outer's siblings.
+    NestedUnits {
+        outer: String,
+        inner: String,
+    },
+    /// The definition gives attrs for a module that has its own `.weight`.
+    /// Upstream ignores the attrs when that module is an nn.Linear or
+    /// nn.Embedding and uses them otherwise; tensor names cannot tell which.
+    AmbiguousModule {
+        unit: String,
+    },
 }
 
 impl fmt::Display for DiscoverError {
@@ -65,6 +77,17 @@ impl fmt::Display for DiscoverError {
                  is ambiguous",
                 units.join(", ")
             ),
+            Self::NestedUnits { outer, inner } => write!(
+                f,
+                "unit {inner:?} lies inside unit {outer:?}; units must not nest"
+            ),
+            Self::AmbiguousModule { unit } => write!(
+                f,
+                "unit {unit:?} has its own weight and the definition also lists attrs for \
+                 it. The official compressor ignores the attrs if the module is an \
+                 nn.Linear or nn.Embedding, and names alone cannot tell; if it is one, \
+                 the definition should give `attrs = []`"
+            ),
             Self::NoUnitsFound => write!(
                 f,
                 "the definition matched no modules in this model -- wrong definition \
@@ -85,11 +108,12 @@ pub fn discover(def: &ArchDef, tensor_names: &[String]) -> Result<Discovery, Dis
     // `model\.layers\.\d+` does not match `extra.model.layers.0`.
     let mut res = Vec::with_capacity(def.units.len());
     for u in &def.units {
-        let r =
-            Regex::new(&format!("^(?:{})$", u.pattern)).map_err(|e| DiscoverError::BadPattern {
-                pattern: u.pattern.clone(),
-                message: e.to_string(),
-            })?;
+        let bad = |message: String| DiscoverError::BadPattern {
+            pattern: u.pattern.clone(),
+            message,
+        };
+        let translated = python_to_rust(&u.pattern).map_err(bad)?;
+        let r = Regex::new(&format!("^(?:{translated})$")).map_err(|e| bad(e.to_string()))?;
         res.push(r);
     }
 
@@ -141,6 +165,32 @@ pub fn discover(def: &ArchDef, tensor_names: &[String]) -> Result<Discovery, Dis
 
     if found.is_empty() {
         return Err(DiscoverError::NoUnitsFound);
+    }
+
+    // A module with its own weight, given attrs: see AmbiguousModule.
+    for (pi, module) in found.keys() {
+        if !def.units[*pi].is_standalone()
+            && tensor_names
+                .iter()
+                .any(|n| *n == format!("{module}.weight"))
+        {
+            return Err(DiscoverError::AmbiguousModule {
+                unit: module.clone(),
+            });
+        }
+    }
+
+    // Units must not nest. Sorted, an enclosing module comes right before the
+    // first module inside it... but not necessarily adjacent, so check pairs.
+    let modules: Vec<&String> = found.keys().map(|(_, m)| m).collect();
+    for outer in &modules {
+        let prefix = format!("{outer}.");
+        if let Some(inner) = modules.iter().find(|m| m.starts_with(&prefix)) {
+            return Err(DiscoverError::NestedUnits {
+                outer: (*outer).clone(),
+                inner: (*inner).clone(),
+            });
+        }
     }
 
     let mut units: Vec<DiscoveredUnit> = Vec::with_capacity(found.len());
@@ -195,6 +245,39 @@ pub fn discover(def: &ArchDef, tensor_names: &[String]) -> Result<Discovery, Dis
         .collect();
 
     Ok(Discovery { units, passthrough })
+}
+
+/// Python `re` syntax the Rust engine lacks, translated where it is provably
+/// equivalent and refused where it is not.
+///
+/// The one case upstream uses: a possessive `\d++` at the very end of a pattern.
+/// Under fullmatch nothing follows it, so there is nothing to backtrack for and
+/// it matches exactly the strings the greedy `\d+` does. A possessive quantifier
+/// anywhere else can change the match and is refused.
+///
+/// The Rust engine happens to accept `\d++` itself, as the nested repetition
+/// `(\d+)+` -- the same strings at the end of a pattern, different ones
+/// mid-pattern (Python's `a\d++1` never matches). So the translation is explicit
+/// rather than left to that coincidence, and the refusal is what matters.
+fn python_to_rust(pattern: &str) -> Result<String, String> {
+    let possessive =
+        |p: &str| p.contains("++") || p.contains("*+") || p.contains("?+") || p.contains("}+");
+    if !possessive(pattern) {
+        return Ok(pattern.to_string());
+    }
+    if let Some(head) = pattern.strip_suffix(r"\d++") {
+        // An odd run of backslashes before `d` means `\d` is the class, not a
+        // literal backslash followed by `d`.
+        let slashes = head.chars().rev().take_while(|&c| c == '\\').count();
+        if slashes % 2 == 0 && !possessive(head) {
+            return Ok(format!(r"{head}\d+"));
+        }
+    }
+    Err(
+        "possessive quantifiers are supported only as a trailing `\\d++`, where they \
+         match exactly as the greedy form does"
+            .to_string(),
+    )
 }
 
 /// Compare names treating digit runs as numbers, so `layers.10` sorts after

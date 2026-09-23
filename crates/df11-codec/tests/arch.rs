@@ -21,7 +21,7 @@ fn every_shipped_definition_parses_and_validates() {
         return;
     };
     assert!(
-        defs.len() >= 8,
+        defs.len() >= 24,
         "expected the shipped set, got {}",
         defs.len()
     );
@@ -73,7 +73,7 @@ fn definitions_still_match_the_official_pattern_dicts() {
         assert_eq!(d.threads_per_block, o.threads_per_block, "{name}");
         checked += 1;
     }
-    assert!(checked >= 8);
+    assert!(checked >= 24);
 }
 
 #[test]
@@ -204,4 +204,23 @@ fn split_positions_reproduce_official_output() {
         checked += 1;
     }
     assert_eq!(checked, 4);
+}
+
+/// The layout prints as the definition file spells it, so a listed name can be
+/// pasted back into a definition.
+#[test]
+fn layout_names_round_trip() {
+    use df11_codec::arch::Layout;
+    for l in [
+        Layout::Transformers,
+        Layout::Diffusers,
+        Layout::ComfyuiNative,
+    ] {
+        let toml = format!(
+            "name = \"t\"\nlayout = \"{}\"\nformat_version = \"0.5.0\"\nthreads_per_block = [512]\n\
+             bytes_per_thread = 8\nsource = \"s\"\n[[unit]]\npattern = 'a'\nattrs = []\n",
+            l.as_str()
+        );
+        assert_eq!(ArchDef::from_toml(&toml).unwrap().layout, l);
+    }
 }

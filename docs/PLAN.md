@@ -455,13 +455,18 @@ Rough effort: 10–14 days.
 damage without the source, value errors with it — and located to unit and chunk
 (FINDINGS, Phase 6).
 
-### Phase 7 — Remaining architectures
+### Phase 7 — Remaining architectures — **DONE for Extended; `qwen3-8b` open**
 
-The rest of Extended's `pattern_dict.py` plus the official examples (Wan2.1,
-LLMs), each as a data file with its own golden tests per layout.
-**Exit gate:** golden tests pass per architecture and per layout.
-Rough effort: open-ended; roughly 1–2 days per architecture once the pattern is
-established.
+All 19 models in Extended's `pattern_dict.py`, pinned to commit `414506d`
+(`phase0/import_extended.py`, parsed with `ast`, never executed), generated into
+`data/architectures/` by `gen_arch_defs.py`: 16 new definitions, plus a drift check
+that the three already shipped (Flux, Chroma, ChromaRadiance) still match upstream.
+Each has a synthetic model compressed by the official tool, and df11pack's output is
+byte-identical for all of them (`tests/synthetic.rs`); `verify --level full` passes
+on each official output.
+**Still open:** `qwen3-8b` (standalone embedding units) has no fixture; the official
+LLM examples beyond Qwen3 are not yet added; and synthetic models prove the
+definition is reproduced, not that it fits a real checkpoint's names.
 
 ---
 

@@ -29,6 +29,15 @@ SETS = [
          src=ROOT/f"corpus/synthetic/{n}",
          note=f"Synthetic {n}: real module names, hidden 256, two instances per pattern.")
     for n in ["flux-comfyui", "chroma-comfyui", "flux-dev-diffusers", "chroma-diffusers"]
+] + [
+    # Phase 7: every other definition, same generator, stable seed.
+    dict(name=f"synthetic-{p.name[len('synthetic-'):]}", provenance="locally-compressed",
+         out=p, src=ROOT/f"corpus/synthetic/{p.name[len('synthetic-'):]}",
+         note=f"Synthetic {p.name[len('synthetic-'):]}: definition's module names, hidden 256, "
+              "every pattern instantiated (digit runs 0 and 1, every class member).")
+    for p in sorted((ROOT/"out/official").glob("synthetic-*"))
+    if p.name[len("synthetic-"):] not in
+       ["flux-comfyui", "chroma-comfyui", "flux-dev-diffusers", "chroma-diffusers"]
 ]
 
 

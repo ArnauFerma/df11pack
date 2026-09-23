@@ -453,7 +453,36 @@ pub struct OfficialPatternDict {
 pub fn official_pattern_dicts() -> Option<std::collections::BTreeMap<String, OfficialPatternDict>> {
     let root = workspace_root()?;
     let p = root.join("phase0/fixtures/official_pattern_dicts.json");
-    serde_json::from_slice(&std::fs::read(p).ok()?).ok()
+    let mut out: std::collections::BTreeMap<String, OfficialPatternDict> =
+        serde_json::from_slice(&std::fs::read(p).ok()?).ok()?;
+
+    // Definitions generated from Extended's pattern_dict (phase0/import_extended.py),
+    // pinned to one commit. All ComfyUI-native with the default geometry.
+    let ext: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(root.join("phase0/fixtures/extended_pattern_dicts.json")).ok()?,
+    )
+    .ok()?;
+    let names: std::collections::BTreeMap<String, String> = serde_json::from_slice(
+        &std::fs::read(root.join("phase0/fixtures/extended_def_names.json")).ok()?,
+    )
+    .ok()?;
+    for (def, model) in names {
+        let mut pattern_dict = serde_json::Map::new();
+        for pair in ext["models"][&model].as_array()? {
+            pattern_dict.insert(pair[0].as_str()?.to_string(), pair[1].clone());
+        }
+        out.insert(
+            def,
+            OfficialPatternDict {
+                repo: format!("Extended @ {}", ext["commit"].as_str()?),
+                version: Some("0.5.0".into()),
+                threads_per_block: vec![512],
+                bytes_per_thread: 8,
+                pattern_dict,
+            },
+        );
+    }
+    Some(out)
 }
 
 /// Every shipped architecture definition, as `(name, toml source)`.

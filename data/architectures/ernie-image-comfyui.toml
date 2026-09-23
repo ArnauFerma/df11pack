@@ -1,0 +1,38 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# ErnieImage in the ComfyUI-native layout, from Extended's pattern_dict.
+
+name = "ernie-image-comfyui"
+layout = "comfyui-native"
+format_version = "0.5.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "github.com/mingyi456/ComfyUI-DFloat11-Extended pattern_dict.py @ 414506d"
+
+[[unit]]
+pattern = "time_embedding"
+attrs = [
+    "linear_1",
+    "linear_2",
+]
+
+[[unit]]
+pattern = "adaLN_modulation.1"
+# empty: the matched module is itself one tensor
+attrs = []
+
+[[unit]]
+pattern = 'layers\.\d+'
+attrs = [
+    "self_attention.to_q",
+    "self_attention.to_k",
+    "self_attention.to_v",
+    "self_attention.to_out.0",
+    "mlp.gate_proj",
+    "mlp.up_proj",
+    "mlp.linear_fc2",
+]
+
+[[unit]]
+pattern = "final_norm.linear"
+# empty: the matched module is itself one tensor
+attrs = []

@@ -1,0 +1,32 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# FluxSchnell in the ComfyUI-native layout, from Extended's pattern_dict.
+
+name = "flux-schnell-comfyui"
+layout = "comfyui-native"
+format_version = "0.5.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "github.com/mingyi456/ComfyUI-DFloat11-Extended pattern_dict.py @ 414506d"
+
+[[unit]]
+pattern = 'double_blocks\.\d+'
+attrs = [
+    "img_mod.lin",
+    "img_attn.qkv",
+    "img_attn.proj",
+    "img_mlp.0",
+    "img_mlp.2",
+    "txt_mod.lin",
+    "txt_attn.qkv",
+    "txt_attn.proj",
+    "txt_mlp.0",
+    "txt_mlp.2",
+]
+
+[[unit]]
+pattern = 'single_blocks\.\d+'
+attrs = [
+    "linear1",
+    "linear2",
+    "modulation.lin",
+]

@@ -15,7 +15,8 @@ calls to write the remainder file; ours writes the remaining state_dict to
 `diffusion_pytorch_model.safetensors`, which is what diffusers itself does. It
 touches passthrough tensors only, never a compressed unit.
 """
-import json, shutil, sys
+import json, re, shutil, sys, zlib
+from itertools import product
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -28,6 +29,13 @@ from safetensors.torch import save_file  # noqa: E402
 
 H = 256  # hidden size: small, but units span ~100 kernel chunks
 PATTERNS = json.loads((ROOT / "fixtures/official_pattern_dicts.json").read_text())
+# Every definition, including those generated from Extended's pattern_dict, read
+# back from the TOML the generator wrote -- so the fixture tests the definition
+# df11pack actually ships.
+for _p in (ROOT.parent / "data/architectures").glob("*.toml"):
+    import tomllib
+    _d = tomllib.loads(_p.read_text())
+    PATTERNS.setdefault(_d["name"], {"pattern_dict": {u["pattern"]: u["attrs"] for u in _d["unit"]}})
 
 
 def put(root, path, module):
@@ -71,18 +79,67 @@ def shape_for(attr):
     raise KeyError(attr)
 
 
+# The four original sets, generated before the seed was made stable. Their frozen
+# outputs are kept; see the note on `seed_for`.
+ORIGINAL = ["flux-comfyui", "chroma-comfyui", "flux-dev-diffusers", "chroma-diffusers"]
+
+
+def seed_for(name):
+    """A seed that is the same in every process.
+
+    The first version used `hash(name)`, which Python randomises per process
+    (PYTHONHASHSEED), so the four original fixtures cannot be regenerated
+    bit-exactly -- they are frozen by SHA-256 in MANIFEST.json instead, and
+    tests pin positions inside them (the EOF window 95531). Every set generated
+    since uses this.
+    """
+    return zlib.crc32(name.encode())
+
+
+def instances(pattern):
+    """Concrete module names a pattern fullmatches: digit runs as 0 and 1, and
+    every member of a character class. Only the syntax the definitions use."""
+    toks = re.findall(r"\\d\+\+?|\[[^\]]+\]|\\.|.", pattern)
+    choices = []
+    for t in toks:
+        if t.startswith("\\d"):
+            choices.append(["0", "1"])
+        elif t.startswith("["):
+            choices.append(list(t[1:-1]))
+        elif t.startswith("\\"):
+            choices.append([t[1]])
+        else:
+            choices.append([t])
+    names = ["".join(c) for c in product(*choices)]
+    for n in names:
+        assert re.fullmatch(pattern, n), (pattern, n)
+    return names
+
+
+def generic_shape(i):
+    """Attribute i of a unit: every attribute in a unit has a distinct size."""
+    return (H, H * (1 + i % 4) + 8 * (i + 1))
+
+
 def build(name):
     """A model with exactly the module names the definition names."""
     pd = PATTERNS[name]["pattern_dict"]
     m = nn.Module()
     for pattern, attrs in pd.items():
-        # Instantiate each pattern twice (or once when it names a single module).
-        base = pattern.replace("\\.", ".").replace("\\d+", "{}")
-        idxs = [0, 1] if "{}" in base else [None]
-        for i in idxs:
-            unit = base.format(i) if i is not None else base
-            for a in attrs:
-                put(m, f"{unit}.{a}", lin(*shape_for(a)))
+        if name in ORIGINAL:
+            # Instantiate each pattern twice (or once when it names a single module).
+            base = pattern.replace("\\.", ".").replace("\\d+", "{}")
+            units = [base.format(i) for i in (0, 1)] if "{}" in base else [base]
+        else:
+            units = instances(pattern)
+        for unit in units:
+            if not attrs:
+                # Empty attrs: the matched module is itself a Linear; its bias is
+                # the sibling.
+                put(m, unit, lin(H, 3 * H + 8))
+                continue
+            for k, a in enumerate(attrs):
+                put(m, f"{unit}.{a}", lin(*(shape_for(a) if name in ORIGINAL else generic_shape(k))))
             # A sibling that is not compressed, so the placement rule is exercised.
             put(m, f"{unit}.extra_norm", nn.LayerNorm(H))
     # Passthrough tensors outside every unit.
@@ -96,7 +153,7 @@ def build(name):
     if "diffusers" in name:
         m.save_pretrained = save_pretrained
 
-    torch.manual_seed(abs(hash(name)) % (2**31))
+    torch.manual_seed(abs(hash(name)) % (2**31) if name in ORIGINAL else seed_for(name))
     with torch.no_grad():
         for p in m.parameters():
             p.normal_(0.0, 0.02)
@@ -104,8 +161,14 @@ def build(name):
 
 
 def main():
-    out = {}
-    for name in ["flux-comfyui", "chroma-comfyui", "flux-dev-diffusers", "chroma-diffusers"]:
+    # Default: every definition not yet covered. The originals are regenerated
+    # only when named explicitly, since they cannot be reproduced bit-exactly.
+    names = sys.argv[1:] or sorted(
+        n for n in PATTERNS
+        if (n.endswith("-comfyui") or n == "chroma-base-diffusers-mingyi") and n not in ORIGINAL)
+    manifest = ROOT / "out/official/synthetic_manifest.json"
+    out = json.loads(manifest.read_text()) if manifest.exists() else {}
+    for name in names:
         native = "comfyui" in name
         src = ROOT / "corpus/synthetic" / name
         dst = ROOT / "out/official" / f"synthetic-{name}"
@@ -125,7 +188,7 @@ def main():
         files = sorted(p.name for p in dst.iterdir())
         out[name] = {"weights": n_weights, "native": native, "files": files}
         print(f"  {name:22s} {n_weights/1e6:5.2f}M weights -> {len(files)} files: {files[:4]}{' ...' if len(files) > 4 else ''}")
-    (ROOT / "out/official/synthetic_manifest.json").write_text(json.dumps(out, indent=2))
+        manifest.write_text(json.dumps(out, indent=2))
 
 
 if __name__ == "__main__":

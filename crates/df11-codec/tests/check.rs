@@ -416,3 +416,34 @@ fn a_moved_split_position_needs_the_source_to_catch() {
         r.failures
     );
 }
+
+/// Phase 7: the checker over every synthetic official output, whatever its
+/// definition -- including ACEStep's `\d++`, SDXL's character classes and the
+/// single-tensor units.
+#[test]
+fn the_checker_passes_every_synthetic_official_output() {
+    let Some(fx) = skip_if_missing("checker_all_synthetic") else {
+        return;
+    };
+    let mut n = 0;
+    for (name, toml) in architecture_defs().unwrap() {
+        let Some(set) = fx.set(&format!("synthetic-{name}")) else {
+            continue;
+        };
+        let def = ArchDef::from_toml(&toml).unwrap();
+        let official = set.tensors()[0].file.parent().unwrap().to_path_buf();
+        let out = ModelSource::open(&official).unwrap();
+        let src = ModelSource::open(set.source_dir.join("model.safetensors")).unwrap();
+        let i = check_output(&out, None, Level::Integrity).unwrap();
+        let f = check_output(&out, Some((&src, &def)), Level::Full).unwrap();
+        assert!(
+            i.ok() && f.ok(),
+            "{name}: {:?} {:?}",
+            i.failures,
+            f.failures
+        );
+        assert_eq!(i.units, f.units, "{name}");
+        n += 1;
+    }
+    assert!(n >= 21, "checked {n}");
+}

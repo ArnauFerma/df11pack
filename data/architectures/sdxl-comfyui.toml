@@ -1,0 +1,251 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# SDXL in the ComfyUI-native layout, from Extended's pattern_dict.
+
+name = "sdxl-comfyui"
+layout = "comfyui-native"
+format_version = "0.5.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "github.com/mingyi456/ComfyUI-DFloat11-Extended pattern_dict.py @ 414506d"
+
+[[unit]]
+pattern = "time_embed"
+attrs = [
+    "0",
+    "2",
+]
+
+[[unit]]
+pattern = "label_emb.0"
+attrs = [
+    "0",
+    "2",
+]
+
+[[unit]]
+pattern = 'input_blocks\.[12]\.0'
+attrs = [
+    "emb_layers.1",
+]
+
+[[unit]]
+pattern = 'input_blocks\.4\.0'
+attrs = [
+    "emb_layers.1",
+]
+
+[[unit]]
+pattern = 'input_blocks\.4\.1\.transformer_blocks\.\d+'
+attrs = [
+    "attn1.to_q",
+    "attn1.to_k",
+    "attn1.to_v",
+    "attn1.to_out.0",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "attn2.to_q",
+    "attn2.to_k",
+    "attn2.to_v",
+    "attn2.to_out.0",
+]
+
+[[unit]]
+pattern = 'input_blocks\.5\.0'
+attrs = [
+    "emb_layers.1",
+]
+
+[[unit]]
+pattern = 'input_blocks\.5\.1\.transformer_blocks\.\d+'
+attrs = [
+    "attn1.to_q",
+    "attn1.to_k",
+    "attn1.to_v",
+    "attn1.to_out.0",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "attn2.to_q",
+    "attn2.to_k",
+    "attn2.to_v",
+    "attn2.to_out.0",
+]
+
+[[unit]]
+pattern = 'input_blocks\.7\.0'
+attrs = [
+    "emb_layers.1",
+]
+
+[[unit]]
+pattern = 'input_blocks\.7\.1\.transformer_blocks\.\d+'
+attrs = [
+    "attn1.to_q",
+    "attn1.to_k",
+    "attn1.to_v",
+    "attn1.to_out.0",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "attn2.to_q",
+    "attn2.to_k",
+    "attn2.to_v",
+    "attn2.to_out.0",
+]
+
+[[unit]]
+pattern = 'input_blocks\.8\.0'
+attrs = [
+    "emb_layers.1",
+]
+
+[[unit]]
+pattern = 'input_blocks\.8\.1\.transformer_blocks\.\d+'
+attrs = [
+    "attn1.to_q",
+    "attn1.to_k",
+    "attn1.to_v",
+    "attn1.to_out.0",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "attn2.to_q",
+    "attn2.to_k",
+    "attn2.to_v",
+    "attn2.to_out.0",
+]
+
+[[unit]]
+pattern = 'middle_block\.0'
+attrs = [
+    "emb_layers.1",
+]
+
+[[unit]]
+pattern = 'middle_block\.1\.transformer_blocks\.\d+'
+attrs = [
+    "attn1.to_q",
+    "attn1.to_k",
+    "attn1.to_v",
+    "attn1.to_out.0",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "attn2.to_q",
+    "attn2.to_k",
+    "attn2.to_v",
+    "attn2.to_out.0",
+]
+
+[[unit]]
+pattern = 'middle_block\.2'
+attrs = [
+    "emb_layers.1",
+]
+
+[[unit]]
+pattern = 'output_blocks\.[01]\.0'
+attrs = [
+    "emb_layers.1",
+]
+
+[[unit]]
+pattern = 'output_blocks\.[01]\.1\.transformer_blocks\.\d+'
+attrs = [
+    "attn1.to_q",
+    "attn1.to_k",
+    "attn1.to_v",
+    "attn1.to_out.0",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "attn2.to_q",
+    "attn2.to_k",
+    "attn2.to_v",
+    "attn2.to_out.0",
+]
+
+[[unit]]
+pattern = 'output_blocks\.2\.0'
+attrs = [
+    "emb_layers.1",
+]
+
+[[unit]]
+pattern = 'output_blocks\.2\.1\.transformer_blocks\.\d+'
+attrs = [
+    "attn1.to_q",
+    "attn1.to_k",
+    "attn1.to_v",
+    "attn1.to_out.0",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "attn2.to_q",
+    "attn2.to_k",
+    "attn2.to_v",
+    "attn2.to_out.0",
+]
+
+[[unit]]
+pattern = 'output_blocks\.3\.0'
+attrs = [
+    "emb_layers.1",
+]
+
+[[unit]]
+pattern = 'output_blocks\.3\.1\.transformer_blocks\.\d+'
+attrs = [
+    "attn1.to_q",
+    "attn1.to_k",
+    "attn1.to_v",
+    "attn1.to_out.0",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "attn2.to_q",
+    "attn2.to_k",
+    "attn2.to_v",
+    "attn2.to_out.0",
+]
+
+[[unit]]
+pattern = 'output_blocks\.4\.0'
+attrs = [
+    "emb_layers.1",
+]
+
+[[unit]]
+pattern = 'output_blocks\.4\.1\.transformer_blocks\.\d+'
+attrs = [
+    "attn1.to_q",
+    "attn1.to_k",
+    "attn1.to_v",
+    "attn1.to_out.0",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "attn2.to_q",
+    "attn2.to_k",
+    "attn2.to_v",
+    "attn2.to_out.0",
+]
+
+[[unit]]
+pattern = 'output_blocks\.5\.0'
+attrs = [
+    "emb_layers.1",
+]
+
+[[unit]]
+pattern = 'output_blocks\.5\.1\.transformer_blocks\.\d+'
+attrs = [
+    "attn1.to_q",
+    "attn1.to_k",
+    "attn1.to_v",
+    "attn1.to_out.0",
+    "ff.net.0.proj",
+    "ff.net.2",
+    "attn2.to_q",
+    "attn2.to_k",
+    "attn2.to_v",
+    "attn2.to_out.0",
+]
+
+[[unit]]
+pattern = 'output_blocks\.[678]\.0'
+attrs = [
+    "emb_layers.1",
+]

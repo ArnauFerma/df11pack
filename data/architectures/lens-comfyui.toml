@@ -1,0 +1,30 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# Lens in the ComfyUI-native layout, from Extended's pattern_dict.
+
+name = "lens-comfyui"
+layout = "comfyui-native"
+format_version = "0.5.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "github.com/mingyi456/ComfyUI-DFloat11-Extended pattern_dict.py @ 414506d"
+
+[[unit]]
+pattern = "txt_in"
+# empty: the matched module is itself one tensor
+attrs = []
+
+[[unit]]
+pattern = 'transformer_blocks\.\d+'
+attrs = [
+    "attn.img_qkv",
+    "attn.txt_qkv",
+    "attn.to_out.0",
+    "img_mod.1",
+    "img_mlp.w1",
+    "img_mlp.w2",
+    "img_mlp.w3",
+    "txt_mod.1",
+    "txt_mlp.w1",
+    "txt_mlp.w2",
+    "txt_mlp.w3",
+]

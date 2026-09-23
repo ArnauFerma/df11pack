@@ -1,0 +1,41 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# ZImage in the ComfyUI-native layout, from Extended's pattern_dict.
+
+name = "zimage-comfyui"
+layout = "comfyui-native"
+format_version = "0.5.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "github.com/mingyi456/ComfyUI-DFloat11-Extended pattern_dict.py @ 414506d"
+
+[[unit]]
+pattern = 'noise_refiner\.\d+'
+attrs = [
+    "attention.qkv",
+    "attention.out",
+    "feed_forward.w1",
+    "feed_forward.w2",
+    "feed_forward.w3",
+    "adaLN_modulation.0",
+]
+
+[[unit]]
+pattern = 'context_refiner\.\d+'
+attrs = [
+    "attention.qkv",
+    "attention.out",
+    "feed_forward.w1",
+    "feed_forward.w2",
+    "feed_forward.w3",
+]
+
+[[unit]]
+pattern = 'layers\.\d+'
+attrs = [
+    "attention.qkv",
+    "attention.out",
+    "feed_forward.w1",
+    "feed_forward.w2",
+    "feed_forward.w3",
+    "adaLN_modulation.0",
+]
