@@ -242,24 +242,21 @@ attrs = ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.
 
 #[test]
 fn the_worker_count_follows_the_ram_budget() {
-    use df11_codec::write::worker_count;
+    use df11_codec::write::{bytes_per_weight, worker_count_with};
     let unit = 15_728_640u64; // a real Qwen3 layer unit
-                              // Same arithmetic the implementation uses, so the boundary is exact.
-    let per_worker = (unit as f64 * df11_codec::write::BYTES_PER_WEIGHT_HELD).ceil() as u64;
+    let per_worker = |o: &WriteOptions| (unit as f64 * bytes_per_weight(o)).ceil() as u64;
 
-    // No budget: use every core.
+    // No budget and memory unknown: fall back to the core count.
     let none = WriteOptions::default();
-    assert_eq!(worker_count(&none, unit, 8), 8);
+    assert_eq!(worker_count_with(&none, unit, 8, None), 8);
 
     // A budget for exactly four workers.
-    let four = WriteOptions {
-        ram_budget: Some(per_worker * 4),
-        ..Default::default()
-    };
-    assert_eq!(worker_count(&four, unit, 8), 4);
+    let mut four = WriteOptions::default();
+    four.ram_budget = Some(per_worker(&four) * 4);
+    assert_eq!(worker_count_with(&four, unit, 8, None), 4);
 
     // Never more than the cores available.
-    assert_eq!(worker_count(&four, unit, 2), 2);
+    assert_eq!(worker_count_with(&four, unit, 2, None), 2);
 
     // A budget too small for even one unit still makes progress.
     let tiny = WriteOptions {
@@ -267,18 +264,103 @@ fn the_worker_count_follows_the_ram_budget() {
         ..Default::default()
     };
     assert_eq!(
-        worker_count(&tiny, unit, 8),
+        worker_count_with(&tiny, unit, 8, None),
         1,
         "a budget below one unit must still run, single-threaded"
     );
 
     // An explicit count overrides the budget.
     let forced = WriteOptions {
-        ram_budget: Some(per_worker * 4),
+        ram_budget: Some(per_worker(&four) * 4),
         workers: Some(7),
         ..Default::default()
     };
-    assert_eq!(worker_count(&forced, unit, 8), 7);
+    assert_eq!(worker_count_with(&forced, unit, 8, None), 7);
+}
+
+/// The regression the review found: with no `--ram`, the default was one worker
+/// per core regardless of memory. On the 3.6 GB target machine a Flux-sized unit
+/// (~340M weights) at four workers needs several gigabytes and is killed.
+#[test]
+fn without_a_budget_the_default_respects_available_memory() {
+    use df11_codec::write::{bytes_per_weight, worker_count_with, DEFAULT_MEMORY_FRACTION};
+    let flux_unit = 340_000_000u64;
+    let opts = WriteOptions::default();
+    let available = 2_700u64 << 20; // what the target machine actually reports free
+
+    let w = worker_count_with(&opts, flux_unit, 4, Some(available));
+    let per = flux_unit as f64 * bytes_per_weight(&opts);
+    assert!(
+        (w as f64) * per <= available as f64 * DEFAULT_MEMORY_FRACTION || w == 1,
+        "{w} workers x {per:.0} bytes exceeds {DEFAULT_MEMORY_FRACTION} of {available} available"
+    );
+    assert_eq!(
+        w, 1,
+        "a Flux-sized unit on this machine fits one worker, not four"
+    );
+
+    // Plenty of memory: the core count is the limit again.
+    assert_eq!(worker_count_with(&opts, 15_728_640, 4, Some(64 << 30)), 4);
+}
+
+/// Safe mode holds the unit's source and the decoder's tables on top of the
+/// encoder's state, so the same budget must admit fewer workers.
+#[test]
+fn safe_mode_is_counted_against_the_budget() {
+    use df11_codec::write::{bytes_per_weight, worker_count_with};
+    let unit = 15_728_640u64;
+    let fast = WriteOptions::default();
+    let safe = WriteOptions {
+        verify: true,
+        ..Default::default()
+    };
+    assert!(
+        bytes_per_weight(&safe) > bytes_per_weight(&fast),
+        "safe mode must cost more per weight than fast mode"
+    );
+    let budget = (unit as f64 * bytes_per_weight(&fast) * 8.0) as u64;
+    let with = |o: &WriteOptions| {
+        let mut o = o.clone();
+        o.ram_budget = Some(budget);
+        worker_count_with(&o, unit, 64, None)
+    };
+    assert_eq!(with(&fast), 8);
+    assert!(
+        with(&safe) < 8,
+        "the budget that fits 8 fast workers must fit fewer safe ones, got {}",
+        with(&safe)
+    );
+}
+
+/// The field that is read, pinned on fixed input. Every other field here has a
+/// plausible size, so only exact values distinguish them -- verified: reading
+/// `SwapFree` instead passed a plausibility-only test.
+#[test]
+fn mem_available_is_the_field_that_is_read() {
+    use df11_codec::write::parse_mem_available;
+    let meminfo = "MemTotal:        3698176 kB\n\
+                   MemFree:          339968 kB\n\
+                   MemAvailable:    2780160 kB\n\
+                   Buffers:          102400 kB\n\
+                   SwapTotal:       4194300 kB\n\
+                   SwapFree:        4000000 kB\n";
+    assert_eq!(parse_mem_available(meminfo), Some(2_780_160 * 1024));
+    assert_eq!(
+        parse_mem_available("MemTotal: 1 kB\n"),
+        None,
+        "absent means unknown"
+    );
+    assert_eq!(parse_mem_available("MemAvailable: lots kB\n"), None);
+}
+
+#[test]
+fn available_memory_is_read_on_linux() {
+    use df11_codec::write::available_memory;
+    if std::path::Path::new("/proc/meminfo").exists() {
+        let m = available_memory().expect("MemAvailable must be readable on Linux");
+        assert!(m > 64 << 20, "implausibly little memory reported: {m}");
+        assert!(m < 1 << 50, "implausibly much memory reported: {m}");
+    }
 }
 
 /// Parallelism must not change a byte. Compress the same model with one worker
@@ -383,7 +465,7 @@ fn the_io_plan_is_reported_and_obeyed() {
 /// model whose units do not all fit, by running fewer workers.
 #[test]
 fn a_512_mib_budget_still_compresses_and_bounds_workers() {
-    use df11_codec::write::{worker_count, BYTES_PER_WEIGHT_HELD};
+    use df11_codec::write::{bytes_per_weight, worker_count_with};
     let Some(fx) = skip_if_missing("a_512_mib_budget_still_compresses_and_bounds_workers") else {
         return;
     };
@@ -411,26 +493,20 @@ fn a_512_mib_budget_still_compresses_and_bounds_workers() {
 
     // The unit is 15,728,640 weights; the budget admits a bounded number.
     let unit = 15_728_640u64;
-    let allowed = (budget as f64 / (unit as f64 * BYTES_PER_WEIGHT_HELD)).floor() as usize;
+    let opts512 = WriteOptions {
+        ram_budget: Some(budget),
+        ..Default::default()
+    };
+    let allowed = (budget as f64 / (unit as f64 * bytes_per_weight(&opts512))).floor() as usize;
     assert!(allowed >= 1, "512 MiB must admit at least one worker");
-    assert_eq!(
-        worker_count(
-            &WriteOptions {
-                ram_budget: Some(budget),
-                ..Default::default()
-            },
-            unit,
-            64
-        ),
-        allowed.min(64)
-    );
+    assert_eq!(worker_count_with(&opts512, unit, 64, None), allowed.min(64));
 
     // And a budget far below one unit must still make progress, single-threaded.
     let tiny = WriteOptions {
         ram_budget: Some(1 << 20),
         ..Default::default()
     };
-    assert_eq!(worker_count(&tiny, unit, 64), 1);
+    assert_eq!(worker_count_with(&tiny, unit, 64, None), 1);
     let out2 = outdir("ram1m");
     let r2 = write_directory(&src, &def, &out2, &tiny).expect("a 1 MiB budget must still run");
     assert_eq!(r2.units, 4);

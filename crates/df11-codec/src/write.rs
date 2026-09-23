@@ -44,28 +44,74 @@ pub struct WriteOptions {
 /// yet — the constant here is what is actually held, measured, not the target.
 /// Always at least one: a budget too small for a single unit still has to make
 /// progress rather than refuse.
-/// Bytes a worker holds per weight of the largest unit.
+/// Bytes a worker holds per weight of the largest unit, in fast mode.
 ///
-/// **Measured, not derived.** Compressing Qwen3-0.6B (largest unit 15,728,640
-/// weights) peaks at 63.8 MiB with one worker and 230.2 MiB with four, so the
-/// marginal cost of a worker is ~55 MiB and the first costs ~64 MiB — 3.7 to 4.25
-/// bytes per weight. The higher figure is used so the budget errs toward fewer
-/// workers.
-///
-/// The accounting: the exponent stream (N bytes), `sign_mantissa` (N), the
-/// encoded output (~0.34 N), the chunked encoder's per-chunk buffers and window
-/// tables, and one source tensor in flight. DESIGN §5.2's 1.35 N assumes the
-/// exponents are re-derived on a second pass instead of kept; that is not done,
-/// and this constant reflects what is actually held.
-pub const BYTES_PER_WEIGHT_HELD: f64 = 4.25;
+/// **Measured, and machine-dependent.** Qwen3-0.6B's largest unit is 15,728,640
+/// weights. On the 4-thread i3 a worker cost 3.7–4.25 bytes per weight; on a
+/// 128-thread EPYC, after intra-unit parallelism landed, one worker peaked at
+/// 85.7 MiB, about 5.7. The difference is per-thread allocator state and chunk
+/// buffers, which grow with core count. 6.0 covers both observations.
+pub const BYTES_PER_WEIGHT_HELD: f64 = 6.0;
 
+/// Extra bytes per weight that safe mode holds: the unit's source (2 N) plus
+/// the decoder's window and gap tables. Measured at ~3.6 on the full model
+/// (267 -> 492 MiB at four workers); 4.0 is used.
+pub const SAFE_MODE_EXTRA_PER_WEIGHT: f64 = 4.0;
+
+/// Share of available memory the default budget may use when `--ram` is absent.
+pub const DEFAULT_MEMORY_FRACTION: f64 = 0.8;
+
+/// Bytes per weight a worker holds under these options.
+pub fn bytes_per_weight(opts: &WriteOptions) -> f64 {
+    if opts.verify {
+        BYTES_PER_WEIGHT_HELD + SAFE_MODE_EXTRA_PER_WEIGHT
+    } else {
+        BYTES_PER_WEIGHT_HELD
+    }
+}
+
+/// `MemAvailable` from `/proc/meminfo`, in bytes, if it can be read.
+pub fn available_memory() -> Option<u64> {
+    parse_mem_available(&std::fs::read_to_string("/proc/meminfo").ok()?)
+}
+
+/// `MemAvailable` from the text of `/proc/meminfo`, in bytes.
+///
+/// Separate from the file read so it can be tested on fixed input: against the
+/// live file, any field with a plausible size -- `SwapFree`, say -- would pass.
+pub fn parse_mem_available(meminfo: &str) -> Option<u64> {
+    let line = meminfo.lines().find(|l| l.starts_with("MemAvailable:"))?;
+    let kib: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kib * 1024)
+}
+
+/// How many units to encode at once. Reads available memory for the default.
 pub fn worker_count(opts: &WriteOptions, largest_unit_weights: u64, cores: usize) -> usize {
+    worker_count_with(opts, largest_unit_weights, cores, available_memory())
+}
+
+/// The decision itself, with available memory passed in so it can be tested.
+///
+/// Without `--ram`, the budget is a fraction of available memory rather than
+/// "every core": on the 3.6 GB target machine, one worker per core for a
+/// Flux-sized unit would need roughly 5.8 GB and be killed. Only when available
+/// memory cannot be read does it fall back to the core count. Always at least
+/// one worker, so a budget smaller than one unit still makes progress.
+pub fn worker_count_with(
+    opts: &WriteOptions,
+    largest_unit_weights: u64,
+    cores: usize,
+    available: Option<u64>,
+) -> usize {
     if let Some(w) = opts.workers {
         return w.max(1);
     }
-    let by_budget = match opts.ram_budget {
+    let budget = opts
+        .ram_budget
+        .or_else(|| available.map(|a| (a as f64 * DEFAULT_MEMORY_FRACTION) as u64));
+    let by_budget = match budget {
         Some(b) => {
-            let per_worker = ((largest_unit_weights as f64) * BYTES_PER_WEIGHT_HELD).max(1.0);
+            let per_worker = ((largest_unit_weights as f64) * bytes_per_weight(opts)).max(1.0);
             ((b as f64) / per_worker).floor() as usize
         }
         None => cores,

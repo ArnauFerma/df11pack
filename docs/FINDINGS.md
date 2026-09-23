@@ -1276,8 +1276,8 @@ Everything below was re-checked against code and data rather than memory.
 | gap | consequence |
 |---|---|
 | **ComfyUI-native writes a directory of shards**, not the single file DESIGN §5.5 specifies, and does not strip `model.diffusion_model.` | native output is the wrong shape; the only native test checked that no config is written |
-| **Default worker count is the core count, ignoring available RAM** | on the target machine (3.6 GB), a Flux-sized unit (~340M weights × 4.25 B) × 4 workers ≈ 5.8 GB → OOM by default |
-| **`--ram` ignores `--safe`** | safe mode adds ~2 N per worker (measured 267 → 492 MiB), outside the budget |
-| **`BYTES_PER_WEIGHT_HELD = 4.25` is machine-dependent** | measured on 4 threads; after intra-unit parallelism, 1 worker on 128 threads peaked at 85.7 MiB ≈ 5.7 B/weight |
+| ~~Default worker count is the core count, ignoring available RAM~~ | **Fixed.** Without `--ram` the budget is 80% of `MemAvailable`; core count is only the fallback when memory cannot be read. A Flux-sized unit on the target machine now gets one worker, not four |
+| ~~`--ram` ignores `--safe`~~ | **Fixed.** Safe mode adds 4.0 bytes/weight to the per-worker cost (measured ~3.6) |
+| ~~`BYTES_PER_WEIGHT_HELD = 4.25` is machine-dependent~~ | **Fixed.** Raised to 6.0, covering both the 4-thread (4.25) and 128-thread (5.7) measurements |
 | **`generation_config.json` is not copied** | official output has it; ours does not |
 | **H9 (diffusers path) never exercised** | follows from item 4 above |
