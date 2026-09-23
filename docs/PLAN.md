@@ -392,8 +392,9 @@ Rough effort: 12–16 days.
 The original scope — append-only journal, source fingerprint, in-order committer
 with spill, truncate-to-last-good-entry on resume, and a gate of 100 random kills
 — was designed for a compressor that takes 1–2 hours on Flux. It does not. The
-full Qwen3-0.6B compresses in **1.12 s**, and Flux extrapolates to roughly half a
-minute on a capable machine. Resume protects against losing work that now costs
+full Qwen3-0.6B compresses in **10.7 s on the 2-core target machine** (1.12 s on a
+128-thread server), and Flux extrapolates to **~5 minutes on the target machine**
+against the official tool's ~6 hours there. Resume protects against losing work that now costs
 less than the machinery protecting it, and a journal is state that can itself go
 stale or wrong.
 

@@ -69,7 +69,7 @@ Read from the encoder and from the kernel (`decode.cu`):
 - `output_positions`: index of the first element beginning in each 4096-byte chunk, plus the total element count at the end; uint32 stored as a uint8 view. Its length is `ceil(len(encoded_exponent) / 4096) + 1`, and its final value is the **weight count**, equal to `len(sign_mantissa)` — not the encoded byte length. [CONFIRMED by measurement, 0.1/0.2; the earlier wording "plus `len(data)`" was ambiguous and was read wrongly once already.]
 - `luts`: uint8, shape `(n_prefixes + 1, 256)`. In the kernel, a value ≥ 240 means "jump to LUT 256−v". Therefore:
   - **no real exponent may be 240–255** (enormous values, Inf or NaN), and
-  - the number of prefix tables is bounded at **17**, not 16. Jump values 240..=255 reach targets 1..=16, and table 0 makes seventeen. An eighteenth table's jump value would fall below 240 and be read as a symbol instead. [CORRECTED by measurement, Phase 5: this section previously said 16, which would have refused a legal unit.]
+  - the number of prefix tables is bounded at **17**, not 16. Jump values 240..=255 reach targets 1..=16, and table 0 makes seventeen. An eighteenth table's jump value would fall below 240 and be read as a symbol instead. [CORRECTED, Phase 5 — derived from `get_luts` and consistent with `decode.ptx`, not measured: no real unit here exceeds four tables. This section previously said 16, which would refuse a legal unit.]
   If a model violates this, we must abort with a clear error, never emit a file.
   **Carry-forward leakage [CONFIRMED by measurement, 0.5].** The official
   `get_luts` fills each table with a carry-forward loop whose accumulator is

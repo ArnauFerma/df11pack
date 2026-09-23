@@ -1120,20 +1120,23 @@ Two causes, and only one of them is a limit of the machine:
 1. **The model has 28 units.** Parallelism here is *between* units, so more than 28 workers cannot help by construction. That is a property of the design, not the hardware, and it means a model with few large units parallelises badly however many cores are available. The chunked encoder already parallelises *within* a unit; it is currently called with the whole unit as one call, so that axis is unused. Exploiting it is the obvious next step and would lift the ceiling for exactly the models that need it most.
 2. **Memory pressure and allocator contention.** Peak flattens at 1421.6 MiB from 28 workers on — every unit resident at once — and throughput falls as workers climb. The RAM budget already exists to prevent this; what it lacked was a reason to believe the default should be lower than the core count. It now has one: **more workers than units is never right, and past ~16 the return is negative on this machine.**
 
-**Best observed: 1.12 s for a full 1.4 GiB model**, against the official
-compressor's 788.9 s — **705× faster** — at 842 MiB against its 2288 MiB.
+**Best observed: 1.12 s for a full 1.4 GiB model** on a 128-thread EPYC. *(Errata: an
+earlier version called this 705× faster than the official 788.9 s. That compared
+two different machines — the official run was on the 2-core i3. The same-machine
+figure is 788.9 s → 10.7 s, about 74×.)*
 
 ## H5: settled, and the answer is "it depends on the disk"
 
 At 394.5 Mweights/s the encoder consumes source at **789 MB/s**. So:
 
-- On a **spinning disk** (~100–200 MB/s), the encoder is comfortably faster than the disk: **disk-bound, H5 holds.**
+- On a **spinning disk** (~100–200 MB/s) *paired with this EPYC*, the encoder outruns the disk: disk-bound.
+- *(Errata)* On the machine the project actually targets — the 2-core i3 — best throughput is ~41 Mweights/s, i.e. **~82 MB/s of source**, which is *below* a typical HDD. **Old CPU + old disk is still CPU-bound.** The earlier conclusion that H5 holds "for the machines the guiding principle targets" paired a fast CPU with a slow disk and was wrong.
 - On this box's page cache, measured at 10.3 GB/s, the encoder is still 13× short: **CPU-bound, H5 does not hold.**
 - On a typical NVMe (2–7 GB/s), still CPU-bound.
 
-So H5 as originally stated — "with a native encoder the bottleneck becomes the
-disk" — is **true for the machines the guiding principle targets and false for
-fast NVMe**. That is not a dodge: the project exists to serve old machines with
+So H5 as originally stated holds only when the CPU is much faster than the disk
+(fast CPU + HDD). It fails on NVMe, and — correcting an earlier version of this
+paragraph — it also fails on an old CPU with an old disk, which is the target case. That is not a dodge: the project exists to serve old machines with
 slow disks, and on those it is now disk-bound. On fast hardware there is more CPU
 work to reclaim, and intra-unit parallelism is where it is.
 
@@ -1240,3 +1243,41 @@ not just say so"*.
 That second one is the more useful lesson. A configuration flag that is only ever
 checked against *itself* verifies nothing: the test must observe the behaviour the
 flag is supposed to cause.
+
+
+---
+
+# Errata and open gaps, from a full review (2026-09-23)
+
+Everything below was re-checked against code and data rather than memory.
+
+## Claims that were wrong
+
+1. **"705×" / "683× faster" compared two machines.** The official compressor ran on the
+   2-core i3; the 1.12 s run was on a 128-thread EPYC. Same-machine: 788.9 s → 10.7 s,
+   **~74×**. Corrected above.
+2. **H5's verdict for target machines was wrong.** On the i3, df11pack consumes ~82 MB/s of
+   source, below a typical HDD, so an old machine with an old disk is still **CPU-bound**.
+   Corrected above.
+3. **The Phase 4 rationale quoted a fast-machine number.** "Flux in ~30 s" is the EPYC. On the
+   i3, Flux's 11.8B weights at ~41 Mweights/s is **~5 minutes** (the official tool: ~6 h on the
+   same machine). The decision to drop resume still holds; the number did not.
+4. **Phase 1's exit gate was declared met with one case missing.** PLAN names corpus cases 1, 2
+   and 4. Case 2 — a reduced synthetic Flux in both layouts — was never built. **No Flux or
+   Chroma unit has ever been encoded or byte-checked**; those eight definitions are verified
+   only as `pattern_dict` transcriptions. Every byte-identity result is Qwen3.
+5. **`MAX_PREFIX_TABLES = 17` was labelled "corrected by measurement". It was derived**, from
+   `get_luts` and the 240 jump convention. `decode.ptx` is consistent with it — LUTs are read
+   from global memory and the decode unrolls three jump levels, so table *count* is not bounded
+   by the kernel — but no real unit has more than four tables, so 17 is unexercised.
+
+## Gaps in the code, not yet fixed
+
+| gap | consequence |
+|---|---|
+| **ComfyUI-native writes a directory of shards**, not the single file DESIGN §5.5 specifies, and does not strip `model.diffusion_model.` | native output is the wrong shape; the only native test checked that no config is written |
+| **Default worker count is the core count, ignoring available RAM** | on the target machine (3.6 GB), a Flux-sized unit (~340M weights × 4.25 B) × 4 workers ≈ 5.8 GB → OOM by default |
+| **`--ram` ignores `--safe`** | safe mode adds ~2 N per worker (measured 267 → 492 MiB), outside the budget |
+| **`BYTES_PER_WEIGHT_HELD = 4.25` is machine-dependent** | measured on 4 threads; after intra-unit parallelism, 1 worker on 128 threads peaked at 85.7 MiB ≈ 5.7 B/weight |
+| **`generation_config.json` is not copied** | official output has it; ours does not |
+| **H9 (diffusers path) never exercised** | follows from item 4 above |
