@@ -33,6 +33,21 @@ machines, with little RAM, no NVIDIA GPU, and spinning hard drives.
 Non-goals for v1: new codecs or ratio improvements, inference, dtype conversion,
 and conversion between layouts.
 
+## Usage
+
+```sh
+df11pack architectures                                   # list definitions
+df11pack compress model.safetensors --arch flux-comfyui -o out/
+df11pack compress model/ --arch qwen3-4b -o out/ --safe   # verify each unit before writing
+df11pack verify out/                                     # structure only, no source needed
+df11pack verify out/ --source model/ --arch qwen3-4b     # + 1000 sampled chunks vs the source
+df11pack verify out/ --source model/ --arch qwen3-4b --level full
+```
+
+`verify` exits 0 on pass, 1 when a check fails, 2 when it could not check. Without
+`--source` it cannot see a wrong weight value, only broken structure; a sampled run
+prints its seed so it can be repeated with `--seed`.
+
 ## Documents
 
 - [`docs/DESIGN.md`](docs/DESIGN.md) — the design: format invariants, architecture, checkpoints, verification, test plan.

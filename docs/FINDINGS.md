@@ -1360,3 +1360,49 @@ untested**, and H9 stays open for that part only.
 `config.json` was written with a plain `std::fs::write`, contradicting Phase 4's
 promise that every file is atomic. It and `generation_config.json` now go through
 `write_bytes_atomic`.
+
+---
+
+# Phase 6 — Post-hoc verification
+
+## What each level can and cannot see
+
+Every case below is a test that writes the damage into a copy of the official
+output **on disk**, then runs the checker.
+
+| damage | integrity (no source) | sample | full |
+|---|---|---|---|
+| `output_positions` made non-monotone | caught, right unit only | caught | caught |
+| last `output_positions` ≠ weight count | caught | caught | caught |
+| LUT jump to a table that does not exist | caught | caught | caught |
+| `split_positions` moved by one, still increasing | **missed** | caught (checked against the source's tensor sizes) | caught |
+| one weight wrong in a mandatory chunk (first/last/boundary) | **missed** | caught, located to the chunk | caught |
+| one weight wrong in a chunk the sample skipped | **missed** | **missed** | caught |
+| a unit the source defines but the output lacks | not looked for | caught | caught |
+
+The last-but-one row is the honest limit of sampling, and a test pins it: it finds
+a chunk that a seeded 20-chunk sample does not visit, corrupts it, and requires the
+sample to pass and the full sweep to fail. Sampling finds *systematic* faults; only
+`full` finds an isolated one.
+
+Integrity without a source cannot see a wrong value at all — the journal that would
+have held hashes was dropped in Phase 4. Adding per-tensor hashes to the output's
+metadata would fix that, but it changes the files we write, which COMPATIBILITY.md
+keeps byte-identical to the official tool. Left as a decision, not done.
+
+## Every structural check is proven by a mutation
+
+Mutating the checker one condition at a time, four survived the first round of tests
+(the LUT off-by-one, the final-position check, the per-chunk bound, the split
+comparison). Each now has a test that fails when it is removed. The per-chunk bound
+cannot be reached by corrupting a real file — a single changed entry breaks
+monotonicity first — so it is tested on a hand-built unit.
+
+## Round trip, and cost
+
+df11pack's own output for all five fixture sets (transformers, diffusers,
+ComfyUI-native with the key prefix) passes `--level full`. On the i3, full decode
+runs at about 19M weights/s on one core: ~3.3 s for the 63M-weight Qwen fixture, so
+roughly **10 minutes for a 12B model**. The default sample (1000 chunks, ~12M weights at ~12k per chunk)
+takes under a second plus the source reads. The decoder is still sequential;
+the parallel one is the remaining H12 work.

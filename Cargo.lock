@@ -194,6 +194,7 @@ version = "0.0.0"
 dependencies = [
  "clap",
  "df11-codec",
+ "df11-fixtures",
 ]
 
 [[package]]

@@ -49,8 +49,41 @@ enum Command {
         #[arg(long)]
         safe: bool,
     },
+    /// Check a written output, optionally against the model it was made from.
+    ///
+    /// Without --source only the structure is checked: every index the GPU
+    /// kernel trusts stays in bounds. With it, weights are decoded and compared.
+    Verify {
+        /// The output directory (or single ComfyUI file).
+        output: PathBuf,
+        /// The source model the output was compressed from.
+        #[arg(long, requires = "arch")]
+        source: Option<PathBuf>,
+        /// The architecture definition it was compressed with.
+        #[arg(long, requires = "source")]
+        arch: Option<String>,
+        /// integrity needs no source; sample and full decode against it.
+        /// Default: sample with a source, integrity without.
+        #[arg(long, value_enum)]
+        level: Option<LevelArg>,
+        /// Chunks to decode at the sample level. The first and last chunk of every
+        /// unit and every tensor-boundary chunk are always included, even past
+        /// this; the rest of the budget is spread at random.
+        #[arg(long, default_value_t = 1000)]
+        samples: usize,
+        /// Seed for the sample. Printed on every run, so any run can be repeated.
+        #[arg(long)]
+        seed: Option<u64>,
+    },
     /// List the available architecture definitions.
     Architectures,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+enum LevelArg {
+    Integrity,
+    Sample,
+    Full,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
@@ -279,6 +312,68 @@ fn compress(a: CompressArgs) -> Result<(), String> {
     Ok(())
 }
 
+struct VerifyArgs {
+    output: PathBuf,
+    source: Option<PathBuf>,
+    arch: Option<String>,
+    level: Option<LevelArg>,
+    samples: usize,
+    seed: Option<u64>,
+}
+
+/// Returns whether the output passed.
+fn verify(a: VerifyArgs) -> Result<bool, String> {
+    use df11_codec::check::{check_output, Level};
+    let out = ModelSource::open(&a.output).map_err(|e| format!("{}: {e}", a.output.display()))?;
+    let reference = match (&a.source, &a.arch) {
+        (Some(s), Some(arch)) => Some((
+            ModelSource::open(s).map_err(|e| format!("{}: {e}", s.display()))?,
+            load_arch(arch)?,
+        )),
+        _ => None,
+    };
+    let seed = a.seed.unwrap_or_else(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos() as u64)
+    });
+    let level = match (a.level, reference.is_some()) {
+        (Some(LevelArg::Integrity), _) | (None, false) => Level::Integrity,
+        (Some(LevelArg::Sample), _) | (None, true) => Level::Sample {
+            budget: a.samples,
+            seed,
+        },
+        (Some(LevelArg::Full), _) => Level::Full,
+    };
+    let r = check_output(&out, reference.as_ref().map(|(s, d)| (s, d)), level)
+        .map_err(|e| e.to_string())?;
+
+    let what = match level {
+        Level::Integrity => "structure".to_string(),
+        Level::Sample { seed, .. } => format!(
+            "structure, and {} chunk(s) decoded against the source (seed {seed})",
+            r.checked.len()
+        ),
+        Level::Full => format!("structure, and all {} chunk(s) decoded", r.checked.len()),
+    };
+    println!("checked {} unit(s): {what}", r.units);
+    if level == Level::Integrity && reference.is_none() {
+        println!("  note: without --source, a wrong weight value in a well-formed unit is not detectable");
+    }
+    for f in &r.failures {
+        match f.chunk {
+            Some(c) => println!("  FAIL {} chunk {c}: {}", f.unit, f.error),
+            None => println!("  FAIL {}: {}", f.unit, f.error),
+        }
+    }
+    if r.ok() {
+        println!("  ok");
+    } else {
+        println!("  {} failure(s)", r.failures.len());
+    }
+    Ok(r.ok())
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let r = match cli.command {
@@ -301,6 +396,31 @@ fn main() -> ExitCode {
             io,
             safe,
         }),
+        Command::Verify {
+            output,
+            source,
+            arch,
+            level,
+            samples,
+            seed,
+        } => {
+            // A failed check is exit 1, distinct from 2 for "could not check".
+            return match verify(VerifyArgs {
+                output,
+                source,
+                arch,
+                level,
+                samples,
+                seed,
+            }) {
+                Ok(true) => ExitCode::SUCCESS,
+                Ok(false) => ExitCode::from(1),
+                Err(e) => {
+                    eprintln!("df11pack: {e}");
+                    ExitCode::from(2)
+                }
+            };
+        }
         Command::Architectures => list_architectures(),
     };
     match r {

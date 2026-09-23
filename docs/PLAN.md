@@ -436,13 +436,24 @@ is removed rather than documented around.
 **Needs:** a rented NVIDIA GPU for the kernel path.
 Rough effort: 10–14 days.
 
-### Phase 6 — Standalone post-hoc verification
+### Phase 6 — Standalone post-hoc verification — **DONE**
 
-The three levels: journal-hash integrity; stratified sampling (≥1 chunk per UC,
-first/last chunk of each UC, every `split_positions` boundary chunk, the rest
-uniform to 1000, seed recorded); full sweep.
-**Exit gate:** detects corruption injected directly into the file on disk.
-Rough effort: 6–8 days.
+`df11pack verify <out> [--source S --arch A] [--level integrity|sample|full]
+[--samples N] [--seed K]`. Exit 0 pass, 1 check failed, 2 could not check.
+
+- **integrity** (no source): structure only — LUT jump targets, sizes, monotone
+  `output_positions` from 0 to n with ≤ one weight per bit per chunk,
+  `split_positions` internal and increasing. *Revised:* DESIGN defined this level
+  by journal hashes; the journal went with Phase 4, so a flipped value inside a
+  well-formed unit is invisible here, and the CLI says so on every such run.
+- **sample**: stratified (first/last chunk of each unit, every tensor-boundary
+  chunk, the rest uniform to the budget, default 1000), seed printed. Each chunk is
+  decoded on its own and compared with only the source bytes it covers.
+- **full**: every unit decoded against the source.
+
+**Exit gate met:** corruption written into the files on disk is caught — structural
+damage without the source, value errors with it — and located to unit and chunk
+(FINDINGS, Phase 6).
 
 ### Phase 7 — Remaining architectures
 

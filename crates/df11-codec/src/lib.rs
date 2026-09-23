@@ -63,6 +63,7 @@ pub fn split_fields(bf16_le: &[u8]) -> (Vec<u8>, Vec<u8>) {
 
 pub mod arch;
 pub mod bitstream;
+pub mod check;
 pub mod chunked;
 pub mod config;
 pub mod discover;
