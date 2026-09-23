@@ -669,3 +669,29 @@ fn a_non_bf16_unit_tensor_is_refused_before_writing() {
         );
     }
 }
+
+/// A container's memory limit caps the budget: /proc/meminfo inside one shows the
+/// host's memory (124 GB on the RunPod pod that found this, limited to 64 GB).
+#[test]
+fn a_cgroup_limit_caps_available_memory() {
+    use df11_codec::write::cgroup_headroom;
+    let g = 1u64 << 30;
+    // v2: a real limit, with usage subtracted.
+    assert_eq!(
+        cgroup_headroom(
+            Some(&format!("{}\n", 64 * g)),
+            Some(&format!("{}\n", 10 * g))
+        ),
+        Some(54 * g)
+    );
+    // v2 unlimited, and v1's sentinel for unlimited.
+    assert_eq!(cgroup_headroom(Some("max\n"), Some("123\n")), None);
+    assert_eq!(
+        cgroup_headroom(Some("9223372036854771712\n"), Some("1")),
+        None
+    );
+    // Nothing to read.
+    assert_eq!(cgroup_headroom(None, None), None);
+    // Usage above the limit is zero room, not an underflow.
+    assert_eq!(cgroup_headroom(Some("100"), Some("200")), Some(0));
+}

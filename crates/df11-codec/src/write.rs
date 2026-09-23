@@ -83,7 +83,36 @@ pub fn bytes_per_weight(opts: &WriteOptions) -> f64 {
 
 /// `MemAvailable` from `/proc/meminfo`, in bytes, if it can be read.
 pub fn available_memory() -> Option<u64> {
-    parse_mem_available(&std::fs::read_to_string("/proc/meminfo").ok()?)
+    let host = parse_mem_available(&std::fs::read_to_string("/proc/meminfo").ok()?)?;
+    let read = |p: &str| std::fs::read_to_string(p).ok();
+    let cgroup = cgroup_headroom(
+        read("/sys/fs/cgroup/memory.max").as_deref(),
+        read("/sys/fs/cgroup/memory.current").as_deref(),
+    )
+    .or_else(|| {
+        cgroup_headroom(
+            read("/sys/fs/cgroup/memory/memory.limit_in_bytes").as_deref(),
+            read("/sys/fs/cgroup/memory/memory.usage_in_bytes").as_deref(),
+        )
+    });
+    Some(cgroup.map_or(host, |c| c.min(host)))
+}
+
+/// Room left under a container's memory limit: `limit - usage`, from the text of
+/// cgroup v2's `memory.max`/`memory.current` or v1's `memory.limit_in_bytes`/
+/// `memory.usage_in_bytes`. `None` when there is no limit (`max`, or v1's
+/// near-`i64::MAX` sentinel) or it cannot be read.
+///
+/// Found on a RunPod container: `/proc/meminfo` there shows the *host's* 124 GB,
+/// while the pod is limited to 64 GB. Sizing workers from the host figure could
+/// oversubscribe the container and get it killed.
+pub fn cgroup_headroom(limit: Option<&str>, usage: Option<&str>) -> Option<u64> {
+    let limit: u64 = limit?.trim().parse().ok()?;
+    if limit >= 1 << 60 {
+        return None;
+    }
+    let usage: u64 = usage.and_then(|u| u.trim().parse().ok()).unwrap_or(0);
+    Some(limit.saturating_sub(usage))
 }
 
 /// `MemAvailable` from the text of `/proc/meminfo`, in bytes.
