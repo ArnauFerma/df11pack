@@ -164,3 +164,73 @@ impl ModelSource {
             .sum()
     }
 }
+
+/// The prefix ComfyUI puts on every diffusion-model key in a full checkpoint.
+pub const COMFYUI_PREFIX: &str = "model.diffusion_model.";
+
+/// A [`ModelSource`] seen through an optional key prefix.
+///
+/// Architecture definitions are written against bare names (`double_blocks.0`),
+/// while ComfyUI checkpoints usually carry `model.diffusion_model.` on every
+/// diffusion key. With a prefix set, only names carrying it are visible, and
+/// they are visible without it; everything else in the file -- a VAE or text
+/// encoder in a full checkpoint -- is left out, as it is not part of the model
+/// being compressed.
+pub struct View<'a> {
+    src: &'a ModelSource,
+    prefix: String,
+}
+
+impl<'a> View<'a> {
+    pub fn new(src: &'a ModelSource, prefix: Option<&str>) -> Self {
+        View {
+            src,
+            prefix: prefix.unwrap_or("").to_string(),
+        }
+    }
+
+    /// The prefix being stripped, if any.
+    pub fn prefix(&self) -> Option<&str> {
+        (!self.prefix.is_empty()).then_some(self.prefix.as_str())
+    }
+
+    fn phys(&self, name: &str) -> String {
+        format!("{}{}", self.prefix, name)
+    }
+
+    pub fn names(&self) -> Vec<String> {
+        self.src
+            .names()
+            .into_iter()
+            .filter_map(|n| n.strip_prefix(&self.prefix).map(str::to_string))
+            .collect()
+    }
+
+    pub fn info(&self, name: &str) -> Option<&crate::safetensors::TensorInfo> {
+        self.src.info(&self.phys(name))
+    }
+
+    pub fn read(&self, name: &str) -> Result<Vec<u8>, StError> {
+        self.src.read(&self.phys(name))
+    }
+
+    pub fn locate(&self, name: &str) -> Option<(PathBuf, u64, u64)> {
+        self.src.locate(&self.phys(name))
+    }
+
+    pub fn tensors_equal(&self, a: &str, b: &str) -> Result<bool, StError> {
+        self.src.tensors_equal(&self.phys(a), &self.phys(b))
+    }
+
+    pub fn dir(&self) -> &Path {
+        self.src.dir()
+    }
+
+    pub fn total_bytes(&self) -> u64 {
+        self.names()
+            .iter()
+            .filter_map(|n| self.info(n))
+            .map(|i| i.nbytes())
+            .sum()
+    }
+}

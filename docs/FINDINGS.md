@@ -1275,9 +1275,88 @@ Everything below was re-checked against code and data rather than memory.
 
 | gap | consequence |
 |---|---|
-| **ComfyUI-native writes a directory of shards**, not the single file DESIGN §5.5 specifies, and does not strip `model.diffusion_model.` | native output is the wrong shape; the only native test checked that no config is written |
+| ~~ComfyUI-native writes a directory of shards~~ | **Fixed.** One file, written in two passes (see below); `model.diffusion_model.` stripped when present |
 | ~~Default worker count is the core count, ignoring available RAM~~ | **Fixed.** Without `--ram` the budget is 80% of `MemAvailable`; core count is only the fallback when memory cannot be read. A Flux-sized unit on the target machine now gets one worker, not four |
 | ~~`--ram` ignores `--safe`~~ | **Fixed.** Safe mode adds 4.0 bytes/weight to the per-worker cost (measured ~3.6) |
 | ~~`BYTES_PER_WEIGHT_HELD = 4.25` is machine-dependent~~ | **Fixed.** Raised to 6.0, covering both the 4-thread (4.25) and 128-thread (5.7) measurements |
-| **`generation_config.json` is not copied** | official output has it; ours does not |
-| **H9 (diffusers path) never exercised** | follows from item 4 above |
+| ~~`generation_config.json` is not copied~~ | **Resolved, and the item was mis-stated.** Upstream's is *synthesised* by transformers from config.json and version-stamped, not copied. We copy one the source ships and never invent one |
+| H9 (diffusers path) | **Partly closed** — see below |
+
+
+---
+
+# Corpus case 2 built: FLUX and Chroma, both layouts — and an encoder bug it found
+
+`phase0/make_synthetic.py` builds small models (hidden 256, two instances of every
+pattern, 4–7M weights) whose module names are exactly those the architecture
+definitions name, and compresses them with the **official** tool. `compress_model`
+walks `named_modules()` and the attribute paths, so it cannot tell these from the
+real classes; the tensors it emits are its own.
+
+| set | layout | result |
+|---|---|---|
+| `synthetic-chroma-diffusers` | diffusers | byte-identical, first attempt |
+| `synthetic-flux-dev-diffusers` | diffusers | byte-identical, first attempt |
+| `synthetic-chroma-comfyui` | ComfyUI-native | byte-identical, first attempt |
+| `synthetic-flux-comfyui` | ComfyUI-native | **one byte-range wrong: a single `gaps` entry** |
+
+## The bug: the EOF window
+
+When a unit's final code straddles into a new 64-bit window, no code *starts*
+there — but the reference encoder checks once more at EOF and records a gap for
+that window anyway. The chunked encoder (Phase 3) handled that case only when the
+window lay *past* its pre-sized table, which never happens, so the entry was
+silently dropped and zero-padded. `output_positions` had the identical fault at
+chunk boundaries.
+
+**This was in every output since the chunked encoder landed.** Any unit whose last
+code straddled a window got a wrong final index entry. None of the four Qwen units
+happened to; `double_blocks.0` of the synthetic FLUX did. A test over every stream
+length from 1 to 2,500 fails at the **31st** — the case is common, not exotic.
+
+**Safe mode would not have caught it.** The verifier checked gaps only for windows
+where a code starts, and this window has none. It now checks the EOF position too,
+and a test zeroing exactly that entry in the real FLUX unit fails without the fix.
+
+Why nothing earlier caught it, in order:
+
+1. The chunked-vs-serial tests used fixed-length streams that happened to end
+   byte-aligned or without a straddle.
+2. The real-unit tests covered four Qwen units, none with the shape.
+3. The every-length test, once written, still could not reach a chunk boundary —
+   5,000 bits against a 32,768-bit chunk — so the `output_positions` half of the fix
+   was untested until the test also ran with one thread per block.
+4. The verifier shared the blind spot.
+
+The every-length test counts how often the case actually occurs and fails if it
+drops below 25, so it cannot pass by never reaching it. Trimming its range for speed
+tripped that guard once — at 47 — which is the guard working.
+
+## The single file, without breaking the budget
+
+A single file's header must list every tensor's byte range before any data, but
+encoded sizes are known only after encoding. Holding every unit in memory breaks
+the RAM budget; staging to temporary shards doubles disk (Flux on the target
+machine: ~56 GB against 39 GB free). So the native writer **encodes twice**: once to
+learn sizes, then the header, then again in order, streamed straight to disk.
+`StreamingWriter` checks every tensor against its declaration, so a size mismatch
+is an error rather than a corrupt file. Cost: double the CPU, which is now cheap.
+
+Also found: **the official tool writes `config.json` in single-file mode too**,
+which DESIGN §5.5 says native output does not carry. We still write none; the node
+does not read it.
+
+## H9, partly
+
+The synthetic diffusers outputs confirm, byte for byte, the **unit shards and the
+sibling tensors inside them** — both written by the official code itself via
+`save_file(sub_module.state_dict())`. The **remainder file** was written by a
+stand-in `save_pretrained`, since the synthetic models are not diffusers classes.
+So what diffusers' real `save_pretrained` does to passthrough tensors is **still
+untested**, and H9 stays open for that part only.
+
+## Also fixed in passing
+
+`config.json` was written with a plain `std::fs::write`, contradicting Phase 4's
+promise that every file is atomic. It and `generation_config.json` now go through
+`write_bytes_atomic`.

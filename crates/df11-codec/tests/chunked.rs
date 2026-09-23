@@ -108,3 +108,79 @@ fn matches_the_serial_encoder_on_every_real_unit() {
     }
     assert_eq!(n, 4);
 }
+
+/// Every stream length up to a few thousand symbols, so every way a stream can
+/// end is reached -- in particular a final code that straddles into a new 64-bit
+/// window or 4096-byte chunk, where no code *starts* but the reference encoder
+/// still records an entry at EOF.
+///
+/// Found by the synthetic FLUX fixture: one gap in one unit differed from the
+/// official output, because the chunked encoder only handled that case when the
+/// window lay past its pre-sized table, which never happens. None of the fixed-
+/// length streams above, and none of the four real Qwen units, ended that way.
+#[test]
+fn matches_the_serial_encoder_at_every_stream_length() {
+    // A skewed, realistic distribution, so codes run from 1 to ~20 bits.
+    let mut x: u64 = 0x9E3779B97F4A7C15;
+    let mut full = Vec::with_capacity(6000);
+    for _ in 0..6000 {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        let r = (x % 1000) as u32;
+        let s = match r {
+            0..=499 => 120,
+            500..=749 => 121,
+            750..=874 => 119,
+            875..=939 => 122,
+            940..=974 => 118,
+            975..=989 => 123,
+            990..=996 => 117,
+            _ => 100 + (x % 10) as u8 as u32,
+        };
+        full.push(s as u8);
+    }
+    let h = Histogram::build(&full).unwrap();
+    let cb = Codebook::build(&h.frequencies());
+    let mut straddles = 0;
+    for n in 1..=2500 {
+        let exp = &full[..n];
+        // Streams are prefixes of one sequence, but the codebook is the full
+        // one, so every prefix is encodable and codes stay long.
+        //
+        // Three kernel geometries. With the real one (8 x 512) a chunk is 32768
+        // bits and these streams never reach a chunk boundary, so the
+        // output_positions half of the EOF case would go untested. With one
+        // thread per block a chunk is a single window, and every straddle is a
+        // chunk straddle too.
+        for (bpt, tpb) in [(8usize, 512usize), (8, 1), (8, 3)] {
+            let want = encode(exp, &cb, bpt, tpb);
+            for chunk in [7usize, 1 << 20] {
+                let got = encode_chunked(exp, &cb, bpt, tpb, chunk);
+                assert!(
+                    got.gaps == want.gaps,
+                    "n={n} geometry={bpt}x{tpb} chunk={chunk}: gaps differ from the serial encoder"
+                );
+                assert!(
+                    got.output_positions == want.output_positions,
+                    "n={n} geometry={bpt}x{tpb} chunk={chunk}: output_positions differ"
+                );
+                assert!(got.bytes == want.bytes, "n={n} chunk={chunk}: bytes differ");
+            }
+        }
+        // Count how often the case under test actually occurred, so this test
+        // cannot pass by never reaching it.
+        let bits: u64 = exp
+            .iter()
+            .map(|&s| u64::from(cb.code_of(s).unwrap().bits))
+            .sum();
+        let last = u64::from(cb.code_of(*exp.last().unwrap()).unwrap().bits);
+        if bits % 64 != 0 && (bits - last) / 64 != bits / 64 {
+            straddles += 1;
+        }
+    }
+    assert!(
+        straddles >= 25,
+        "only {straddles} of 2500 streams ended with a straddling code; the case is not being exercised"
+    );
+}

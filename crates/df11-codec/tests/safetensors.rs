@@ -350,3 +350,84 @@ fn a_write_that_cannot_be_renamed_into_place_is_an_error() {
     );
     let _ = std::fs::remove_dir_all(&path);
 }
+
+mod streaming {
+    use super::tmp;
+    use df11_codec::safetensors::{Dtype, SafeTensorsFile, StreamingWriter, TensorDecl};
+    use std::collections::BTreeMap;
+
+    fn decl(name: &str, len: u64) -> TensorDecl {
+        TensorDecl {
+            name: name.into(),
+            dtype: Dtype::new(Dtype::U8),
+            shape: vec![len],
+            len,
+        }
+    }
+
+    #[test]
+    fn writes_declared_tensors_in_order() {
+        let p = tmp("stream_ok.safetensors");
+        let mut w =
+            StreamingWriter::begin(&p, vec![decl("a", 2), decl("b", 3)], &BTreeMap::new()).unwrap();
+        w.write("a", &[1, 2]).unwrap();
+        w.write("b", &[3, 4, 5]).unwrap();
+        w.finish().unwrap();
+        let f = SafeTensorsFile::open(&p).unwrap();
+        assert_eq!(f.read("a").unwrap(), vec![1, 2]);
+        assert_eq!(f.read("b").unwrap(), vec![3, 4, 5]);
+    }
+
+    /// The property the single-file layout depends on: a tensor that comes out a
+    /// different size than declared must be refused, because the header is
+    /// already written and would otherwise describe the wrong bytes.
+    #[test]
+    fn a_tensor_of_the_wrong_size_is_refused_and_nothing_is_published() {
+        let p = tmp("stream_len.safetensors");
+        let mut w = StreamingWriter::begin(&p, vec![decl("a", 4)], &BTreeMap::new()).unwrap();
+        assert!(
+            w.write("a", &[1, 2, 3]).is_err(),
+            "3 bytes where 4 were declared"
+        );
+        drop(w);
+        assert!(!p.exists(), "a refused stream must not leave a file");
+        let left: Vec<_> = std::fs::read_dir(p.parent().unwrap()).unwrap().collect();
+        assert!(left.is_empty(), "nor a temporary");
+    }
+
+    #[test]
+    fn a_tensor_out_of_order_is_refused() {
+        let p = tmp("stream_order.safetensors");
+        let mut w =
+            StreamingWriter::begin(&p, vec![decl("a", 1), decl("b", 1)], &BTreeMap::new()).unwrap();
+        assert!(
+            w.write("b", &[9]).is_err(),
+            "b written where a was declared"
+        );
+    }
+
+    #[test]
+    fn finishing_with_tensors_unwritten_is_refused() {
+        let p = tmp("stream_short.safetensors");
+        let mut w =
+            StreamingWriter::begin(&p, vec![decl("a", 1), decl("b", 1)], &BTreeMap::new()).unwrap();
+        w.write("a", &[1]).unwrap();
+        assert!(w.finish().is_err(), "b was declared and never written");
+        assert!(!p.exists(), "an incomplete stream must not be published");
+    }
+
+    #[test]
+    fn an_abandoned_writer_leaves_nothing_behind() {
+        let p = tmp("stream_drop.safetensors");
+        {
+            let mut w = StreamingWriter::begin(&p, vec![decl("a", 1)], &BTreeMap::new()).unwrap();
+            w.write("a", &[1]).unwrap();
+            // dropped without finish, as on a panic or early return
+        }
+        let left: Vec<_> = std::fs::read_dir(p.parent().unwrap()).unwrap().collect();
+        assert!(
+            left.is_empty(),
+            "dropping an unfinished writer must remove its temporary"
+        );
+    }
+}

@@ -6,8 +6,10 @@ use crate::config::{build_config, ConfigMode};
 use crate::discover::{discover, DiscoverError};
 use crate::huffman::LutMode;
 use crate::io_sched::{plan, IoMode, IoPlan};
-use crate::safetensors::{write_file, Dtype, OutTensor, Payload, StError};
-use crate::source::ModelSource;
+use crate::safetensors::{
+    write_bytes_atomic, write_file, Dtype, OutTensor, Payload, StError, StreamingWriter, TensorDecl,
+};
+use crate::source::{ModelSource, View, COMFYUI_PREFIX};
 use crate::unit::encode_unit_streaming;
 use crate::EncodeError;
 use std::collections::BTreeMap;
@@ -134,6 +136,9 @@ pub struct WriteReport {
     pub limited_units: Vec<String>,
     /// How reads were scheduled, and why.
     pub io: IoPlan,
+    /// The key prefix stripped from the source, if any (`model.diffusion_model.`
+    /// for a ComfyUI checkpoint).
+    pub prefix_stripped: Option<String>,
     /// Units checked against their source before being written. Empty unless
     /// `verify` was set.
     pub verified: Vec<String>,
@@ -197,40 +202,34 @@ impl From<std::io::Error> for WriteError {
     }
 }
 
-/// Encode one unit and write its shard. Runs on its own thread; the chunked
-/// encoder inside uses rayon's global pool, so a single unit can still occupy
-/// every core.
-#[allow(clippy::too_many_arguments)]
-fn encode_one_unit(
-    source: &ModelSource,
+/// One unit's tensors, ready to write: the six DF11 tensors followed by the
+/// siblings that travel with it.
+struct Built {
+    tensors: Vec<OutTensor>,
+    limited: Option<String>,
+    verified: bool,
+}
+
+type Reader<'r> = dyn Fn(&str) -> Result<Vec<u8>, StError> + Sync + 'r;
+
+/// Encode one unit and, in safe mode, check it against its source.
+///
+/// Produces the tensors but writes nothing, so the directory and single-file
+/// layouts can share it. The chunked encoder inside uses rayon's global pool, so
+/// a single unit can still occupy every core.
+fn build_unit(
+    src: &View,
     u: &crate::discover::DiscoveredUnit,
-    index: usize,
-    out_dir: &std::path::Path,
     threads: usize,
     bpt: usize,
-    meta: &BTreeMap<String, String>,
-    read_gate: &Option<std::sync::Mutex<()>>,
-    counters: (
-        &std::sync::atomic::AtomicUsize,
-        &std::sync::atomic::AtomicUsize,
-    ),
+    read: &Reader,
     verify: bool,
-) -> Result<(usize, String, u64, Option<String>, bool), WriteError> {
-    use std::sync::atomic::Ordering;
-    let (in_flight, peak) = counters;
-    let read = |name: &str| -> Result<Vec<u8>, crate::safetensors::StError> {
-        let _held = read_gate.as_ref().map(|m| m.lock().expect("read gate"));
-        let n = in_flight.fetch_add(1, Ordering::SeqCst) + 1;
-        peak.fetch_max(n, Ordering::SeqCst);
-        let r = source.read(name);
-        in_flight.fetch_sub(1, Ordering::SeqCst);
-        r
-    };
+) -> Result<Built, WriteError> {
     // Sizes come from the header; no tensor data is read yet.
     let counts: Vec<u64> = u
         .tensors
         .iter()
-        .map(|n| source.info(n).map(|i| i.nbytes() / 2).unwrap_or(0))
+        .map(|n| src.info(n).map(|i| i.nbytes() / 2).unwrap_or(0))
         .collect();
     let enc = encode_unit_streaming(&u.name, &counts, |i| read(&u.tensors[i]), threads, bpt)
         .map_err(|e| WriteError::Encode {
@@ -239,7 +238,33 @@ fn encode_one_unit(
         })?;
     let limited = (enc.limiter_iterations > 0).then(|| u.name.clone());
 
-    let mut out: Vec<OutTensor> = Vec::with_capacity(6 + u.siblings.len());
+    // Safe mode checks the unit BEFORE anything is written, so a wrong one never
+    // reaches disk. `verified` records that the check RAN, not that it was
+    // requested: the report is evidence, not an echo of the flag.
+    let mut verified = false;
+    if verify {
+        let mut source_bytes: Vec<u8> = Vec::with_capacity((enc.weights() * 2) as usize);
+        for name in &u.tensors {
+            source_bytes.extend_from_slice(&read(name)?);
+        }
+        let luts: Vec<u8> = enc.luts.iter().flat_map(|r| r.iter().copied()).collect();
+        let view = crate::verify::UnitView {
+            luts: &luts,
+            encoded_exponent: &enc.encoded_exponent,
+            sign_mantissa: &enc.sign_mantissa,
+            output_positions: &enc.output_positions,
+            gaps: &enc.gaps,
+            bytes_per_thread: bpt,
+            threads_per_block: threads,
+        };
+        crate::verify::verify_unit(&view, &source_bytes).map_err(|e| WriteError::Verify {
+            unit: u.name.clone(),
+            source: e,
+        })?;
+        verified = true;
+    }
+
+    let mut tensors: Vec<OutTensor> = Vec::with_capacity(6 + u.siblings.len());
     let rows = enc.luts.len() as u64;
     for (name, data) in enc.tensors() {
         let (dtype, shape) = if name.ends_with(".luts") {
@@ -249,54 +274,82 @@ fn encode_one_unit(
         } else {
             (Dtype::new(Dtype::U8), vec![data.len() as u64])
         };
-        out.push(OutTensor::owned(name, dtype, shape, data));
+        tensors.push(OutTensor::owned(name, dtype, shape, data));
     }
     // Siblings travel with their unit, as upstream does (FINDINGS 0.7).
     for s in &u.siblings {
-        let info = source.info(s).expect("discovered from this file").clone();
-        let (path, offset, len) = source.locate(s).expect("discovered from this file");
-        out.push(OutTensor {
-            name: s.clone(),
-            dtype: info.dtype.clone(),
-            shape: info.shape.clone(),
-            data: Payload::Borrowed { path, offset, len },
-        });
+        tensors.push(borrowed(src, s));
     }
-    // Safe mode checks the unit BEFORE it is written, so a wrong one never
-    // reaches disk at all -- there is nothing to clean up afterwards.
-    //
-    // `did_verify` records that the check RAN, not that it was requested. The
-    // report is then evidence rather than an echo of the flag: if this block is
-    // skipped, nothing downstream claims the unit was checked.
-    let mut did_verify = false;
-    if verify {
-        let mut source_bytes: Vec<u8> = Vec::with_capacity((enc.weights() * 2) as usize);
-        for name in &u.tensors {
-            source_bytes.extend_from_slice(&read(name)?);
-        }
-        let pos = enc.output_positions.clone();
-        let luts: Vec<u8> = enc.luts.iter().flat_map(|r| r.iter().copied()).collect();
-        let view = crate::verify::UnitView {
-            luts: &luts,
-            encoded_exponent: &enc.encoded_exponent,
-            sign_mantissa: &enc.sign_mantissa,
-            output_positions: &pos,
-            gaps: &enc.gaps,
-            bytes_per_thread: bpt,
-            threads_per_block: threads,
-        };
-        crate::verify::verify_unit(&view, &source_bytes).map_err(|e| WriteError::Verify {
-            unit: u.name.clone(),
-            source: e,
-        })?;
-        did_verify = true;
-    }
+    Ok(Built {
+        tensors,
+        limited,
+        verified,
+    })
+}
 
-    let fname = shard_name(&u.name);
-    let path = out_dir.join(&fname);
-    write_file(&path, &out, meta)?;
-    let sz = std::fs::metadata(&path)?.len();
-    Ok((index, fname, sz, limited, did_verify))
+/// A source tensor copied by byte range rather than read into memory.
+fn borrowed(src: &View, name: &str) -> OutTensor {
+    let info = src.info(name).expect("discovered from this source").clone();
+    let (path, offset, len) = src.locate(name).expect("discovered from this source");
+    OutTensor {
+        name: name.to_string(),
+        dtype: info.dtype.clone(),
+        shape: info.shape.clone(),
+        data: Payload::Borrowed { path, offset, len },
+    }
+}
+
+fn decls_of(ts: &[OutTensor]) -> Vec<TensorDecl> {
+    ts.iter()
+        .map(|t| TensorDecl {
+            name: t.name.clone(),
+            dtype: t.dtype.clone(),
+            shape: t.shape.clone(),
+            len: t.data.len(),
+        })
+        .collect()
+}
+
+/// Run `f` over every unit, at most `workers` at a time, and return the results
+/// in definition order.
+///
+/// `workers` bounds how many units are in flight, because each one holds
+/// memory. It is deliberately not the CPU limit: the encoder inside a unit uses
+/// rayon's global pool. Sizing one pool for both jobs is what capped throughput
+/// at 16 workers in the scaling measurement.
+fn run_units<T: Send>(
+    units: &[crate::discover::DiscoveredUnit],
+    workers: usize,
+    f: &(dyn Fn(&crate::discover::DiscoveredUnit) -> Result<T, WriteError> + Sync),
+) -> Result<Vec<T>, WriteError> {
+    let permits = std::sync::Mutex::new(workers);
+    let cv = std::sync::Condvar::new();
+    let results: std::sync::Mutex<Vec<(usize, Result<T, WriteError>)>> =
+        std::sync::Mutex::new(Vec::with_capacity(units.len()));
+
+    std::thread::scope(|scope| {
+        for (i, u) in units.iter().enumerate() {
+            {
+                let mut n = permits.lock().expect("permits");
+                while *n == 0 {
+                    n = cv.wait(n).expect("permits");
+                }
+                *n -= 1;
+            }
+            let (permits, cv, results) = (&permits, &cv, &results);
+            scope.spawn(move || {
+                let r = f(u);
+                results.lock().expect("results").push((i, r));
+                *permits.lock().expect("permits") += 1;
+                cv.notify_one();
+            });
+        }
+    });
+
+    let mut done = results.into_inner().expect("results");
+    // Restore definition order, which completion order does not preserve.
+    done.sort_by_key(|(i, _)| *i);
+    done.into_iter().map(|(_, r)| r).collect()
 }
 
 /// The official shard name for a unit: dots become underscores.
@@ -304,7 +357,8 @@ pub fn shard_name(unit: &str) -> String {
     format!("{}.safetensors", unit.replace('.', "_"))
 }
 
-/// The file holding everything outside any unit.
+/// The file holding everything outside any unit -- or, for ComfyUI-native,
+/// everything.
 pub fn remainder_name(layout: Layout) -> &'static str {
     match layout {
         Layout::Diffusers => "diffusion_pytorch_model.safetensors",
@@ -312,7 +366,8 @@ pub fn remainder_name(layout: Layout) -> &'static str {
     }
 }
 
-/// Compress a model into a DF11 directory.
+/// Compress a model into a DF11 output: a directory of shards for the
+/// transformers and diffusers layouts, a single file for ComfyUI-native.
 pub fn write_directory(
     source: &ModelSource,
     def: &ArchDef,
@@ -320,10 +375,17 @@ pub fn write_directory(
     opts: &WriteOptions,
 ) -> Result<WriteReport, WriteError> {
     std::fs::create_dir_all(out_dir)?;
-    let names: Vec<String> = source.names();
-    let found = discover(def, &names)?;
 
-    let source_bytes = source.total_bytes();
+    // ComfyUI checkpoints carry `model.diffusion_model.` on every diffusion key;
+    // the definitions do not. Strip it when present (DESIGN 5.5).
+    let prefix = (def.layout == Layout::ComfyuiNative
+        && source.names().iter().any(|n| n.starts_with(COMFYUI_PREFIX)))
+    .then_some(COMFYUI_PREFIX);
+    let src = View::new(source, prefix);
+
+    let names: Vec<String> = src.names();
+    let found = discover(def, &names)?;
+    let source_bytes = src.total_bytes();
 
     let threads = *def.threads_per_block.first().unwrap_or(&512) as usize;
     let bpt = def.bytes_per_thread as usize;
@@ -334,7 +396,7 @@ pub fn write_directory(
         .map(|u| {
             u.tensors
                 .iter()
-                .map(|n| source.info(n).map(|i| i.nbytes() / 2).unwrap_or(0))
+                .map(|n| src.info(n).map(|i| i.nbytes() / 2).unwrap_or(0))
                 .sum::<u64>()
         })
         .max()
@@ -344,10 +406,6 @@ pub fn write_directory(
         .unwrap_or(1);
     let workers = worker_count(opts, largest, cores);
 
-    let mut shards = Vec::new();
-    let mut limited_units = Vec::new();
-    let mut output_bytes: u64 = 0;
-
     let mut meta = BTreeMap::new();
     meta.insert("format".to_string(), "pt".to_string());
     if opts.lut_mode == LutMode::Correct {
@@ -356,91 +414,34 @@ pub fn write_directory(
         meta.insert("df11pack_luts".to_string(), "correct".to_string());
     }
 
-    // Two different limits, deliberately not the same number.
-    //
-    // `workers` bounds how many units are IN FLIGHT, because each one holds
-    // memory. CPU parallelism is a separate axis: the chunked encoder inside a
-    // unit uses rayon's global pool, i.e. every core. Sizing one pool to do both
-    // jobs is what capped throughput at 16 in the scaling measurement -- beyond
-    // that, more units in flight bought memory pressure rather than speed, while
-    // a model with few large units could not use the cores at all.
-    type UnitResult = Result<(usize, String, u64, Option<String>, bool), WriteError>;
-
     // On a spinning disk, overlapping readers make the head seek; one reader at
     // a time is much faster. Encoding still overlaps -- only the reads queue.
-    let io = plan(source.dir(), opts.io);
+    let io = plan(src.dir(), opts.io);
     let read_gate: Option<std::sync::Mutex<()>> = io.sequential.then(|| std::sync::Mutex::new(()));
-    let read_gate = &read_gate;
     let in_flight = std::sync::atomic::AtomicUsize::new(0);
     let peak_reads = std::sync::atomic::AtomicUsize::new(0);
-    let counters = (&in_flight, &peak_reads);
+    let read = |name: &str| -> Result<Vec<u8>, StError> {
+        use std::sync::atomic::Ordering;
+        let _held = read_gate.as_ref().map(|m| m.lock().expect("read gate"));
+        let n = in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+        peak_reads.fetch_max(n, Ordering::SeqCst);
+        let r = src.read(name);
+        in_flight.fetch_sub(1, Ordering::SeqCst);
+        r
+    };
 
-    let permits = std::sync::Arc::new(std::sync::Mutex::new(workers));
-    let cv = std::sync::Arc::new(std::sync::Condvar::new());
-    let results: std::sync::Mutex<Vec<UnitResult>> = std::sync::Mutex::new(Vec::new());
-
-    std::thread::scope(|scope| {
-        for (ui, u) in found.units.iter().enumerate() {
-            // Block until a memory permit is free, then start this unit.
-            {
-                let mut n = permits.lock().expect("permits");
-                while *n == 0 {
-                    n = cv.wait(n).expect("permits");
-                }
-                *n -= 1;
-            }
-            let permits = std::sync::Arc::clone(&permits);
-            let cv = std::sync::Arc::clone(&cv);
-            let results = &results;
-            let meta = &meta;
-            scope.spawn(move || {
-                let r = encode_one_unit(
-                    source,
-                    u,
-                    ui,
-                    out_dir,
-                    threads,
-                    bpt,
-                    meta,
-                    read_gate,
-                    counters,
-                    opts.verify,
-                );
-                results.lock().expect("results").push(r);
-                *permits.lock().expect("permits") += 1;
-                cv.notify_one();
-            });
-        }
-    });
-
-    let mut done = results.into_inner().expect("results");
-    let mut collected = Vec::with_capacity(done.len());
-    for r in done.drain(..) {
-        collected.push(r?);
-    }
-    // Restore definition order, which the completion order does not preserve.
-    collected.sort_by_key(|(i, _, _, _, _)| *i);
-    let mut verified = Vec::new();
-    for (i, fname, sz, limited, was_verified) in collected {
-        output_bytes += sz;
-        if let Some(l) = limited {
-            limited_units.push(l);
-        }
-        if was_verified {
-            verified.push(found.units[i].name.clone());
-        }
-        shards.push(fname);
-    }
-    limited_units.sort();
+    // The source config drives the tie check and the output config.
+    let source_config: Option<serde_json::Value> = Some(src.dir().join("config.json"))
+        .filter(|p| p.is_file())
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| serde_json::from_slice(&b).ok());
 
     // Tied tensors: upstream's save_pretrained refuses to write two tensors that
     // share storage, and drops the tied view. The tie is a property of the model
     // config, so that is where we read it from -- not guessed from the bytes.
     let mut tied_dropped = Vec::new();
-    let tied = Some(source.dir().join("config.json"))
-        .filter(|p| p.is_file())
-        .and_then(|p| std::fs::read(p).ok())
-        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+    let tied = source_config
+        .as_ref()
         .and_then(|v| v.get("tie_word_embeddings").and_then(|t| t.as_bool()))
         .unwrap_or(false);
     if tied {
@@ -448,31 +449,83 @@ pub fn write_directory(
         const TIED_SOURCE: &str = "model.embed_tokens.weight";
         if found.passthrough.iter().any(|n| n == TIED_VIEW)
             && found.passthrough.iter().any(|n| n == TIED_SOURCE)
-            && source.tensors_equal(TIED_VIEW, TIED_SOURCE)?
+            && src.tensors_equal(TIED_VIEW, TIED_SOURCE)?
         {
             tied_dropped.push(TIED_VIEW.to_string());
         }
     }
+    let passthrough: Vec<&String> = found
+        .passthrough
+        .iter()
+        .filter(|n| !tied_dropped.contains(n))
+        .collect();
 
-    let mut rem: Vec<OutTensor> = Vec::new();
-    for n in &found.passthrough {
-        if tied_dropped.contains(n) {
-            continue;
+    let remainder = remainder_name(def.layout).to_string();
+    let mut shards = Vec::new();
+    let mut limited_units = Vec::new();
+    let mut verified = Vec::new();
+    let mut output_bytes: u64 = 0;
+
+    if def.layout == Layout::ComfyuiNative {
+        // One file. Its header must list every tensor's byte range before any
+        // data is written, but encoded sizes are only known after encoding.
+        // Holding every unit in memory would break the budget, and staging to
+        // temporary shards would double the disk needed. So: encode each unit
+        // once to learn its sizes, write the header, then encode again in order
+        // and stream straight to disk. The encoder is deterministic, and the
+        // writer checks every tensor against its declared size, so a mismatch
+        // is an error rather than a corrupt file.
+        let pass1 = run_units(&found.units, workers, &|u| {
+            let b = build_unit(&src, u, threads, bpt, &read, false)?;
+            Ok((decls_of(&b.tensors), b.limited))
+        })?;
+        let mut decls = Vec::new();
+        for (d, limited) in &pass1 {
+            decls.extend(d.iter().cloned());
+            if let Some(l) = limited {
+                limited_units.push(l.clone());
+            }
         }
-        let info = source.info(n).expect("from this file").clone();
-        let (path, offset, len) = source.locate(n).expect("from this file");
-        rem.push(OutTensor {
-            name: n.clone(),
-            dtype: info.dtype.clone(),
-            shape: info.shape.clone(),
-            data: Payload::Borrowed { path, offset, len },
-        });
+        let rem: Vec<OutTensor> = passthrough.iter().map(|n| borrowed(&src, n)).collect();
+        decls.extend(decls_of(&rem));
+
+        let path = out_dir.join(&remainder);
+        let mut w = StreamingWriter::begin(&path, decls, &meta)?;
+        for u in &found.units {
+            let b = build_unit(&src, u, threads, bpt, &read, opts.verify)?;
+            for t in &b.tensors {
+                w.put(t)?;
+            }
+            if b.verified {
+                verified.push(u.name.clone());
+            }
+        }
+        for t in &rem {
+            w.put(t)?;
+        }
+        w.finish()?;
+        output_bytes += std::fs::metadata(&path)?.len();
+    } else {
+        let written = run_units(&found.units, workers, &|u| {
+            let b = build_unit(&src, u, threads, bpt, &read, opts.verify)?;
+            let fname = shard_name(&u.name);
+            let path = out_dir.join(&fname);
+            write_file(&path, &b.tensors, &meta)?;
+            let sz = std::fs::metadata(&path)?.len();
+            Ok((fname, sz, b.limited, b.verified.then(|| u.name.clone())))
+        })?;
+        for (fname, sz, limited, was_verified) in written {
+            output_bytes += sz;
+            limited_units.extend(limited);
+            verified.extend(was_verified);
+            shards.push(fname);
+        }
+        let rem: Vec<OutTensor> = passthrough.iter().map(|n| borrowed(&src, n)).collect();
+        let rpath = out_dir.join(&remainder);
+        write_file(&rpath, &rem, &meta)?;
+        output_bytes += std::fs::metadata(&rpath)?.len();
     }
-    // The source config drives both the tie check above and the output config.
-    let source_config: Option<serde_json::Value> = Some(source.dir().join("config.json"))
-        .filter(|p| p.is_file())
-        .and_then(|p| std::fs::read(p).ok())
-        .and_then(|b| serde_json::from_slice(&b).ok());
+    limited_units.sort();
 
     let config = match def.layout {
         // ComfyUI-native output is a single file and carries no config; the
@@ -487,16 +540,24 @@ pub fn write_directory(
             };
             let cfg = build_config(source_config.as_ref(), def, mode);
             let path = out_dir.join("config.json");
-            std::fs::write(&path, serde_json::to_vec_pretty(&cfg).unwrap_or_default())?;
+            write_bytes_atomic(&path, &serde_json::to_vec_pretty(&cfg).unwrap_or_default())?;
             output_bytes += std::fs::metadata(&path)?.len();
             Some("config.json".to_string())
         }
     };
 
-    let remainder = remainder_name(def.layout).to_string();
-    let rpath = out_dir.join(&remainder);
-    write_file(&rpath, &rem, &meta)?;
-    output_bytes += std::fs::metadata(&rpath)?.len();
+    // A generation config the model author shipped is carried over byte for
+    // byte. One is never invented: upstream's is synthesised by transformers from
+    // config.json and stamped with the installed version, and transformers
+    // regenerates it from the config when it is absent.
+    if def.layout == Layout::Transformers {
+        let g = src.dir().join("generation_config.json");
+        if g.is_file() {
+            let path = out_dir.join("generation_config.json");
+            write_bytes_atomic(&path, &std::fs::read(&g)?)?;
+            output_bytes += std::fs::metadata(&path)?.len();
+        }
+    }
 
     Ok(WriteReport {
         units: found.units.len(),
@@ -507,6 +568,7 @@ pub fn write_directory(
         tied_dropped,
         limited_units,
         io,
+        prefix_stripped: src.prefix().map(str::to_string),
         verified,
         max_concurrent_reads: peak_reads.load(std::sync::atomic::Ordering::SeqCst),
         config,

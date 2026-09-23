@@ -20,6 +20,15 @@ SETS = [
          out=ROOT/"out/official/qwen3-0.6b-layers-only",
          src=Path("../bf16-exponent-compression/real_model"),
          note="Full Qwen3-0.6B, 28 units. Official peak RSS 2287.6 MiB, 788.9 s."),
+] + [
+    # Corpus case 2 (phase0/make_synthetic.py): synthetic FLUX and Chroma in both
+    # layouts, compressed by the official tool. The only fixtures exercising the
+    # diffusers and ComfyUI-native paths.
+    dict(name=f"synthetic-{n}", provenance="locally-compressed",
+         out=ROOT/f"out/official/synthetic-{n}",
+         src=ROOT/f"corpus/synthetic/{n}",
+         note=f"Synthetic {n}: real module names, hidden 256, two instances per pattern.")
+    for n in ["flux-comfyui", "chroma-comfyui", "flux-dev-diffusers", "chroma-diffusers"]
 ]
 
 

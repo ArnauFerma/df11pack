@@ -193,6 +193,22 @@ pub fn verify_unit(view: &UnitView, source_bf16_le: &[u8]) -> Result<(), VerifyE
         });
     }
 
+    // The EOF position. When the stream does not end byte-aligned, the reference
+    // encoder checks once more, at the bit just past the last code, and records
+    // an entry for that window and chunk if nothing had opened them -- which is
+    // what happens when the last code straddles into them. Checking only windows
+    // where a code starts misses exactly this entry.
+    if bit % 8 != 0 {
+        let w = bit / window_bits;
+        if w < window_entry.len() && window_entry[w].is_none() {
+            window_entry[w] = Some(bit % window_bits);
+        }
+        let c = bit / chunk_bits;
+        if c < chunk_entry.len() && chunk_entry[c].is_none() {
+            chunk_entry[c] = Some(n_weights as u32);
+        }
+    }
+
     // Every gap must name the bit at which its window is entered. A window the
     // stream never enters is unconstrained.
     let unpacked = unpack_gaps(view.gaps);

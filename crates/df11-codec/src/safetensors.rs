@@ -285,26 +285,20 @@ impl OutTensor {
     }
 }
 
-/// Write a safetensors file **atomically**.
-///
-/// The bytes go to a sibling `.tmp`, which is flushed and fsynced, then renamed
-/// into place; the directory is fsynced after, so the rename itself survives a
-/// power loss. On any failure the temporary is removed and the destination is
-/// left untouched.
-///
-/// This matters more than it looks. A truncated safetensors is not obviously
-/// broken — the header parses, the tensors it names are simply short — so a
-/// half-written shard can be mistaken for a finished one. Appearing complete or
-/// not at all is the property worth having, and it is the reason atomicity was
-/// kept when resume was dropped from the plan.
-///
-/// Tensors are laid out in the order given, contiguously, with no padding
-/// between them. The header lists them in the same order.
-pub fn write_file(
-    path: impl AsRef<Path>,
-    tensors: &[OutTensor],
+/// A tensor's entry in the header, known before its bytes exist.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TensorDecl {
+    pub name: String,
+    pub dtype: Dtype,
+    pub shape: Vec<u64>,
+    pub len: u64,
+}
+
+/// The JSON header for `decls`, padded so the data section starts 8-byte aligned.
+fn header_bytes(
+    decls: &[TensorDecl],
     metadata: &BTreeMap<String, String>,
-) -> Result<(), StError> {
+) -> Result<Vec<u8>, StError> {
     let mut header = serde_json::Map::new();
     if !metadata.is_empty() {
         let mut m = serde_json::Map::new();
@@ -314,86 +308,230 @@ pub fn write_file(
         header.insert("__metadata__".into(), serde_json::Value::Object(m));
     }
     let mut cursor: u64 = 0;
-    for t in tensors {
-        let end = cursor + t.data.len();
+    for d in decls {
+        let end = cursor + d.len;
         let mut e = serde_json::Map::new();
-        e.insert("dtype".into(), serde_json::Value::String(t.dtype.0.clone()));
+        e.insert("dtype".into(), serde_json::Value::String(d.dtype.0.clone()));
         e.insert(
             "shape".into(),
-            serde_json::Value::Array(t.shape.iter().map(|&d| d.into()).collect()),
+            serde_json::Value::Array(d.shape.iter().map(|&x| x.into()).collect()),
         );
         e.insert(
             "data_offsets".into(),
             serde_json::Value::Array(vec![cursor.into(), end.into()]),
         );
-        header.insert(t.name.clone(), serde_json::Value::Object(e));
+        header.insert(d.name.clone(), serde_json::Value::Object(e));
         cursor = end;
     }
     let mut json = serde_json::to_vec(&serde_json::Value::Object(header))
         .map_err(|e| StError::Malformed(e.to_string()))?;
-    // The data section must start 8-byte aligned; pad the header with spaces,
-    // which the format permits.
     while (8 + json.len()) % 8 != 0 {
         json.push(b' ');
     }
-
-    let path = path.as_ref();
-    let tmp = match path.file_name() {
-        Some(n) => path.with_file_name(format!("{}.tmp", n.to_string_lossy())),
-        None => {
-            return Err(StError::Malformed(format!(
-                "{} has no file name",
-                path.display()
-            )))
-        }
-    };
-
-    // Anything that fails from here on must leave the destination alone.
-    let r = write_atomic_inner(&tmp, path, tensors, &json);
-    if r.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    r
+    Ok(json)
 }
 
-fn write_atomic_inner(
-    tmp: &Path,
-    dest: &Path,
-    tensors: &[OutTensor],
-    json: &[u8],
-) -> Result<(), StError> {
-    let file = File::create(tmp)?;
-    let mut w = BufWriter::new(file);
-    w.write_all(&(json.len() as u64).to_le_bytes())?;
-    w.write_all(json)?;
-    let mut buf = vec![0u8; 1 << 20];
-    for t in tensors {
-        match &t.data {
-            Payload::Owned(v) => w.write_all(v)?,
-            Payload::Borrowed { path, offset, len } => {
-                let mut f = File::open(path)?;
-                f.seek(SeekFrom::Start(*offset))?;
-                let mut left = *len;
-                while left > 0 {
-                    let n = (left as usize).min(buf.len());
-                    f.read_exact(&mut buf[..n])?;
-                    w.write_all(&buf[..n])?;
-                    left -= n as u64;
-                }
-            }
-        }
+fn tmp_path(dest: &Path) -> Result<PathBuf, StError> {
+    match dest.file_name() {
+        Some(n) => Ok(dest.with_file_name(format!("{}.tmp", n.to_string_lossy()))),
+        None => Err(StError::Malformed(format!(
+            "{} has no file name",
+            dest.display()
+        ))),
     }
-    w.flush()?;
-    // Durable before the rename, so the rename never publishes a partial file.
-    w.into_inner()
-        .map_err(|e| StError::Io(e.into_error()))?
-        .sync_all()?;
-    std::fs::rename(tmp, dest)?;
-    // And fsync the directory so the rename itself survives a crash.
+}
+
+/// fsync a directory so a rename inside it survives a crash. Best effort: not
+/// every platform allows opening a directory.
+fn sync_dir(dest: &Path) {
     if let Some(dir) = dest.parent() {
         if let Ok(d) = File::open(dir) {
             let _ = d.sync_all();
         }
     }
-    Ok(())
+}
+
+/// Writes a safetensors file whose header is fixed up front and whose tensors
+/// then arrive one at a time, **in header order**.
+///
+/// This is what lets a single-file output be written without holding every
+/// tensor in memory: the caller declares names, dtypes, shapes and lengths first,
+/// then streams the bytes. Each write is checked against its declaration, so a
+/// tensor that comes out a different size than declared is an error rather than
+/// a corrupt file.
+///
+/// Atomic like [`write_file`]: bytes go to a sibling `.tmp`, fsynced and renamed
+/// on [`StreamingWriter::finish`]. Dropping the writer without finishing removes
+/// the temporary and leaves the destination untouched.
+pub struct StreamingWriter {
+    w: Option<BufWriter<File>>,
+    tmp: PathBuf,
+    dest: PathBuf,
+    decls: Vec<TensorDecl>,
+    next: usize,
+    buf: Vec<u8>,
+}
+
+impl StreamingWriter {
+    pub fn begin(
+        dest: impl AsRef<Path>,
+        decls: Vec<TensorDecl>,
+        metadata: &BTreeMap<String, String>,
+    ) -> Result<Self, StError> {
+        let dest = dest.as_ref().to_path_buf();
+        let tmp = tmp_path(&dest)?;
+        let json = header_bytes(&decls, metadata)?;
+        let mut me = StreamingWriter {
+            w: Some(BufWriter::new(File::create(&tmp)?)),
+            tmp,
+            dest,
+            decls,
+            next: 0,
+            buf: Vec::new(),
+        };
+        let w = me.w.as_mut().expect("open");
+        w.write_all(&(json.len() as u64).to_le_bytes())?;
+        w.write_all(&json)?;
+        Ok(me)
+    }
+
+    fn expect(&self, name: &str, len: u64) -> Result<(), StError> {
+        let d = self.decls.get(self.next).ok_or_else(|| {
+            StError::Malformed(format!(
+                "tensor {name:?} written after the last declared one"
+            ))
+        })?;
+        if d.name != name {
+            return Err(StError::Malformed(format!(
+                "tensor {name:?} written where {:?} was declared",
+                d.name
+            )));
+        }
+        if d.len != len {
+            return Err(StError::Malformed(format!(
+                "tensor {name:?} is {len} bytes but was declared as {}",
+                d.len
+            )));
+        }
+        Ok(())
+    }
+
+    /// Write the next declared tensor from memory.
+    pub fn write(&mut self, name: &str, bytes: &[u8]) -> Result<(), StError> {
+        self.expect(name, bytes.len() as u64)?;
+        self.w.as_mut().expect("open").write_all(bytes)?;
+        self.next += 1;
+        Ok(())
+    }
+
+    /// Write the next declared tensor by copying a byte range of another file.
+    pub fn copy(&mut self, name: &str, path: &Path, offset: u64, len: u64) -> Result<(), StError> {
+        self.expect(name, len)?;
+        if self.buf.is_empty() {
+            self.buf = vec![0u8; 1 << 20];
+        }
+        let mut f = File::open(path)?;
+        f.seek(SeekFrom::Start(offset))?;
+        let mut left = len;
+        let w = self.w.as_mut().expect("open");
+        while left > 0 {
+            let n = (left as usize).min(self.buf.len());
+            f.read_exact(&mut self.buf[..n])?;
+            w.write_all(&self.buf[..n])?;
+            left -= n as u64;
+        }
+        self.next += 1;
+        Ok(())
+    }
+
+    /// Write the next declared tensor from a payload.
+    pub fn put(&mut self, t: &OutTensor) -> Result<(), StError> {
+        match &t.data {
+            Payload::Owned(v) => self.write(&t.name, v),
+            Payload::Borrowed { path, offset, len } => self.copy(&t.name, path, *offset, *len),
+        }
+    }
+
+    /// Check every declared tensor was written, make it durable, and publish it.
+    pub fn finish(mut self) -> Result<(), StError> {
+        if self.next != self.decls.len() {
+            return Err(StError::Malformed(format!(
+                "{} of {} declared tensors were written",
+                self.next,
+                self.decls.len()
+            )));
+        }
+        let w = self.w.take().expect("open");
+        w.into_inner()
+            .map_err(|e| StError::Io(e.into_error()))?
+            .sync_all()?;
+        std::fs::rename(&self.tmp, &self.dest)?;
+        sync_dir(&self.dest);
+        Ok(())
+    }
+}
+
+impl Drop for StreamingWriter {
+    fn drop(&mut self) {
+        // Anything other than a successful finish leaves no trace.
+        if self.w.is_some() || self.tmp.exists() {
+            drop(self.w.take());
+            let _ = std::fs::remove_file(&self.tmp);
+        }
+    }
+}
+
+/// Write a safetensors file **atomically**.
+///
+/// The bytes go to a sibling `.tmp`, which is flushed and fsynced, then renamed
+/// into place; the directory is fsynced after, so the rename itself survives a
+/// power loss. On any failure the temporary is removed and the destination is
+/// left untouched.
+///
+/// This matters more than it looks. A truncated safetensors is not obviously
+/// broken — the header parses, the tensors it names are simply short — so a
+/// half-written shard can be mistaken for a finished one.
+///
+/// Tensors are laid out in the order given, contiguously, with no padding
+/// between them. The header lists them in the same order.
+pub fn write_file(
+    path: impl AsRef<Path>,
+    tensors: &[OutTensor],
+    metadata: &BTreeMap<String, String>,
+) -> Result<(), StError> {
+    let decls = tensors
+        .iter()
+        .map(|t| TensorDecl {
+            name: t.name.clone(),
+            dtype: t.dtype.clone(),
+            shape: t.shape.clone(),
+            len: t.data.len(),
+        })
+        .collect();
+    let mut w = StreamingWriter::begin(path, decls, metadata)?;
+    for t in tensors {
+        w.put(t)?;
+    }
+    w.finish()
+}
+
+/// Write any small file atomically: temporary, fsync, rename, fsync the directory.
+///
+/// For `config.json` and similar sidecars, which previously used a plain write
+/// and so could be left truncated by an interrupted run.
+pub fn write_bytes_atomic(dest: impl AsRef<Path>, bytes: &[u8]) -> Result<(), StError> {
+    let dest = dest.as_ref();
+    let tmp = tmp_path(dest)?;
+    let r = (|| -> Result<(), StError> {
+        let mut f = File::create(&tmp)?;
+        f.write_all(bytes)?;
+        f.sync_all()?;
+        std::fs::rename(&tmp, dest)?;
+        sync_dir(dest);
+        Ok(())
+    })();
+    if r.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    r
 }

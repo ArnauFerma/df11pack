@@ -265,6 +265,10 @@ truncated Qwen3, synthetic Flux in both layouts, and every adversarial
 distribution — including a correct abort on the exponents 240–255 case. Full
 Qwen3-0.6B (tier 1) is the first thing tried after the gate, not part of it.
 
+**Status (2026-09-23):** corpus case 2 — synthetic FLUX and Chroma in both layouts — was
+missing when this gate was first declared met. It now exists and passes; see FINDINGS,
+"Corpus case 2 built".
+
 **Phase effort:** ~12–16 days. No GPU, no downloads, no rentals: it runs entirely
 against the tier-0 fixtures on the development machine. Tier-0 units are small
 enough that the whole encode chain fits in single-digit MB, so memory is never

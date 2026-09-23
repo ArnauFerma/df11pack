@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-22T15:08:11.760750+00:00",
+  "generated": "2026-09-23T11:00:29.538548+00:00",
   "note": "Per-tensor sha256 of official DFloat11 output. Phase 1 grades byte-identity against these.",
   "sets": [
     {
@@ -2726,6 +2726,2555 @@
             ],
             "bytes": 48,
             "sha256": "8595a383f13f080f34360544b76a4accf0ff64eccc5b51c2c03076beb790db44"
+          }
+        }
+      }
+    },
+    {
+      "name": "synthetic-flux-comfyui",
+      "provenance": "locally-compressed",
+      "note": "Synthetic flux-comfyui: real module names, hidden 256, two instances per pattern.",
+      "output_dir": "/home/cindy/proj3cts/compression/df11pack/phase0/out/official/synthetic-flux-comfyui",
+      "source_dir": "/home/cindy/proj3cts/compression/df11pack/phase0/corpus/synthetic/flux-comfyui",
+      "shards": 1,
+      "unit_tensors": 24,
+      "non_unit_tensors": 38,
+      "total_bytes": 9138628,
+      "json_sha256": {
+        "config.json": "042cda099bc51af76ac222ab507685887085b386d8e85c139a1b3dfad50e1fe9"
+      },
+      "files": {
+        "model.safetensors": {
+          "double_blocks.0.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              764249
+            ],
+            "bytes": 764249,
+            "sha256": "0c28dcaaa1e30d6bd878861d1df21a45b083671fd73b4bc1658183be7b3e531b"
+          },
+          "double_blocks.0.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "b3825abf93ffba934593b138d1c6790c7873fdf6e26b75adf25210d1f66ea544"
+          },
+          "double_blocks.0.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "69a32c10568dd2386a720cff38c27aca851b0950d18863866dfd8ba22aff707d"
+          },
+          "double_blocks.0.gaps": {
+            "dtype": "U8",
+            "shape": [
+              59840
+            ],
+            "bytes": 59840,
+            "sha256": "cbf172e41c73c43d0d0a990537071a37fd6f1ec35e1c2d995ef56a8fd4a36d6a"
+          },
+          "double_blocks.0.img_attn.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "3b9fcabc4fca8082b19b585adaf99ba61137ef3bf62c1ed2b6a236103d685637"
+          },
+          "double_blocks.0.img_attn.qkv.bias": {
+            "dtype": "BF16",
+            "shape": [
+              768
+            ],
+            "bytes": 1536,
+            "sha256": "6a92cbcf54d32cf3998ba8469145b7a79a2de7ee13fb5bbbfc1e941bfb003e9e"
+          },
+          "double_blocks.0.img_mlp.0.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1024
+            ],
+            "bytes": 2048,
+            "sha256": "abf3578d62b89a79d8982c9710ecd9662c320fe64f0df7d856fab2a40f7b1e93"
+          },
+          "double_blocks.0.img_mlp.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "08e35d2ef8cb4e73c79a3f7946ee0cc8837d448023b04ee9e4aad1383748ae2d"
+          },
+          "double_blocks.0.img_mod.lin.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1536
+            ],
+            "bytes": 3072,
+            "sha256": "d60af04991970f78e7953c707c153417e6242fb2f086ae76e2410e12f1cac048"
+          },
+          "double_blocks.0.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "d644f64681ea6eae488ff3a75435d333cf4ecb7a50ff66416d1a81789af88d50"
+          },
+          "double_blocks.0.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              752
+            ],
+            "bytes": 752,
+            "sha256": "c2a9a064f49a4097aea1d5be436388adad5c7cf3fdaf5c3a586bd599a4b16d49"
+          },
+          "double_blocks.0.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              2359296
+            ],
+            "bytes": 2359296,
+            "sha256": "efd7f74ffa5040a85bd96da1bcd396cc310dad61c5cb5238a7f0b985167bb49f"
+          },
+          "double_blocks.0.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              9
+            ],
+            "bytes": 72,
+            "sha256": "edd57cba087cfd3077ad3d6c9aecc5122386ecdd1ce843641ca65bd3f716ca3a"
+          },
+          "double_blocks.0.txt_attn.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "ccfe9b29fa77186aaddbd38bf27927745c4aee7a46ce8f6eff30998f334d41be"
+          },
+          "double_blocks.0.txt_attn.qkv.bias": {
+            "dtype": "BF16",
+            "shape": [
+              768
+            ],
+            "bytes": 1536,
+            "sha256": "36dd1b4dc7855039aaf871dde0f3cc72ab2261ed506cf061851586e41e00ec68"
+          },
+          "double_blocks.0.txt_mlp.0.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1024
+            ],
+            "bytes": 2048,
+            "sha256": "6942bb38f807b5a37dda790671d27ec6de8aef350d0cbe2697a845c1dc08dd9b"
+          },
+          "double_blocks.0.txt_mlp.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "148435e610731ed98b020c6ae547390c2c89ea5a73f3cb8075360348ef04c660"
+          },
+          "double_blocks.0.txt_mod.lin.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1536
+            ],
+            "bytes": 3072,
+            "sha256": "149b5b0b1be34e38a0dd6bac7b3970dd4da5704921b02112bf8cd123d75b1e51"
+          },
+          "double_blocks.1.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              764145
+            ],
+            "bytes": 764145,
+            "sha256": "5c454b6bf1317fead9f28c09d0221ee1e48be9a80de57b753a7cd4c6dad18103"
+          },
+          "double_blocks.1.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "bc521bd090f2c2f6864781ecf50895f9726d7e565f32fb974ffc6bdbd8c92685"
+          },
+          "double_blocks.1.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "c0bf676bbfc9876ea2e0d5a6c5331862244c692470f2351075f9d3b00ef8c1ae"
+          },
+          "double_blocks.1.gaps": {
+            "dtype": "U8",
+            "shape": [
+              59840
+            ],
+            "bytes": 59840,
+            "sha256": "02a18b8c7b54c3c7c02d925c039f9a1b2454b20729bb4bf514c1a77b07c362df"
+          },
+          "double_blocks.1.img_attn.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "eca8e4051bb3c01e47e5a62dbdcd83d6ea6fd6c3a8ae261f7731d49ef08dc054"
+          },
+          "double_blocks.1.img_attn.qkv.bias": {
+            "dtype": "BF16",
+            "shape": [
+              768
+            ],
+            "bytes": 1536,
+            "sha256": "c6ca323abdd2b80e7cf368c291586be3c7f797725994fe3fa3da6a15c27e72db"
+          },
+          "double_blocks.1.img_mlp.0.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1024
+            ],
+            "bytes": 2048,
+            "sha256": "66aa384dae0bccb1f79d32c3a0991ae850061c3ca6e0185cfdcf8e83b4cce953"
+          },
+          "double_blocks.1.img_mlp.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "619f54bbaac94b9197cc6e9d49298ca7f9fe6cea3ade3a2121b2e37032c33466"
+          },
+          "double_blocks.1.img_mod.lin.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1536
+            ],
+            "bytes": 3072,
+            "sha256": "54a641427fc81f5bab40c2500ccb60221f36dfa5173fa76a8580e56bc5f4c714"
+          },
+          "double_blocks.1.luts": {
+            "dtype": "U8",
+            "shape": [
+              5,
+              256
+            ],
+            "bytes": 1280,
+            "sha256": "14e2998b18c1bf4ac11d03b6cb7582a41695c7ab9f9596c28770e937abb15ba6"
+          },
+          "double_blocks.1.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              752
+            ],
+            "bytes": 752,
+            "sha256": "16bfd526c0736ff4f41011d6cd133c80e6702fb0e166f59bbb7f0f31b75bd4c9"
+          },
+          "double_blocks.1.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              2359296
+            ],
+            "bytes": 2359296,
+            "sha256": "a86f9ca53fc0ad67c910ab29722523f2fb42d27f11e786020d54402f05a082a5"
+          },
+          "double_blocks.1.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              9
+            ],
+            "bytes": 72,
+            "sha256": "edd57cba087cfd3077ad3d6c9aecc5122386ecdd1ce843641ca65bd3f716ca3a"
+          },
+          "double_blocks.1.txt_attn.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "bda19e507f5ab6365c09d316b1578e5861bca68b19fe7d463f729cb687609534"
+          },
+          "double_blocks.1.txt_attn.qkv.bias": {
+            "dtype": "BF16",
+            "shape": [
+              768
+            ],
+            "bytes": 1536,
+            "sha256": "564951c428ffe150907112b27f2be208f163a4a257a5588ffb9b92db81524cda"
+          },
+          "double_blocks.1.txt_mlp.0.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1024
+            ],
+            "bytes": 2048,
+            "sha256": "ab7ca8d90d5e9ed88942fdad3f5e3abd8639b96dc76a1dc79e9542f8cd759d80"
+          },
+          "double_blocks.1.txt_mlp.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "a2222b8b6caf620599741adfe2bfc978dc689d1f18f2e05011ea4004c7ddc29f"
+          },
+          "double_blocks.1.txt_mod.lin.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1536
+            ],
+            "bytes": 3072,
+            "sha256": "de428455ea09b4b2350e3177962117cd18e88f68aaa2f9329adcbec08e420c3d"
+          },
+          "final_layer.linear.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "6ec7b655da6f2f46a786da12214dd58ab55a9e0f2fe71592426c6a4896f19f51"
+          },
+          "final_layer.linear.weight": {
+            "dtype": "BF16",
+            "shape": [
+              64,
+              256
+            ],
+            "bytes": 32768,
+            "sha256": "51584514e5092689733cef636fb92b13f9590e85b22de835304b7d4904a4dc61"
+          },
+          "img_in.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "a66c5339b93e678ea20e6bb7bd36cd19bbb9605e0bf6dacffaf5564a2116e458"
+          },
+          "img_in.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256,
+              64
+            ],
+            "bytes": 32768,
+            "sha256": "9b4f5325407a47eb0a46a703b0a68cc93369fab1f7063d216f117763b5108583"
+          },
+          "single_blocks.0.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              318349
+            ],
+            "bytes": 318349,
+            "sha256": "d702e80685dd338d6e29efcddf4dee72175106070375003225468870269febb3"
+          },
+          "single_blocks.0.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "97116d8bebc0b4b4150483e976dbd5165c43234628af3fc2137eada76339bb00"
+          },
+          "single_blocks.0.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "0d2e0b8d6193350c64a704b1b086da0fdf89daae604c31938b550e43314e4870"
+          },
+          "single_blocks.0.gaps": {
+            "dtype": "U8",
+            "shape": [
+              24960
+            ],
+            "bytes": 24960,
+            "sha256": "7616143b3d0b0297b11b8610aa104039b3d47c5d223157ebb018ac9f9e388f01"
+          },
+          "single_blocks.0.linear1.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1792
+            ],
+            "bytes": 3584,
+            "sha256": "07f08dc06b5aa2b61bf36a2de1dd7b0e8b85c1672ec7bfa03a2c87903f4dad04"
+          },
+          "single_blocks.0.linear2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "4805766fc7973b1558194d2b4ed925eaaad149ca13cafe58354e52a2abb05ae9"
+          },
+          "single_blocks.0.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "0f39edf1226333c1b8862076bcd60c324d978316de6390f5bfd76d488abff745"
+          },
+          "single_blocks.0.modulation.lin.bias": {
+            "dtype": "BF16",
+            "shape": [
+              768
+            ],
+            "bytes": 1536,
+            "sha256": "7adca375d6b011bc6b8ef0a4acea50aa98bdfc90023584ae9b69ec42bda48761"
+          },
+          "single_blocks.0.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              316
+            ],
+            "bytes": 316,
+            "sha256": "f3aa5fbc34ddcbdc54af7e76f26359993d91873eef02a987030457f38ae19b28"
+          },
+          "single_blocks.0.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              983040
+            ],
+            "bytes": 983040,
+            "sha256": "702354c6674d09c9706de56d4dae4893060a7f39cf1d672d428f240c61aec9cb"
+          },
+          "single_blocks.0.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              2
+            ],
+            "bytes": 16,
+            "sha256": "166832daf96275e52f8e8ae07222416387a663d2e2163513561ad422458464e9"
+          },
+          "single_blocks.1.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              318437
+            ],
+            "bytes": 318437,
+            "sha256": "b855bf7d3c2faf45a408f156d28fa7acbbbf2abad5750119e86a09ef22523b96"
+          },
+          "single_blocks.1.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "a09e8eb323175a54fee9a0940293633045d495462b51b21450f7d43435c3654d"
+          },
+          "single_blocks.1.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "57e94c5f6f4e85d193171244ee37d920e0e40f088cd8f2d1a4f36a3a5ea9b14e"
+          },
+          "single_blocks.1.gaps": {
+            "dtype": "U8",
+            "shape": [
+              24960
+            ],
+            "bytes": 24960,
+            "sha256": "3eefa6c586798a68ea5a02f764c994baed2343c9d4ea8c392293cfbc623f3074"
+          },
+          "single_blocks.1.linear1.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1792
+            ],
+            "bytes": 3584,
+            "sha256": "1ec8c53bbe2def5bcbfe74435a041273cad6d72a861712f56a405e52935b425e"
+          },
+          "single_blocks.1.linear2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "549f54705f73f919878eebfcab433f4942ce24d3d6fb2ae3b795b655ffb64314"
+          },
+          "single_blocks.1.luts": {
+            "dtype": "U8",
+            "shape": [
+              5,
+              256
+            ],
+            "bytes": 1280,
+            "sha256": "4f3c3d923f34ac83ea56bbef7439b5b03e6c162a9129f625c44a3fa7f3d4daad"
+          },
+          "single_blocks.1.modulation.lin.bias": {
+            "dtype": "BF16",
+            "shape": [
+              768
+            ],
+            "bytes": 1536,
+            "sha256": "ee528571efb6cd39677618521213a59ab6a978d2f202924ab8b6d582416f196f"
+          },
+          "single_blocks.1.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              316
+            ],
+            "bytes": 316,
+            "sha256": "3f2d514673f1bebf1bfe846e56cebe91d228a79902c5582b3045e191a00ab519"
+          },
+          "single_blocks.1.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              983040
+            ],
+            "bytes": 983040,
+            "sha256": "b23ffae068f2df097e93f205eb609a7952767c257c4134b82764f2492c58badd"
+          },
+          "single_blocks.1.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              2
+            ],
+            "bytes": 16,
+            "sha256": "166832daf96275e52f8e8ae07222416387a663d2e2163513561ad422458464e9"
+          }
+        }
+      }
+    },
+    {
+      "name": "synthetic-chroma-comfyui",
+      "provenance": "locally-compressed",
+      "note": "Synthetic chroma-comfyui: real module names, hidden 256, two instances per pattern.",
+      "output_dir": "/home/cindy/proj3cts/compression/df11pack/phase0/out/official/synthetic-chroma-comfyui",
+      "source_dir": "/home/cindy/proj3cts/compression/df11pack/phase0/corpus/synthetic/chroma-comfyui",
+      "shards": 1,
+      "unit_tensors": 36,
+      "non_unit_tensors": 40,
+      "total_bytes": 6886648,
+      "json_sha256": {
+        "config.json": "f8df56f0b62a1f3991873e0c77015e14455ecea35999867be1038d4b9f74b74d"
+      },
+      "files": {
+        "model.safetensors": {
+          "distilled_guidance_layer.layers.0.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              49181
+            ],
+            "bytes": 49181,
+            "sha256": "4cc1a09179fa71191f78b865ec722dda993263531c6c0fab99bbcfb9e09730c5"
+          },
+          "distilled_guidance_layer.layers.0.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "7b5a29b50a633ba4c21934f9cc5c9955e19907b10ed4f6a2fb110b139dd13b98"
+          },
+          "distilled_guidance_layer.layers.0.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "8b99e9cdb0c8f1ba4b5fd6f4732e8c95b7d436fb8de8994e8d26b01f73188403"
+          },
+          "distilled_guidance_layer.layers.0.gaps": {
+            "dtype": "U8",
+            "shape": [
+              4160
+            ],
+            "bytes": 4160,
+            "sha256": "8d5f4716e8b5a039ab4a65cd3eccd420d5202ba4584805b11b5ad92597de99cb"
+          },
+          "distilled_guidance_layer.layers.0.in_layer.bias": {
+            "dtype": "BF16",
+            "shape": [
+              296
+            ],
+            "bytes": 592,
+            "sha256": "40c6dfa487de8b988e3a1bfa9ac3c789b644c95f9c9d1cef9bffe5698e82163c"
+          },
+          "distilled_guidance_layer.layers.0.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "3fc8ea8297372a42a42e92cc5b870af23605fdd09ade7550fc7fabb58d7618ba"
+          },
+          "distilled_guidance_layer.layers.0.out_layer.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "1fa58def0071745a4562726ca487595146d0b05a68ac7dd83f12c4f691df0f16"
+          },
+          "distilled_guidance_layer.layers.0.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              56
+            ],
+            "bytes": 56,
+            "sha256": "40a46a4d09474850e154193de0ddcdc1af3d1861ed4e446c0691cd5e6cac853b"
+          },
+          "distilled_guidance_layer.layers.0.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              151552
+            ],
+            "bytes": 151552,
+            "sha256": "1b846ee9cfd775fd87b7585adf34aeb7c19b8632dc0a58c2433535c4cf902b4b"
+          },
+          "distilled_guidance_layer.layers.0.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              1
+            ],
+            "bytes": 8,
+            "sha256": "5b8d9f761a6084b391fe250cd08689f1db098c15df1298a02e93b2a9a4e8c449"
+          },
+          "distilled_guidance_layer.layers.1.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              49080
+            ],
+            "bytes": 49080,
+            "sha256": "25449fc4e005003b8194ad369a02fd0e01d2806601e3a3351ac721febb4bfc25"
+          },
+          "distilled_guidance_layer.layers.1.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "f032cf3c57cf118f3aca2bf9359084042d88febc79cfa392da8d2bfcb064fe85"
+          },
+          "distilled_guidance_layer.layers.1.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "0fc6e69aea6824e07f5b803992df2d481b8f7e7f5499d1336a0989a9faa34737"
+          },
+          "distilled_guidance_layer.layers.1.gaps": {
+            "dtype": "U8",
+            "shape": [
+              3840
+            ],
+            "bytes": 3840,
+            "sha256": "448cdfa8560937c304d0f71586e4c68590ce32e8ef66729ce69955f964e301e4"
+          },
+          "distilled_guidance_layer.layers.1.in_layer.bias": {
+            "dtype": "BF16",
+            "shape": [
+              296
+            ],
+            "bytes": 592,
+            "sha256": "8cee5dd771e383131baaee2da059ad27d3f80276e0a1e095e966f5c428570bf1"
+          },
+          "distilled_guidance_layer.layers.1.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "8398d274ddd6c2207851f3f321c4422f60a0d13000882b60b1c6bd0a66ea1494"
+          },
+          "distilled_guidance_layer.layers.1.out_layer.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "521b141e82aa860bba58a2c5266e52d1fc5ccab118a501cd52ae841c9bf79069"
+          },
+          "distilled_guidance_layer.layers.1.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              52
+            ],
+            "bytes": 52,
+            "sha256": "4dbe2176ee71771b53aa0b1ed2bc60ee792d4169c80da669baf7eaee3e28eba7"
+          },
+          "distilled_guidance_layer.layers.1.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              151552
+            ],
+            "bytes": 151552,
+            "sha256": "7ada43c4a6418b02ba2966766159dbaf22179e70c5f1e7920684adc9c5e570b1"
+          },
+          "distilled_guidance_layer.layers.1.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              1
+            ],
+            "bytes": 8,
+            "sha256": "5b8d9f761a6084b391fe250cd08689f1db098c15df1298a02e93b2a9a4e8c449"
+          },
+          "double_blocks.0.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              509638
+            ],
+            "bytes": 509638,
+            "sha256": "c6080be8f5ee4b67907aa1738dbd9a4958daf9b3cc598f8f49366a12ec06fcd6"
+          },
+          "double_blocks.0.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "1c0422e28e68e8242817bf4c5548aa998d35ec598645660c3d2f7e6b3d513543"
+          },
+          "double_blocks.0.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "59aa2b459235135990f1a699338229db7e1da9c830557ebeaf09235e06d321b9"
+          },
+          "double_blocks.0.gaps": {
+            "dtype": "U8",
+            "shape": [
+              40000
+            ],
+            "bytes": 40000,
+            "sha256": "b36cca2399284da0591661fd4b2749a4e33caac1ac754c2b334c6286f30ab000"
+          },
+          "double_blocks.0.img_attn.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "7638790660182a6650a1e71f1ec626c908b9f1f6cd2e4ab9f2e93b46cd5b4cc4"
+          },
+          "double_blocks.0.img_attn.qkv.bias": {
+            "dtype": "BF16",
+            "shape": [
+              768
+            ],
+            "bytes": 1536,
+            "sha256": "ea38008ea9ee50db79e445a0634a3f6dcdc7ae99d2af95b3bd5f6abbe3669ce6"
+          },
+          "double_blocks.0.img_mlp.0.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1024
+            ],
+            "bytes": 2048,
+            "sha256": "4753b2b313fc71c2d15340a58c8915f6efd72f1a58234660b430674d92bb0c0c"
+          },
+          "double_blocks.0.img_mlp.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "00fb0b39bcbfaaec44dd4e5e36e53d7af61b8ac9e9f0c601e627ee22b5cd7366"
+          },
+          "double_blocks.0.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "b897b81d2d83cbae8af3aa35c34173b828f7e719dec6604527d308d28b38b04f"
+          },
+          "double_blocks.0.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              504
+            ],
+            "bytes": 504,
+            "sha256": "6fdabbeb784a2b785e35758fbf5b67afaf59c836d95cdd25c1fea357d8a1abae"
+          },
+          "double_blocks.0.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              1572864
+            ],
+            "bytes": 1572864,
+            "sha256": "3816c0d9494eab6753eed5fb5f1875bad92c35b404bc2884fd97015e57c246c2"
+          },
+          "double_blocks.0.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              7
+            ],
+            "bytes": 56,
+            "sha256": "235cc77f1102a7075994837c48cb0aacdf97b65fadd43ad4747fb9908f2d2438"
+          },
+          "double_blocks.0.txt_attn.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "f1c772096b0b0429ba92f72fdcd42ae817e24194ee41a79e83059108212a5a85"
+          },
+          "double_blocks.0.txt_attn.qkv.bias": {
+            "dtype": "BF16",
+            "shape": [
+              768
+            ],
+            "bytes": 1536,
+            "sha256": "67fb49da6ffac32c7e6af0ac620bc622451609628ad6294a0bd4cf124e742b07"
+          },
+          "double_blocks.0.txt_mlp.0.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1024
+            ],
+            "bytes": 2048,
+            "sha256": "f6137a722ded9c68bd59f2d38080b2f6933706b87526c58ed53ad8639a540c75"
+          },
+          "double_blocks.0.txt_mlp.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "842ce05974abe7f61576b65cdc18eb891dc498245e02bf105866c3ad8840b5ae"
+          },
+          "double_blocks.1.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              509611
+            ],
+            "bytes": 509611,
+            "sha256": "da994af5d37271c3a2c5f77ce39c92221be6c2890569d28a6b681565ed4cb943"
+          },
+          "double_blocks.1.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "92e4e048a2849c5090ff514a45bca1ad2fb0b84471030e327f8a8c0c3b84953a"
+          },
+          "double_blocks.1.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "9cc5d2cfa0a23908622ebf94fa571edec86031ce0ca33c5d8be4ea341115cfaa"
+          },
+          "double_blocks.1.gaps": {
+            "dtype": "U8",
+            "shape": [
+              40000
+            ],
+            "bytes": 40000,
+            "sha256": "947288b2b46b33e897dd99f40b9e8f9b50cf966312a56786d018952c9490ffd1"
+          },
+          "double_blocks.1.img_attn.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "0f0b54da8a89b520cbb35fab3412174dfe08f0fa2d929ecdf980b539fb687649"
+          },
+          "double_blocks.1.img_attn.qkv.bias": {
+            "dtype": "BF16",
+            "shape": [
+              768
+            ],
+            "bytes": 1536,
+            "sha256": "f64519db84575018d8b6ebf85fadea6e5efbe3c7197e6461ac0fa8167f8e2558"
+          },
+          "double_blocks.1.img_mlp.0.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1024
+            ],
+            "bytes": 2048,
+            "sha256": "7babaa5b50904327ad17de08feed9b2edb4cca289034913a2e96e3607082950f"
+          },
+          "double_blocks.1.img_mlp.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "ba12f3248e35219ce65c68fd819a7250b783c6d5aada753a43e1dd70d7792881"
+          },
+          "double_blocks.1.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "7fb4ed4cbaddc6c8532717ef5dd8f746ef0fbf1a4a0bc64bd36348532b0e0c35"
+          },
+          "double_blocks.1.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              504
+            ],
+            "bytes": 504,
+            "sha256": "a5de33e34be4ed5b9b103b7477c681e859a81164e8e4d45c402a056ceaa67daa"
+          },
+          "double_blocks.1.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              1572864
+            ],
+            "bytes": 1572864,
+            "sha256": "e06fb4577068393237862aeba2880086d0a5091cd22d3a4b969a97e0322a578c"
+          },
+          "double_blocks.1.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              7
+            ],
+            "bytes": 56,
+            "sha256": "235cc77f1102a7075994837c48cb0aacdf97b65fadd43ad4747fb9908f2d2438"
+          },
+          "double_blocks.1.txt_attn.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "202b0b998c142e295d66fcb542449e8382bbd18e68a09c8b70f252f643c58b34"
+          },
+          "double_blocks.1.txt_attn.qkv.bias": {
+            "dtype": "BF16",
+            "shape": [
+              768
+            ],
+            "bytes": 1536,
+            "sha256": "4719331cad85fe15bdfa09e4e65aced3c6e4f16566ad34e5e71b210f0789e98f"
+          },
+          "double_blocks.1.txt_mlp.0.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1024
+            ],
+            "bytes": 2048,
+            "sha256": "7fe5a79b24b05f35ba1f04c266fe02907822fd386ad04a3f6614a585fde0888c"
+          },
+          "double_blocks.1.txt_mlp.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "9b5dbc87a89efa49d7e7a6aedb4ff4f8397e4cab4670ce5c19968dca120fa426"
+          },
+          "final_layer.linear.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "be9bf7e749cbfbcb894fa1195e069bba54a429f78e7393b2adb3aef2ed5f9e23"
+          },
+          "final_layer.linear.weight": {
+            "dtype": "BF16",
+            "shape": [
+              64,
+              256
+            ],
+            "bytes": 32768,
+            "sha256": "6cde632fb8be4b7eae54eae3b3fa876575d2b41176f22279f4a0b0b7ecb272ed"
+          },
+          "img_in.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "7ada5e7715bdbfe736529c458aec2e3033314d0a238355df374a2e4d3fde8fa2"
+          },
+          "img_in.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256,
+              64
+            ],
+            "bytes": 32768,
+            "sha256": "87d31f8464536f0bec17b44743fac744e10c81b6ee08a0d458796eed514bc599"
+          },
+          "single_blocks.0.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              254855
+            ],
+            "bytes": 254855,
+            "sha256": "69a118bb87f51d307c2ae675949820a9e52994a0324fd2ee2b00cd2fa283ef13"
+          },
+          "single_blocks.0.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "376b9218aebdc7b8fb0bc8a9dab79147e17c2ec0b90939cec7d00056ea82d158"
+          },
+          "single_blocks.0.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "fb294acab034443446927c24501bd40f68bef3d6c35c2b6d17b8b67decdfebe6"
+          },
+          "single_blocks.0.gaps": {
+            "dtype": "U8",
+            "shape": [
+              20160
+            ],
+            "bytes": 20160,
+            "sha256": "d07b0a12cb48052e2d4b62a10db3b781a787789f43f0bf979323dc2b216291a8"
+          },
+          "single_blocks.0.linear1.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1792
+            ],
+            "bytes": 3584,
+            "sha256": "cf0a0d343a0c62759e9959d26d5bce389c2213dc5dc5fb0acc1cfbbd6968ff2e"
+          },
+          "single_blocks.0.linear2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "7b8ebe60c085b26d95440cad860a3f613e7b21cbf27dfe73ee93cb0e3a98d304"
+          },
+          "single_blocks.0.luts": {
+            "dtype": "U8",
+            "shape": [
+              5,
+              256
+            ],
+            "bytes": 1280,
+            "sha256": "b32614d6213ff81b376d99d2509182dd51931ee0718ff37d2980a1040f711efe"
+          },
+          "single_blocks.0.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              256
+            ],
+            "bytes": 256,
+            "sha256": "968a5ef607d96c3bb377f460d04e62c01975328b871cb21cb187b53d7e81fb65"
+          },
+          "single_blocks.0.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              786432
+            ],
+            "bytes": 786432,
+            "sha256": "8745e1b9d2f9fb48f0fd47989cc00753d071a65593c21e8875a5d52503d98747"
+          },
+          "single_blocks.0.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              1
+            ],
+            "bytes": 8,
+            "sha256": "fb7e7b4c359db5a10fe00b1a7ebba523a25e127dddfd56fae3035794e71ff561"
+          },
+          "single_blocks.1.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              254687
+            ],
+            "bytes": 254687,
+            "sha256": "f2e916bebd1d0b7401d39ae017c9469f19c269c77497c9e4812e419a354d2e81"
+          },
+          "single_blocks.1.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "e9e5a027e81e469fc29c0987459c9e5d0f86a8142c02dbca9612133ab3ea72b8"
+          },
+          "single_blocks.1.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "cc5925a61d004fd84a4fea925a1fea00f91fe4082de4770eac05082fcedef668"
+          },
+          "single_blocks.1.gaps": {
+            "dtype": "U8",
+            "shape": [
+              20160
+            ],
+            "bytes": 20160,
+            "sha256": "5408041a9241bf84ddeb289427c625529b29112c03849980520fbb9d2e5ea522"
+          },
+          "single_blocks.1.linear1.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1792
+            ],
+            "bytes": 3584,
+            "sha256": "e512b60512eae5a0dd99f3f33a3cb67cb4586a6b5d399aa43aec4f69082708c4"
+          },
+          "single_blocks.1.linear2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "0b55fe86342c36377320cdca874f5bd6d38d3e52ab28dd2eaceb293328f25825"
+          },
+          "single_blocks.1.luts": {
+            "dtype": "U8",
+            "shape": [
+              5,
+              256
+            ],
+            "bytes": 1280,
+            "sha256": "f5d444f36d5e6b010432f20ad9b3485a99ed0ed568b167f54247fd3026939bb5"
+          },
+          "single_blocks.1.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              256
+            ],
+            "bytes": 256,
+            "sha256": "6019bc04153a6d7ea1225992aa9deca61c356446102221c363541b4a6dcbf78e"
+          },
+          "single_blocks.1.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              786432
+            ],
+            "bytes": 786432,
+            "sha256": "e3db61b790c61448f2640878c08c92ff2f35432122b2567d467674d0a756ee40"
+          },
+          "single_blocks.1.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              1
+            ],
+            "bytes": 8,
+            "sha256": "fb7e7b4c359db5a10fe00b1a7ebba523a25e127dddfd56fae3035794e71ff561"
+          }
+        }
+      }
+    },
+    {
+      "name": "synthetic-flux-dev-diffusers",
+      "provenance": "locally-compressed",
+      "note": "Synthetic flux-dev-diffusers: real module names, hidden 256, two instances per pattern.",
+      "output_dir": "/home/cindy/proj3cts/compression/df11pack/phase0/out/official/synthetic-flux-dev-diffusers",
+      "source_dir": "/home/cindy/proj3cts/compression/df11pack/phase0/corpus/synthetic/flux-dev-diffusers",
+      "shards": 5,
+      "unit_tensors": 24,
+      "non_unit_tensors": 52,
+      "total_bytes": 7255013,
+      "json_sha256": {
+        "config.json": "43838209205d78c8fd5e9627bc515a0e1a2a5436089de533c599e882a64e3586"
+      },
+      "files": {
+        "diffusion_pytorch_model.safetensors": {
+          "final_layer.linear.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "b392c4f7fae30f060e667c0c501a85591545db49560915bdacd9b44437ee9e72"
+          },
+          "final_layer.linear.weight": {
+            "dtype": "BF16",
+            "shape": [
+              64,
+              256
+            ],
+            "bytes": 32768,
+            "sha256": "6dba0fe43533eea83a4d49c174cdc838eda085933cec247f005a41077ba5a803"
+          },
+          "img_in.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "7de158981b5e9494ba7a24812986f88342babf8672b0d952e689e4da09b01e0f"
+          },
+          "img_in.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256,
+              64
+            ],
+            "bytes": 32768,
+            "sha256": "55d9207acbb3ff0321bcaa92afa9f1df98b4856edd88e04f9d38790dfbcf77ef"
+          }
+        },
+        "single_transformer_blocks_0.safetensors": {
+          "single_transformer_blocks.0.attn.to_k.bias": {
+            "dtype": "BF16",
+            "shape": [
+              128
+            ],
+            "bytes": 256,
+            "sha256": "d7bcfc0a484b974c27f6a8e34d794c4ef53899e5bc83546c165a2048a1cacddc"
+          },
+          "single_transformer_blocks.0.attn.to_q.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "26eca13b2f1b21688e46505bd53c8687763ed394ff2ad4546ac8b5842288cb1c"
+          },
+          "single_transformer_blocks.0.attn.to_v.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "5fd7b35296a47b1c9f9d5398f13a6470310fed2e6d7fc495c3a421bbced46c2b"
+          },
+          "single_transformer_blocks.0.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              291682
+            ],
+            "bytes": 291682,
+            "sha256": "d68f0acdc7c696bfe0b50e1571d5ba82b0f631812c0ac7b8f8480a50658728eb"
+          },
+          "single_transformer_blocks.0.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "d0d23e33c8a61a66c43c792393baa2348a5f8e5129f80ec69a28ad59e1c326dd"
+          },
+          "single_transformer_blocks.0.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "ea002f47b67aa4b66488b19bbb2e57418d55f9e7371d955d41ddf01890fbaed7"
+          },
+          "single_transformer_blocks.0.gaps": {
+            "dtype": "U8",
+            "shape": [
+              23040
+            ],
+            "bytes": 23040,
+            "sha256": "e09488677b475bd68c07ccd3af7cbd3a2f58b6ea95854fd38a1aa8677471ca43"
+          },
+          "single_transformer_blocks.0.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "cc20d88156c1d30876cb6f37670dce2f2573a8ba813c9ebead785e26025a954a"
+          },
+          "single_transformer_blocks.0.norm.linear.bias": {
+            "dtype": "BF16",
+            "shape": [
+              768
+            ],
+            "bytes": 1536,
+            "sha256": "8ddf9aff289360742f38e887f7c1f853241301d0cdd9306baae31a50112d84e7"
+          },
+          "single_transformer_blocks.0.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              292
+            ],
+            "bytes": 292,
+            "sha256": "74184b6674f32bbfa3c9b9eb3cbae17fba7f5361d2fed65fa033e2f51902ea30"
+          },
+          "single_transformer_blocks.0.proj_mlp.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1024
+            ],
+            "bytes": 2048,
+            "sha256": "9958a3830355c1bf6a9cf91315f73cb12b0e39ad6fa02d64c22c5d772a3742b6"
+          },
+          "single_transformer_blocks.0.proj_out.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "cfd702851691aab3c714d0294fc40294c1ba61e8a55717b881395fac58aae4bb"
+          },
+          "single_transformer_blocks.0.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              901120
+            ],
+            "bytes": 901120,
+            "sha256": "a2aeabce4af5623197414cc61230c113de02ab1b0ed6944ca58c0eb6b71dc322"
+          },
+          "single_transformer_blocks.0.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              5
+            ],
+            "bytes": 40,
+            "sha256": "8a68109084f9267b2be1e027d6a419c2f41ba6e90f3acaca24eae3fb4cb6ac22"
+          }
+        },
+        "single_transformer_blocks_1.safetensors": {
+          "single_transformer_blocks.1.attn.to_k.bias": {
+            "dtype": "BF16",
+            "shape": [
+              128
+            ],
+            "bytes": 256,
+            "sha256": "990428682fbeb63db01735be07a2ca24372a5be0e42d83565c68e6a700c7afeb"
+          },
+          "single_transformer_blocks.1.attn.to_q.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "cc519a45e1ae819c2f1a5a5cc3295df11100bff45fc2b4ce8b1406b1a943a201"
+          },
+          "single_transformer_blocks.1.attn.to_v.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "83a44655d3404a7e3dadbabbe0ec607e7c3be4b06e571fac406fcabac98d62ba"
+          },
+          "single_transformer_blocks.1.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              291919
+            ],
+            "bytes": 291919,
+            "sha256": "0a778ee0b9530d0a70397297e0ad7f7dcbdb6e933ec98169cc1b10bbc75dba79"
+          },
+          "single_transformer_blocks.1.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "d03ed6d054210f13e17a8f7a26bbee2c666bf056108b30c19e8831741c679ff9"
+          },
+          "single_transformer_blocks.1.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "77a88accb3fca9c3c319255112a592d271dc18a229d1bb54c6f56db120270140"
+          },
+          "single_transformer_blocks.1.gaps": {
+            "dtype": "U8",
+            "shape": [
+              23040
+            ],
+            "bytes": 23040,
+            "sha256": "8ba74e46000767ff9450338c78ffaef2bdd675e2f49bb8233fcabaa60958621d"
+          },
+          "single_transformer_blocks.1.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "421a135b63ea05b00c3c766daa36ea408326849a619764811405760d95449f63"
+          },
+          "single_transformer_blocks.1.norm.linear.bias": {
+            "dtype": "BF16",
+            "shape": [
+              768
+            ],
+            "bytes": 1536,
+            "sha256": "677acdc70cb3c9387fd425bd6bba977b1af275db54cdb64aca30c81e602b608e"
+          },
+          "single_transformer_blocks.1.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              292
+            ],
+            "bytes": 292,
+            "sha256": "fed7dd986d68ba29ef82a6176b984b6788e3d761d725f24778c2263ced22300d"
+          },
+          "single_transformer_blocks.1.proj_mlp.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1024
+            ],
+            "bytes": 2048,
+            "sha256": "ff4d2d10f0cdd2f67006be4d3b0dd06d278380c43404858c664a958fed2bf5fe"
+          },
+          "single_transformer_blocks.1.proj_out.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "3d8b06fd19baa9dc5f45315179a7463a9123093213afc53c20f366dc9e9b693e"
+          },
+          "single_transformer_blocks.1.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              901120
+            ],
+            "bytes": 901120,
+            "sha256": "9aa983554b444d91af2ec93807b998c5f2330f9b8d856bb923067c425737e98d"
+          },
+          "single_transformer_blocks.1.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              5
+            ],
+            "bytes": 40,
+            "sha256": "8a68109084f9267b2be1e027d6a419c2f41ba6e90f3acaca24eae3fb4cb6ac22"
+          }
+        },
+        "transformer_blocks_0.safetensors": {
+          "transformer_blocks.0.attn.add_k_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "a95332cbc0c8c400185551ace449d96cde90961d8eaf58c7a3a32f977a6865eb"
+          },
+          "transformer_blocks.0.attn.add_q_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "142130c03db3c86b9d6cf28302980638afbe1df95bb15e11a35ee86a4b919f57"
+          },
+          "transformer_blocks.0.attn.add_v_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "9f516c9c06491ebfa0099625d957143b49aa0bfa8f260f84e22a1bff440f0ddc"
+          },
+          "transformer_blocks.0.attn.to_add_out.bias": {
+            "dtype": "BF16",
+            "shape": [
+              240
+            ],
+            "bytes": 480,
+            "sha256": "f698468021c90915976626adc7e312f79a5686347717eb2611e3986120c41779"
+          },
+          "transformer_blocks.0.attn.to_k.bias": {
+            "dtype": "BF16",
+            "shape": [
+              128
+            ],
+            "bytes": 256,
+            "sha256": "2c2612b4ffb1135a554827b07b6a9fb6b0ec86979c962d3d281fd2462b5a84c4"
+          },
+          "transformer_blocks.0.attn.to_out.0.bias": {
+            "dtype": "BF16",
+            "shape": [
+              248
+            ],
+            "bytes": 496,
+            "sha256": "329e9656a265ed48f7c2de5fde68959324f30d366c1b61d23d47d0c46777da01"
+          },
+          "transformer_blocks.0.attn.to_q.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "920e014bc399fe50ff3691c98deed0c507707df93e839b4a2d10bae5bf2a7224"
+          },
+          "transformer_blocks.0.attn.to_v.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "00351b05f0127f206f889a9787d822ac383789fb1a19e3451957f18d2acb2bf1"
+          },
+          "transformer_blocks.0.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              565773
+            ],
+            "bytes": 565773,
+            "sha256": "b51ded21e374845a0ccd907cc10b196d658f013ea32bd426f3480d3e54132bcc"
+          },
+          "transformer_blocks.0.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "6e2442c7b645e54b70cd150978a971c7208ec48217ed2b81bf5954aa11e330af"
+          },
+          "transformer_blocks.0.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "72a588b124d020ff651fe01d42471c1dc69459632878724b4dbad2b77aaf08b8"
+          },
+          "transformer_blocks.0.ff.net.0.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "c09006398d183fb1c8fe880f718ebf10ef041ce28ba85a42cfbe356cccbf8763"
+          },
+          "transformer_blocks.0.ff.net.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "d56200043eed1262d0ff2b2eb900f02634a8f2372bf71d9a6c5f286c5cfa3338"
+          },
+          "transformer_blocks.0.ff_context.net.0.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "dcfbeb232955e8d08f28ece6837824e775b2eaf1cb918ceab62d2d74b0aad4c0"
+          },
+          "transformer_blocks.0.ff_context.net.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "6ee7ed4a2cdaeac9808e35515281f7087206eb6291f1e7efa15f7344e7578538"
+          },
+          "transformer_blocks.0.gaps": {
+            "dtype": "U8",
+            "shape": [
+              44480
+            ],
+            "bytes": 44480,
+            "sha256": "5c258e6c8221e809cdd4c00f89abdcab4752264c74955be6c0316dfc63de006d"
+          },
+          "transformer_blocks.0.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "b568ead12212f7f9fbe59d20146ef9b0ec0ddd5638c03032678052e7a0daab5c"
+          },
+          "transformer_blocks.0.norm1.linear.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1536
+            ],
+            "bytes": 3072,
+            "sha256": "81fdcbc494c2a5a86b5beb9e8d2fc9bd6402627ddbc3189e7fdeaab9d52d092c"
+          },
+          "transformer_blocks.0.norm1_context.linear.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1280
+            ],
+            "bytes": 2560,
+            "sha256": "376d88140851ebf11edab82e3c01bbfa478573eea02206011e3e5e6db188e022"
+          },
+          "transformer_blocks.0.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              560
+            ],
+            "bytes": 560,
+            "sha256": "ae12569f35f1086d3548ca50524ad08744fe94c2358d0c23c600d3a57d9378a6"
+          },
+          "transformer_blocks.0.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              1746944
+            ],
+            "bytes": 1746944,
+            "sha256": "107c7e33d3e5470eea12d69fc270ef3eb34ed34dd1ca1fcd27e4fea5d37438aa"
+          },
+          "transformer_blocks.0.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              13
+            ],
+            "bytes": 104,
+            "sha256": "b14598db87945cbe53757762de8f025b5687c0897ceee2cf352f6551cc5c99cf"
+          }
+        },
+        "transformer_blocks_1.safetensors": {
+          "transformer_blocks.1.attn.add_k_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "49f83788e270a35d83165219aa230be5a94caf22e06024bb36bf8b2772107c6c"
+          },
+          "transformer_blocks.1.attn.add_q_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "8e2283df4e409c99851be9b45229e0ad245b1b0359c666a37e45a014b3e97d68"
+          },
+          "transformer_blocks.1.attn.add_v_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "2298926b08e3d141637e1224f048b35f7a5fb81249cb41d8a2e6ea3c47e213f9"
+          },
+          "transformer_blocks.1.attn.to_add_out.bias": {
+            "dtype": "BF16",
+            "shape": [
+              240
+            ],
+            "bytes": 480,
+            "sha256": "801345ad8a2d0e09b1c1c771216b0682dad292a41b74932af3b79d4394baf0ae"
+          },
+          "transformer_blocks.1.attn.to_k.bias": {
+            "dtype": "BF16",
+            "shape": [
+              128
+            ],
+            "bytes": 256,
+            "sha256": "05b140895823ffd1644d3b67331ede086a8570d39c3fe772e1ec2a75214d93e8"
+          },
+          "transformer_blocks.1.attn.to_out.0.bias": {
+            "dtype": "BF16",
+            "shape": [
+              248
+            ],
+            "bytes": 496,
+            "sha256": "e3e8eca6501a80e7bd9ef4620fe4b5de01ab7498ef2bb269cda7368405bc7411"
+          },
+          "transformer_blocks.1.attn.to_q.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "f0a7df615021de517dd013e9d4717655261b3b12062af4942fec0e67b49ef45b"
+          },
+          "transformer_blocks.1.attn.to_v.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "73837dba39a00bf3d59f092abb6f7e9cfb37d237e0895b98527634280e2b8dbb"
+          },
+          "transformer_blocks.1.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              565695
+            ],
+            "bytes": 565695,
+            "sha256": "9745a81521222d8f4f5c111c55d0fdbd556eb407ae95cc59380e763daad67d5c"
+          },
+          "transformer_blocks.1.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "b148b7551fee5786afdd80c456ee87e17679b274087b175f011bde9ecf99bb54"
+          },
+          "transformer_blocks.1.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "da05d18b8ec56fe3315f93b5a40cd2e054195321b51a05685f6de9f58c46e781"
+          },
+          "transformer_blocks.1.ff.net.0.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "5f4e7b873a31e9998e7562fa531e2ed284d578c21cdae181c1d22f24e564ae1d"
+          },
+          "transformer_blocks.1.ff.net.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "845873fab29a76ed620ca7e7a66df99a36c53f23ab984481135a8acfb1ec295c"
+          },
+          "transformer_blocks.1.ff_context.net.0.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "afe089bd712b28cc75ae4647dcb6aaafd1b43f3ff03974b25b150e1fdcb2ecaa"
+          },
+          "transformer_blocks.1.ff_context.net.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "8c20d4febd572ded0a5757b106547b9a0f96f1913872bf27f4da87eb3371fb96"
+          },
+          "transformer_blocks.1.gaps": {
+            "dtype": "U8",
+            "shape": [
+              44480
+            ],
+            "bytes": 44480,
+            "sha256": "37827f801eced6463b53cfc05eba768bb66f5a3169ac7bbdae488adacd2ecac8"
+          },
+          "transformer_blocks.1.luts": {
+            "dtype": "U8",
+            "shape": [
+              5,
+              256
+            ],
+            "bytes": 1280,
+            "sha256": "8ca266f87c97035e921430ee8d31d9cbb38b24f129c434b9fc254ff13cf92be5"
+          },
+          "transformer_blocks.1.norm1.linear.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1536
+            ],
+            "bytes": 3072,
+            "sha256": "86ddcb38a5bdfc6438a261641f88873fbd5a8c9aee4440515ff303f003d6d52f"
+          },
+          "transformer_blocks.1.norm1_context.linear.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1280
+            ],
+            "bytes": 2560,
+            "sha256": "01ed2e88a589797ca7405e7fc383e6304d386628f9bd61536d7d83ae63143e1c"
+          },
+          "transformer_blocks.1.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              560
+            ],
+            "bytes": 560,
+            "sha256": "fe98dc427bbfda73f2729890b1d54b5b4d647ea789fd780af005f7ba52a42b11"
+          },
+          "transformer_blocks.1.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              1746944
+            ],
+            "bytes": 1746944,
+            "sha256": "1542a38445156e661a23518add2cfbd3aaa3fb4da46f2897c28c16bb480f373b"
+          },
+          "transformer_blocks.1.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              13
+            ],
+            "bytes": 104,
+            "sha256": "b14598db87945cbe53757762de8f025b5687c0897ceee2cf352f6551cc5c99cf"
+          }
+        }
+      }
+    },
+    {
+      "name": "synthetic-chroma-diffusers",
+      "provenance": "locally-compressed",
+      "note": "Synthetic chroma-diffusers: real module names, hidden 256, two instances per pattern.",
+      "output_dir": "/home/cindy/proj3cts/compression/df11pack/phase0/out/official/synthetic-chroma-diffusers",
+      "source_dir": "/home/cindy/proj3cts/compression/df11pack/phase0/corpus/synthetic/chroma-diffusers",
+      "shards": 6,
+      "unit_tensors": 30,
+      "non_unit_tensors": 60,
+      "total_bytes": 5944698,
+      "json_sha256": {
+        "config.json": "3907500812fbb0cd6f4a8f507a72c002ddf04d4534e093a0677239140a88956e"
+      },
+      "files": {
+        "diffusion_pytorch_model.safetensors": {
+          "final_layer.linear.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "e2cc1cb0e6b3be42a8790777875fe3082634575e3cd620b8ac326f79fe6e47b5"
+          },
+          "final_layer.linear.weight": {
+            "dtype": "BF16",
+            "shape": [
+              64,
+              256
+            ],
+            "bytes": 32768,
+            "sha256": "8d497271dd0f7af8e228b0ecdcb541b4291ef9489e890e2bcd46debc51cf10e1"
+          },
+          "img_in.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "7cb77b2dcd28b91bc3f5c235721e580fc7c2fe534fec70f3a5186dc2ba90e53b"
+          },
+          "img_in.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256,
+              64
+            ],
+            "bytes": 32768,
+            "sha256": "3b24634d7378d46ab8a023e22c1fe11699fb58592bf1f7152593db2c70c93493"
+          }
+        },
+        "distilled_guidance_layer.safetensors": {
+          "distilled_guidance_layer.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              281117
+            ],
+            "bytes": 281117,
+            "sha256": "292f7afd01c21c5535926e7b269a9f080a21b3e3b2d539928915d54780b493ac"
+          },
+          "distilled_guidance_layer.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "f840338483bc4ea9b44d38f3240a3cfc7467f33ed1e919665a8ead8d132c7fc8"
+          },
+          "distilled_guidance_layer.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "304b294e36d5afa11b5f84d98d819a90c4c3c33c8ed1c2196cd29fb9b2296ef4"
+          },
+          "distilled_guidance_layer.gaps": {
+            "dtype": "U8",
+            "shape": [
+              22080
+            ],
+            "bytes": 22080,
+            "sha256": "e8f471fcd53b5ecc85fde76e9d261eef06524c14e59347ebc3026c8d20f35761"
+          },
+          "distilled_guidance_layer.in_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "5e4e7ac265966738acaa4a7749fd903dca53937150c2c566af289cefba7b181a"
+          },
+          "distilled_guidance_layer.layers.0.linear_1.bias": {
+            "dtype": "BF16",
+            "shape": [
+              288
+            ],
+            "bytes": 576,
+            "sha256": "afd59289892bfa4fb7a0a5b5c01c13e27b4c33e29dc7940c99d5ed56ac972231"
+          },
+          "distilled_guidance_layer.layers.0.linear_2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "d1ed2b19dfdb3f4964ba84fe2816e261e66a7dd8ae3fa5c03c8d9b00f2540ba9"
+          },
+          "distilled_guidance_layer.layers.1.linear_1.bias": {
+            "dtype": "BF16",
+            "shape": [
+              288
+            ],
+            "bytes": 576,
+            "sha256": "43e106cf4ff94738bb8a9c810cf3da4b7361f6835a41389dbbaa1c8bf485a849"
+          },
+          "distilled_guidance_layer.layers.1.linear_2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "38f0003c0771d404ab46ea0ddcd32a5e88ecf0c153defc0c197f32da4dcc6f98"
+          },
+          "distilled_guidance_layer.layers.2.linear_1.bias": {
+            "dtype": "BF16",
+            "shape": [
+              288
+            ],
+            "bytes": 576,
+            "sha256": "2543fa92cba88949fa7c10258fc8f9c3d12a143f942c6abc7b86fdbee2d7bc3c"
+          },
+          "distilled_guidance_layer.layers.2.linear_2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "2eff0f6865ea278e99b03f3777c1d3203a33cf430a01fa05c7ac9457215c85ed"
+          },
+          "distilled_guidance_layer.layers.3.linear_1.bias": {
+            "dtype": "BF16",
+            "shape": [
+              288
+            ],
+            "bytes": 576,
+            "sha256": "11fd89bcfe5a51dca36cb172e4029fc7545725407a46873003ba99ccbf1aec97"
+          },
+          "distilled_guidance_layer.layers.3.linear_2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "400bd92681d23e60bc1ee9655d1c10cdffa2ec77bc859466a9a1bd08f0045f16"
+          },
+          "distilled_guidance_layer.layers.4.linear_1.bias": {
+            "dtype": "BF16",
+            "shape": [
+              288
+            ],
+            "bytes": 576,
+            "sha256": "7e15cfc06353bcbb758579a9bbbca6ab33877214fe2f22f6ac70e683f39dbf67"
+          },
+          "distilled_guidance_layer.layers.4.linear_2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "fe02014eb3d8ccec03d3818fa3b43b583fdc1f0b8ac920b195e2f184867ae37a"
+          },
+          "distilled_guidance_layer.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "d93ff1df3ad6cdf9fcbdf71da4ab5003bf7a8bdafdd03c41a08021f344491b64"
+          },
+          "distilled_guidance_layer.out_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "741dd1d05963f881255b776331318a3d5632ec2fcd84cdcaf7d9a7bfbd6094f8"
+          },
+          "distilled_guidance_layer.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              280
+            ],
+            "bytes": 280,
+            "sha256": "33572ff9c0cb616679739cd8e5e98bf142215154ccdfa83d939d12ab6f53b599"
+          },
+          "distilled_guidance_layer.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              868352
+            ],
+            "bytes": 868352,
+            "sha256": "2c680807b7a6c2a89c63a848c317cc235e5c136265b5749b5776714afd4409d4"
+          },
+          "distilled_guidance_layer.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              11
+            ],
+            "bytes": 88,
+            "sha256": "380ede63ce77f619f4849e7360e13fc3794607bc58c1e03f33f395c7084b1224"
+          }
+        },
+        "single_transformer_blocks_0.safetensors": {
+          "single_transformer_blocks.0.attn.to_k.bias": {
+            "dtype": "BF16",
+            "shape": [
+              128
+            ],
+            "bytes": 256,
+            "sha256": "0bc868ad54cda47c8cdc7933eeecf3388d412cfa7a4389673dcc276e50521329"
+          },
+          "single_transformer_blocks.0.attn.to_q.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "1924df23649cace80cdc4f7bcaf5fe0c2735d29d2deb0cca7ed08ba3027e55a9"
+          },
+          "single_transformer_blocks.0.attn.to_v.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "676c1ad68cf6fb5feb4f513696342f33f89caea0e2d68908c58d3bb649457b9f"
+          },
+          "single_transformer_blocks.0.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              227975
+            ],
+            "bytes": 227975,
+            "sha256": "482d51dabbb1026e7f2d76724ee0220196b836bcffa1d5c3c0072c04478cd7ef"
+          },
+          "single_transformer_blocks.0.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "5a76b9a78206c9f8e5f8bb85e5f4ec4c08fa3a0097cec33c68e002cf87900a4b"
+          },
+          "single_transformer_blocks.0.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "910a2617caed38e8c40801cb558c6dd8147568d49ba2242400dc9c511b83b710"
+          },
+          "single_transformer_blocks.0.gaps": {
+            "dtype": "U8",
+            "shape": [
+              17920
+            ],
+            "bytes": 17920,
+            "sha256": "9ac1d07a10f4400b70e377795699b93782516be622218a7414ab50c98b954366"
+          },
+          "single_transformer_blocks.0.luts": {
+            "dtype": "U8",
+            "shape": [
+              4,
+              256
+            ],
+            "bytes": 1024,
+            "sha256": "295e70cde3d577248cabf545268d4c705f8efb378277626cda10e28905a83c68"
+          },
+          "single_transformer_blocks.0.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              228
+            ],
+            "bytes": 228,
+            "sha256": "e1ee464ef05f60da05ffd8b2145b807aa17b81f283570fd9d0e305e138707092"
+          },
+          "single_transformer_blocks.0.proj_mlp.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1024
+            ],
+            "bytes": 2048,
+            "sha256": "3871ab406d2a3b845ae7a726419ce21068fe6f9c3f1ea13d22dabe1b342b1f94"
+          },
+          "single_transformer_blocks.0.proj_out.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "154cdcd55e3355a7aa287eb4ef42c034c951eb8943bb0dc769c04daea9d76218"
+          },
+          "single_transformer_blocks.0.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              704512
+            ],
+            "bytes": 704512,
+            "sha256": "c62b2ac1fc988dfcdca418d5d35fe0e051c926e066cfc1c3aba1521d1618cdf4"
+          },
+          "single_transformer_blocks.0.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              4
+            ],
+            "bytes": 32,
+            "sha256": "103392ee16fbe8a05d7bdc904e12389054bfb3f5cb39ba0f3bb6183d28102769"
+          }
+        },
+        "single_transformer_blocks_1.safetensors": {
+          "single_transformer_blocks.1.attn.to_k.bias": {
+            "dtype": "BF16",
+            "shape": [
+              128
+            ],
+            "bytes": 256,
+            "sha256": "e9b62ef282a1bf9f3b2e7c1aacbbb8c9850048ab3144fb03116e2a93716dd601"
+          },
+          "single_transformer_blocks.1.attn.to_q.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "c6c32e243c20a8aa97be5a88adb7fda98e33f72c5529553de9626b7a58a76eda"
+          },
+          "single_transformer_blocks.1.attn.to_v.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "cc8e1ba115dde1e14c505da6067cb6b1a3dea3212f99226c77aadb5a199a5d3b"
+          },
+          "single_transformer_blocks.1.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              228201
+            ],
+            "bytes": 228201,
+            "sha256": "3997e29939cd517fda35311c4dff25acb06d17dabed315b7dc50ea62a1311fd9"
+          },
+          "single_transformer_blocks.1.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "0e0df42bb2e0693608b9cab8c09e03f84f44e5de8c8df358dd805584c891c956"
+          },
+          "single_transformer_blocks.1.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "063732ef2499551bb044496b753228c4b305f346b0570c05f1a1ceeb586696d8"
+          },
+          "single_transformer_blocks.1.gaps": {
+            "dtype": "U8",
+            "shape": [
+              17920
+            ],
+            "bytes": 17920,
+            "sha256": "df2606183fa9b9e5faa21b19990743e9f9f8e5b2d09bfc198da0074ade7ada07"
+          },
+          "single_transformer_blocks.1.luts": {
+            "dtype": "U8",
+            "shape": [
+              5,
+              256
+            ],
+            "bytes": 1280,
+            "sha256": "084bea0b6812f94cf4bc5cec0b14e5cce344d42dddbbb8d4742fe2e5881fc0f6"
+          },
+          "single_transformer_blocks.1.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              228
+            ],
+            "bytes": 228,
+            "sha256": "75d43188b70db258b541a99bf8059e8ff65f0d2e4ec61aa65930c9453e3a84fc"
+          },
+          "single_transformer_blocks.1.proj_mlp.bias": {
+            "dtype": "BF16",
+            "shape": [
+              1024
+            ],
+            "bytes": 2048,
+            "sha256": "0caeee7006da722db17a92dc45c53a648708fcad5133373652cff27e6219fbd9"
+          },
+          "single_transformer_blocks.1.proj_out.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "eb938f62d141b3162fd14163b6fda2a0d33423ecb1d6f3d57b9ffcda3c206ba0"
+          },
+          "single_transformer_blocks.1.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              704512
+            ],
+            "bytes": 704512,
+            "sha256": "a524fadba5a0927c1a08752ea5dc3103b9aeb0022c6b77fc5bf0a0f7fc24ec0f"
+          },
+          "single_transformer_blocks.1.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              4
+            ],
+            "bytes": 32,
+            "sha256": "103392ee16fbe8a05d7bdc904e12389054bfb3f5cb39ba0f3bb6183d28102769"
+          }
+        },
+        "transformer_blocks_0.safetensors": {
+          "transformer_blocks.0.attn.add_k_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "e56917aaee14ceacb9281e5365f42b1ab189a290497e4b06240cea3875f8c5d7"
+          },
+          "transformer_blocks.0.attn.add_q_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "4ac5b3e748163931a0afe8a246f73f46ad1fab6c5e10da8540d2e3e80ddbe238"
+          },
+          "transformer_blocks.0.attn.add_v_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "8ffbf2914cc78e1861b21f902272191dc3fcf13c74a012ee792264f2f79fabe4"
+          },
+          "transformer_blocks.0.attn.to_add_out.bias": {
+            "dtype": "BF16",
+            "shape": [
+              240
+            ],
+            "bytes": 480,
+            "sha256": "cf5674fe3753b1a21116fb62f148a10435ddf6c14a63e98283abdfdeb9b3c075"
+          },
+          "transformer_blocks.0.attn.to_k.bias": {
+            "dtype": "BF16",
+            "shape": [
+              128
+            ],
+            "bytes": 256,
+            "sha256": "21ffab144a969757b93c9636a21c395b06b3d61565e0182be0b6dc2b34675839"
+          },
+          "transformer_blocks.0.attn.to_out.0.bias": {
+            "dtype": "BF16",
+            "shape": [
+              248
+            ],
+            "bytes": 496,
+            "sha256": "d9f8e61c4c3f3245a2cf13fdac596cf9ad32aada7083321b63de7a40f30b9e3f"
+          },
+          "transformer_blocks.0.attn.to_q.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "1d6f228c8722304a704a9dd59bbf0612488138e3b2ff82b8504ba88dc78a35db"
+          },
+          "transformer_blocks.0.attn.to_v.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "af30bc40d39256e8d8c14014859b6b72ee3a1749285df6e7217d85a358d20e83"
+          },
+          "transformer_blocks.0.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              332167
+            ],
+            "bytes": 332167,
+            "sha256": "105ea4d7c7412c332508ba1e774010922c5636582858ecd13ef856c7c3c0f5f8"
+          },
+          "transformer_blocks.0.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "5b9e86c82cce91cff22bef726753952bbb8bc2cab8eca1bca4aab5f50e6c257f"
+          },
+          "transformer_blocks.0.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "12d949a16c3c2e8c0fe6680c263b761835a517671f66ce4833718a0a8c348ae9"
+          },
+          "transformer_blocks.0.ff.net.0.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "1c45da559cb790bb042c9592255e19bc535c0ef956454947f07c268de887f92c"
+          },
+          "transformer_blocks.0.ff.net.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "484aa2d5c2f563f08ef18cb4a39bf8377ae61e7d8fc17540aef1f8f6adc025e5"
+          },
+          "transformer_blocks.0.ff_context.net.0.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "9d9aba2abd741674de6f4b4451ae9369825e76675e752583323898f20af5793e"
+          },
+          "transformer_blocks.0.ff_context.net.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "a25d27e7b84fd7f484cb8960838f2ad86d3bb32d1dc49c5eedc6fca2711cf5c7"
+          },
+          "transformer_blocks.0.gaps": {
+            "dtype": "U8",
+            "shape": [
+              26240
+            ],
+            "bytes": 26240,
+            "sha256": "77625a703c52c358ac185f538d02c53a77cdafe94668235c1a0ee91af696be51"
+          },
+          "transformer_blocks.0.luts": {
+            "dtype": "U8",
+            "shape": [
+              5,
+              256
+            ],
+            "bytes": 1280,
+            "sha256": "775a5311d2f57b084383df0bcfa0a2156de340ff35d309be699c035320456abf"
+          },
+          "transformer_blocks.0.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              332
+            ],
+            "bytes": 332,
+            "sha256": "17913bdfa9ebbaee87effdefca3b54631371570bda8271f5f568b975ce502fcc"
+          },
+          "transformer_blocks.0.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              1026048
+            ],
+            "bytes": 1026048,
+            "sha256": "305cd44001bd01e65f880947e3baf49a6388b4992544641c2a4cf21acf44ec94"
+          },
+          "transformer_blocks.0.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              11
+            ],
+            "bytes": 88,
+            "sha256": "8d669706d7717c4c0f95d76bac7e9f43d8b4aa35498b5342d9341abef9430c2c"
+          }
+        },
+        "transformer_blocks_1.safetensors": {
+          "transformer_blocks.1.attn.add_k_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "8f5d46e9cd6e8477a3df4ad699a3586857a5b4132768d2133af3973bbfc67dae"
+          },
+          "transformer_blocks.1.attn.add_q_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "465a4dbbc17e93065465d6568312ff2844304c3ce68439c8f6516ac942e38fd5"
+          },
+          "transformer_blocks.1.attn.add_v_proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "730c5531de888da1195d39e49b349c8127349e1705a7c77638bf60042c7593a7"
+          },
+          "transformer_blocks.1.attn.to_add_out.bias": {
+            "dtype": "BF16",
+            "shape": [
+              240
+            ],
+            "bytes": 480,
+            "sha256": "332a678933a2f266b20551fa5c26dcdca06bef55f77855f516056d35145a7204"
+          },
+          "transformer_blocks.1.attn.to_k.bias": {
+            "dtype": "BF16",
+            "shape": [
+              128
+            ],
+            "bytes": 256,
+            "sha256": "21a7f58532c7339de50c5abd8623c644f8ddd0f6c81e931c0c3ffec5aa772247"
+          },
+          "transformer_blocks.1.attn.to_out.0.bias": {
+            "dtype": "BF16",
+            "shape": [
+              248
+            ],
+            "bytes": 496,
+            "sha256": "d5cddbedfddc831184a2c5ceec5258219ace6709a11b6f9baa6510ac40c8ba22"
+          },
+          "transformer_blocks.1.attn.to_q.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "e3770daade2e809f5f395e955db6ec3bfdfc57210a7db6e2b12f3947cd795d0d"
+          },
+          "transformer_blocks.1.attn.to_v.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "25243f71bd181f5aabed22977b79000de09f1fb32dc74605e31583472035c6ef"
+          },
+          "transformer_blocks.1.encoded_exponent": {
+            "dtype": "U8",
+            "shape": [
+              332166
+            ],
+            "bytes": 332166,
+            "sha256": "32da7474c5e60488a92c554d9bb8bdce4d0ffcab6ff61d05803f35d6e2c60cd0"
+          },
+          "transformer_blocks.1.extra_norm.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "c6c6ec4f091cf2b3ba93acb12dfdc547c6e16cfa7d5edd91e9325f943aa2f901"
+          },
+          "transformer_blocks.1.extra_norm.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "d82f7829352cfdf39d81e7fdab822a5b6c13f8309663975c325858705dc0b268"
+          },
+          "transformer_blocks.1.ff.net.0.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "979128a0164bce4f387659b29ff692d0d7eaf6a819d95189cf2c74449965a7ea"
+          },
+          "transformer_blocks.1.ff.net.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "bcbb82a2754a72fa92627f5f51fc05a03129864fb9ad443e979dd37781717dde"
+          },
+          "transformer_blocks.1.ff_context.net.0.proj.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "71d9a5484888d736c356e9e958296de41dab63a42aafb7e060c7d21ad73865c0"
+          },
+          "transformer_blocks.1.ff_context.net.2.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "4ee56b9b09a87a5ebd1479283df418ae4860fc4b217e832d2331eac0b1577bc1"
+          },
+          "transformer_blocks.1.gaps": {
+            "dtype": "U8",
+            "shape": [
+              26240
+            ],
+            "bytes": 26240,
+            "sha256": "99b3a826fe85a64a1fde7ae9138b4be84a0c62ed841a6250cef6cd9665a7f8cc"
+          },
+          "transformer_blocks.1.luts": {
+            "dtype": "U8",
+            "shape": [
+              5,
+              256
+            ],
+            "bytes": 1280,
+            "sha256": "6c603e7c15726616f97ac8998852a3ff013ec4cee99ff2545f254ff7247766a4"
+          },
+          "transformer_blocks.1.output_positions": {
+            "dtype": "U8",
+            "shape": [
+              332
+            ],
+            "bytes": 332,
+            "sha256": "a115e8c0468f2d34f9ae2bea8921a908d433990e5a2c0f4ffa396365b65b6b60"
+          },
+          "transformer_blocks.1.sign_mantissa": {
+            "dtype": "U8",
+            "shape": [
+              1026048
+            ],
+            "bytes": 1026048,
+            "sha256": "3613afed68b11199cccd1338eefc502ba2b6febbcdbfa47cd0275eb76dece5e6"
+          },
+          "transformer_blocks.1.split_positions": {
+            "dtype": "I64",
+            "shape": [
+              11
+            ],
+            "bytes": 88,
+            "sha256": "8d669706d7717c4c0f95d76bac7e9f43d8b4aa35498b5342d9341abef9430c2c"
           }
         }
       }

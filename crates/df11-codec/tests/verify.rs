@@ -211,3 +211,55 @@ fn a_lut_value_of_239_is_a_symbol() {
     assert_eq!(sym, 239);
     assert_eq!(len, 3);
 }
+
+/// The EOF-window entry. When a unit's last code straddles into a new window, no
+/// code starts there, yet the format records a gap for it. The chunked encoder
+/// once dropped that entry, and this verifier did not notice, because it only
+/// checked windows where a code starts. The synthetic FLUX unit below has that
+/// shape; zeroing its EOF gap must be caught.
+#[test]
+fn a_wrong_eof_window_gap_is_caught() {
+    let Some(fx) = skip_if_missing("a_wrong_eof_window_gap_is_caught") else {
+        return;
+    };
+    let Some(set) = fx.set("synthetic-flux-comfyui") else {
+        eprintln!("SKIP: run phase0/make_synthetic.py");
+        return;
+    };
+    let unit = "double_blocks.0";
+    let shard = &set.unit(unit)[0].file;
+    let mut l = load(shard, unit);
+
+    // The source, concatenated in the definition's order, from the synthetic model.
+    let src = SafeTensorsFile::open(set.source_dir.join("model.safetensors")).unwrap();
+    let attrs = [
+        "img_mod.lin",
+        "img_attn.qkv",
+        "img_attn.proj",
+        "img_mlp.0",
+        "img_mlp.2",
+        "txt_mod.lin",
+        "txt_attn.qkv",
+        "txt_attn.proj",
+        "txt_mlp.0",
+        "txt_mlp.2",
+    ];
+    let mut source = Vec::new();
+    for a in attrs {
+        source.extend(src.read(&format!("{unit}.{a}.weight")).unwrap());
+    }
+    verify_unit(&view(&l), &source).expect("the official unit must verify");
+
+    // Window 95531 is the one the synthetic run exposed: the last code ends 3
+    // bits into it. Zero that 5-bit entry.
+    let w = 95531usize;
+    for k in 0..5 {
+        let bit = w * 5 + k;
+        l.gaps[bit / 8] &= !(1 << (7 - bit % 8));
+    }
+    let e = verify_unit(&view(&l), &source).expect_err("a wrong EOF-window gap must be caught");
+    assert!(
+        matches!(e, VerifyError::GapNotACodeBoundary { window: 95531, .. }),
+        "expected the EOF window to be named, got {e}"
+    );
+}

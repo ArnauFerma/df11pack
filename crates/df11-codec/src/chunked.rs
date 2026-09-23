@@ -183,15 +183,33 @@ pub fn encode_chunked(
         }
     }
 
-    // The serial encoder repeats both checks once more before writing EOF.
+    // The serial encoder repeats both checks once more before writing EOF, at
+    // the position just past the last code. When that last code straddled into a
+    // new window or chunk, no code STARTS there -- but the reference still
+    // records an entry for it. The condition is "not yet opened", not "past the
+    // end of the table": the table is sized to cover this window, so the latter
+    // never holds and the entry was silently dropped (found by the synthetic
+    // FLUX fixture, one gap in one unit).
     if tail_bits > 0 {
         let w = (total_bits as usize) / window_bits;
-        if w >= n_windows {
+        if w < n_windows {
+            if !gap_set[w] {
+                gaps[w] = (total_bits as usize % window_bits) as u32;
+                gap_set[w] = true;
+            }
+        } else {
             gaps.push((total_bits as usize % window_bits) as u32);
+            gap_set.push(true);
         }
         let b = (total_bits as usize) / block_bits;
-        if b >= n_blocks_pos {
+        if b < n_blocks_pos {
+            if !pos_set[b] {
+                pos[b] = exponents.len() as u32;
+                pos_set[b] = true;
+            }
+        } else {
             pos.push(exponents.len() as u32);
+            pos_set.push(true);
         }
     }
 
