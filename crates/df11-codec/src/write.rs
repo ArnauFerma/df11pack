@@ -28,6 +28,12 @@ pub struct WriteOptions {
     pub workers: Option<usize>,
     /// Whether source reads may overlap. `Auto` detects the device.
     pub io: IoMode,
+    /// Safe mode: decode every unit and check it against the source before its
+    /// shard is written, so a wrong unit never reaches disk.
+    ///
+    /// Costs a second pass over the unit's source (2 N bytes held during the
+    /// check) and the decode itself. That is the trade safe mode exists to make.
+    pub verify: bool,
 }
 
 /// How many units to encode at once, given the budget and the largest unit.
@@ -82,6 +88,9 @@ pub struct WriteReport {
     pub limited_units: Vec<String>,
     /// How reads were scheduled, and why.
     pub io: IoPlan,
+    /// Units checked against their source before being written. Empty unless
+    /// `verify` was set.
+    pub verified: Vec<String>,
     /// The most source reads that were ever in flight at once.
     ///
     /// Reported so the scheduling decision is observable rather than merely
@@ -96,7 +105,15 @@ pub struct WriteReport {
 #[derive(Debug)]
 pub enum WriteError {
     Discover(DiscoverError),
-    Encode { unit: String, source: EncodeError },
+    Encode {
+        unit: String,
+        source: EncodeError,
+    },
+    /// Safe mode found a unit that does not decode back to its source.
+    Verify {
+        unit: String,
+        source: crate::verify::VerifyError,
+    },
     St(StError),
     Io(std::io::Error),
 }
@@ -106,6 +123,10 @@ impl fmt::Display for WriteError {
         match self {
             Self::Discover(e) => write!(f, "{e}"),
             Self::Encode { unit, source } => write!(f, "unit {unit:?}: {source}"),
+            Self::Verify { unit, source } => write!(
+                f,
+                "unit {unit:?} failed verification and was NOT written: {source}"
+            ),
             Self::St(e) => write!(f, "{e}"),
             Self::Io(e) => write!(f, "{e}"),
         }
@@ -147,7 +168,8 @@ fn encode_one_unit(
         &std::sync::atomic::AtomicUsize,
         &std::sync::atomic::AtomicUsize,
     ),
-) -> Result<(usize, String, u64, Option<String>), WriteError> {
+    verify: bool,
+) -> Result<(usize, String, u64, Option<String>, bool), WriteError> {
     use std::sync::atomic::Ordering;
     let (in_flight, peak) = counters;
     let read = |name: &str| -> Result<Vec<u8>, crate::safetensors::StError> {
@@ -194,11 +216,41 @@ fn encode_one_unit(
             data: Payload::Borrowed { path, offset, len },
         });
     }
+    // Safe mode checks the unit BEFORE it is written, so a wrong one never
+    // reaches disk at all -- there is nothing to clean up afterwards.
+    //
+    // `did_verify` records that the check RAN, not that it was requested. The
+    // report is then evidence rather than an echo of the flag: if this block is
+    // skipped, nothing downstream claims the unit was checked.
+    let mut did_verify = false;
+    if verify {
+        let mut source_bytes: Vec<u8> = Vec::with_capacity((enc.weights() * 2) as usize);
+        for name in &u.tensors {
+            source_bytes.extend_from_slice(&read(name)?);
+        }
+        let pos = enc.output_positions.clone();
+        let luts: Vec<u8> = enc.luts.iter().flat_map(|r| r.iter().copied()).collect();
+        let view = crate::verify::UnitView {
+            luts: &luts,
+            encoded_exponent: &enc.encoded_exponent,
+            sign_mantissa: &enc.sign_mantissa,
+            output_positions: &pos,
+            gaps: &enc.gaps,
+            bytes_per_thread: bpt,
+            threads_per_block: threads,
+        };
+        crate::verify::verify_unit(&view, &source_bytes).map_err(|e| WriteError::Verify {
+            unit: u.name.clone(),
+            source: e,
+        })?;
+        did_verify = true;
+    }
+
     let fname = shard_name(&u.name);
     let path = out_dir.join(&fname);
     write_file(&path, &out, meta)?;
     let sz = std::fs::metadata(&path)?.len();
-    Ok((index, fname, sz, limited))
+    Ok((index, fname, sz, limited, did_verify))
 }
 
 /// The official shard name for a unit: dots become underscores.
@@ -266,7 +318,7 @@ pub fn write_directory(
     // jobs is what capped throughput at 16 in the scaling measurement -- beyond
     // that, more units in flight bought memory pressure rather than speed, while
     // a model with few large units could not use the cores at all.
-    type UnitResult = Result<(usize, String, u64, Option<String>), WriteError>;
+    type UnitResult = Result<(usize, String, u64, Option<String>, bool), WriteError>;
 
     // On a spinning disk, overlapping readers make the head seek; one reader at
     // a time is much faster. Encoding still overlaps -- only the reads queue.
@@ -297,7 +349,16 @@ pub fn write_directory(
             let meta = &meta;
             scope.spawn(move || {
                 let r = encode_one_unit(
-                    source, u, ui, out_dir, threads, bpt, meta, read_gate, counters,
+                    source,
+                    u,
+                    ui,
+                    out_dir,
+                    threads,
+                    bpt,
+                    meta,
+                    read_gate,
+                    counters,
+                    opts.verify,
                 );
                 results.lock().expect("results").push(r);
                 *permits.lock().expect("permits") += 1;
@@ -312,11 +373,15 @@ pub fn write_directory(
         collected.push(r?);
     }
     // Restore definition order, which the completion order does not preserve.
-    collected.sort_by_key(|(i, _, _, _)| *i);
-    for (_, fname, sz, limited) in collected {
+    collected.sort_by_key(|(i, _, _, _, _)| *i);
+    let mut verified = Vec::new();
+    for (i, fname, sz, limited, was_verified) in collected {
         output_bytes += sz;
         if let Some(l) = limited {
             limited_units.push(l);
+        }
+        if was_verified {
+            verified.push(found.units[i].name.clone());
         }
         shards.push(fname);
     }
@@ -396,6 +461,7 @@ pub fn write_directory(
         tied_dropped,
         limited_units,
         io,
+        verified,
         max_concurrent_reads: peak_reads.load(std::sync::atomic::Ordering::SeqCst),
         config,
     })

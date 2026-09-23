@@ -437,3 +437,53 @@ fn a_512_mib_budget_still_compresses_and_bounds_workers() {
     let _ = std::fs::remove_dir_all(&out);
     let _ = std::fs::remove_dir_all(&out2);
 }
+
+#[test]
+fn safe_mode_verifies_every_unit_before_writing_it() {
+    let Some(fx) = skip_if_missing("safe_mode_verifies_every_unit_before_writing_it") else {
+        return;
+    };
+    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(defs) = architecture_defs() else {
+        return;
+    };
+    let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
+    let def = ArchDef::from_toml(toml).expect("parses");
+    let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
+
+    let out = outdir("safe");
+    let r = write_directory(
+        &src,
+        &def,
+        &out,
+        &WriteOptions {
+            verify: true,
+            ..Default::default()
+        },
+    )
+    .expect("safe mode must accept correct output");
+    assert_eq!(r.verified.len(), 4, "every unit must be checked");
+    assert_eq!(r.units, 4);
+
+    // And without it, nothing is claimed to be verified.
+    let out2 = outdir("fast");
+    let r2 = write_directory(&src, &def, &out2, &WriteOptions::default()).expect("fast mode");
+    assert!(
+        r2.verified.is_empty(),
+        "fast mode must not claim verification it did not do"
+    );
+
+    // Both modes must produce identical files: verification observes, it does
+    // not change what is written.
+    for e in std::fs::read_dir(&out).unwrap() {
+        let p = e.unwrap().path();
+        let n = p.file_name().unwrap();
+        assert_eq!(
+            std::fs::read(&p).unwrap(),
+            std::fs::read(out2.join(n)).unwrap(),
+            "{n:?}: safe mode changed the output"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&out);
+    let _ = std::fs::remove_dir_all(&out2);
+}

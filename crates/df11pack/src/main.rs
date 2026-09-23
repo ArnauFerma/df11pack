@@ -1,7 +1,7 @@
 //! df11pack -- compress BF16 model weights into the DFloat11 format.
 
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -44,6 +44,10 @@ enum Command {
         /// Read scheduling: auto detects the device; sequential suits spinning disks.
         #[arg(long, value_enum, default_value_t = IoArg::Auto)]
         io: IoArg,
+        /// Safe mode: decode every unit and check it against the source before
+        /// writing it, so a wrong unit never reaches disk.
+        #[arg(long)]
+        safe: bool,
     },
     /// List the available architecture definitions.
     Architectures,
@@ -188,17 +192,31 @@ fn parse_size(s: &str) -> Result<u64, String> {
         .map_err(|_| format!("could not parse size {s:?}; try 512M or 4G"))
 }
 
-fn compress(
-    source: &Path,
-    arch: &str,
-    out: &Path,
+/// Everything `compress` needs, so the signature stays readable as flags accrue.
+struct CompressArgs {
+    source: PathBuf,
+    arch: String,
+    out: PathBuf,
     luts: LutModeArg,
     ram: Option<String>,
     workers: Option<usize>,
     io: IoArg,
-) -> Result<(), String> {
-    let def = load_arch(arch)?;
-    let model = ModelSource::open(source).map_err(|e| format!("{}: {e}", source.display()))?;
+    safe: bool,
+}
+
+fn compress(a: CompressArgs) -> Result<(), String> {
+    let CompressArgs {
+        source,
+        arch,
+        out,
+        luts,
+        ram,
+        workers,
+        io,
+        safe,
+    } = a;
+    let def = load_arch(&arch)?;
+    let model = ModelSource::open(&source).map_err(|e| format!("{}: {e}", source.display()))?;
 
     if luts == LutModeArg::Correct {
         eprintln!(
@@ -219,8 +237,9 @@ fn compress(
         ram_budget,
         workers,
         io: io.into(),
+        verify: safe,
     };
-    let report = write_directory(&model, &def, out, &opts).map_err(|e| e.to_string())?;
+    let report = write_directory(&model, &def, &out, &opts).map_err(|e| e.to_string())?;
 
     let ratio = if report.source_bytes > 0 {
         report.output_bytes as f64 / report.source_bytes as f64
@@ -249,6 +268,12 @@ fn compress(
             report.limited_units.join(", ")
         );
     }
+    if !report.verified.is_empty() {
+        println!(
+            "  verified {} unit(s) against the source before writing",
+            report.verified.len()
+        );
+    }
     println!("  reads: {}", report.io.reason);
     println!("  wrote {} -> {}", report.shards.len() + 1, out.display());
     Ok(())
@@ -265,7 +290,17 @@ fn main() -> ExitCode {
             ram,
             workers,
             io,
-        } => compress(&source, &arch, &out, luts, ram, workers, io),
+            safe,
+        } => compress(CompressArgs {
+            source,
+            arch,
+            out,
+            luts,
+            ram,
+            workers,
+            io,
+            safe,
+        }),
         Command::Architectures => list_architectures(),
     };
     match r {
