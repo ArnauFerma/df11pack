@@ -119,6 +119,68 @@ impl From<std::io::Error> for WriteError {
     }
 }
 
+/// Encode one unit and write its shard. Runs on its own thread; the chunked
+/// encoder inside uses rayon's global pool, so a single unit can still occupy
+/// every core.
+#[allow(clippy::too_many_arguments)]
+fn encode_one_unit(
+    source: &ModelSource,
+    u: &crate::discover::DiscoveredUnit,
+    index: usize,
+    out_dir: &std::path::Path,
+    threads: usize,
+    bpt: usize,
+    meta: &BTreeMap<String, String>,
+) -> Result<(usize, String, u64, Option<String>), WriteError> {
+    // Sizes come from the header; no tensor data is read yet.
+    let counts: Vec<u64> = u
+        .tensors
+        .iter()
+        .map(|n| source.info(n).map(|i| i.nbytes() / 2).unwrap_or(0))
+        .collect();
+    let enc = encode_unit_streaming(
+        &u.name,
+        &counts,
+        |i| source.read(&u.tensors[i]),
+        threads,
+        bpt,
+    )
+    .map_err(|e| WriteError::Encode {
+        unit: u.name.clone(),
+        source: e,
+    })?;
+    let limited = (enc.limiter_iterations > 0).then(|| u.name.clone());
+
+    let mut out: Vec<OutTensor> = Vec::with_capacity(6 + u.siblings.len());
+    let rows = enc.luts.len() as u64;
+    for (name, data) in enc.tensors() {
+        let (dtype, shape) = if name.ends_with(".luts") {
+            (Dtype::new(Dtype::U8), vec![rows, 256])
+        } else if name.ends_with(".split_positions") {
+            (Dtype::new(Dtype::I64), vec![(data.len() / 8) as u64])
+        } else {
+            (Dtype::new(Dtype::U8), vec![data.len() as u64])
+        };
+        out.push(OutTensor::owned(name, dtype, shape, data));
+    }
+    // Siblings travel with their unit, as upstream does (FINDINGS 0.7).
+    for s in &u.siblings {
+        let info = source.info(s).expect("discovered from this file").clone();
+        let (path, offset, len) = source.locate(s).expect("discovered from this file");
+        out.push(OutTensor {
+            name: s.clone(),
+            dtype: info.dtype.clone(),
+            shape: info.shape.clone(),
+            data: Payload::Borrowed { path, offset, len },
+        });
+    }
+    let fname = shard_name(&u.name);
+    let path = out_dir.join(&fname);
+    write_file(&path, &out, meta)?;
+    let sz = std::fs::metadata(&path)?.len();
+    Ok((index, fname, sz, limited))
+}
+
 /// The official shard name for a unit: dots become underscores.
 pub fn shard_name(unit: &str) -> String {
     format!("{}.safetensors", unit.replace('.', "_"))
@@ -176,74 +238,51 @@ pub fn write_directory(
         meta.insert("df11pack_luts".to_string(), "correct".to_string());
     }
 
-    // Units are independent (H3), so they encode in parallel. The pool is sized
-    // by the RAM budget rather than by core count, because each worker holds a
-    // whole unit.
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(workers)
-        .build()
-        .map_err(|e| WriteError::Io(std::io::Error::other(e.to_string())))?;
+    // Two different limits, deliberately not the same number.
+    //
+    // `workers` bounds how many units are IN FLIGHT, because each one holds
+    // memory. CPU parallelism is a separate axis: the chunked encoder inside a
+    // unit uses rayon's global pool, i.e. every core. Sizing one pool to do both
+    // jobs is what capped throughput at 16 in the scaling measurement -- beyond
+    // that, more units in flight bought memory pressure rather than speed, while
+    // a model with few large units could not use the cores at all.
+    type UnitResult = Result<(usize, String, u64, Option<String>), WriteError>;
 
-    type UnitResult = Result<(String, u64, Option<String>), WriteError>;
-    let results: Vec<UnitResult> = pool.install(|| {
-        use rayon::prelude::*;
-        found
-            .units
-            .par_iter()
-            .map(|u| -> UnitResult {
-                // Sizes come from the header; no tensor data is read yet.
-                let counts: Vec<u64> = u
-                    .tensors
-                    .iter()
-                    .map(|n| source.info(n).map(|i| i.nbytes() / 2).unwrap_or(0))
-                    .collect();
-                let enc = encode_unit_streaming(
-                    &u.name,
-                    &counts,
-                    |i| source.read(&u.tensors[i]),
-                    threads,
-                    bpt,
-                )
-                .map_err(|e| WriteError::Encode {
-                    unit: u.name.clone(),
-                    source: e,
-                })?;
-                let limited = (enc.limiter_iterations > 0).then(|| u.name.clone());
+    let permits = std::sync::Arc::new(std::sync::Mutex::new(workers));
+    let cv = std::sync::Arc::new(std::sync::Condvar::new());
+    let results: std::sync::Mutex<Vec<UnitResult>> = std::sync::Mutex::new(Vec::new());
 
-                let mut out: Vec<OutTensor> = Vec::with_capacity(6 + u.siblings.len());
-                let rows = enc.luts.len() as u64;
-                for (name, data) in enc.tensors() {
-                    let (dtype, shape) = if name.ends_with(".luts") {
-                        (Dtype::new(Dtype::U8), vec![rows, 256])
-                    } else if name.ends_with(".split_positions") {
-                        (Dtype::new(Dtype::I64), vec![(data.len() / 8) as u64])
-                    } else {
-                        (Dtype::new(Dtype::U8), vec![data.len() as u64])
-                    };
-                    out.push(OutTensor::owned(name, dtype, shape, data));
+    std::thread::scope(|scope| {
+        for (ui, u) in found.units.iter().enumerate() {
+            // Block until a memory permit is free, then start this unit.
+            {
+                let mut n = permits.lock().expect("permits");
+                while *n == 0 {
+                    n = cv.wait(n).expect("permits");
                 }
-                // Siblings travel with their unit, as upstream does (FINDINGS 0.7).
-                for s in &u.siblings {
-                    let info = source.info(s).expect("discovered from this file").clone();
-                    let (path, offset, len) = source.locate(s).expect("discovered from this file");
-                    out.push(OutTensor {
-                        name: s.clone(),
-                        dtype: info.dtype.clone(),
-                        shape: info.shape.clone(),
-                        data: Payload::Borrowed { path, offset, len },
-                    });
-                }
-                let fname = shard_name(&u.name);
-                let path = out_dir.join(&fname);
-                write_file(&path, &out, &meta)?;
-                let sz = std::fs::metadata(&path)?.len();
-                Ok((fname, sz, limited))
-            })
-            .collect()
+                *n -= 1;
+            }
+            let permits = std::sync::Arc::clone(&permits);
+            let cv = std::sync::Arc::clone(&cv);
+            let results = &results;
+            let meta = &meta;
+            scope.spawn(move || {
+                let r = encode_one_unit(source, u, ui, out_dir, threads, bpt, meta);
+                results.lock().expect("results").push(r);
+                *permits.lock().expect("permits") += 1;
+                cv.notify_one();
+            });
+        }
     });
 
-    for r in results {
-        let (fname, sz, limited) = r?;
+    let mut done = results.into_inner().expect("results");
+    let mut collected = Vec::with_capacity(done.len());
+    for r in done.drain(..) {
+        collected.push(r?);
+    }
+    // Restore definition order, which the completion order does not preserve.
+    collected.sort_by_key(|(i, _, _, _)| *i);
+    for (_, fname, sz, limited) in collected {
         output_bytes += sz;
         if let Some(l) = limited {
             limited_units.push(l);
