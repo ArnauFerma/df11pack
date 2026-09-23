@@ -1023,7 +1023,12 @@ largest tensors in the model, for a boolean. Comparing them in 1 MiB chunks
 instead dropped peak to **381 MiB**, a 44% reduction for a change that touches one
 line of intent.
 
-## What the RAM budget does not yet do
+## Streaming: what it bought (superseded by the section below)
+
+*The figures in this subsection were measured before the streaming work landed
+and are kept for the record. The current numbers are in the next section.*
+
+## What the RAM budget did not yet do (resolved below)
 
 `--ram` sizes the worker pool, and the arithmetic is DESIGN §5.2's: ~1.35 N bytes
 per worker. **That constant is currently wrong, and the budget is advisory rather
@@ -1040,3 +1045,49 @@ implemented yet:
 So `--ram 512M` currently selects a worker count without guaranteeing 512 MiB.
 Making the budget binding is the rest of Phase 3, and the claim should not be made
 until it is.
+
+
+---
+
+# Phase 3, streaming: memory down 6x, output unchanged
+
+Three allocations were removed, in order of size.
+
+| change | peak RSS, 1 worker |
+|---|---|
+| starting point | 678 MiB |
+| tied-embedding check compared in chunks instead of loading both 297 MiB tensors | 381 MiB |
+| passthrough and sibling tensors copied through a 1 MiB buffer instead of being materialised | 92.9 MiB |
+| source tensors fetched one at a time instead of all seven before splitting | **63.8 MiB** |
+
+**63.8 MiB to compress a 1.4 GiB model**, against the official compressor's 2288
+MiB — **36x less**. Output stayed byte-identical to the official compressor at
+every step: 282 of 282 tensors, checked after each change.
+
+## Measured scaling, 2 physical cores
+
+| workers | wall | peak RSS |
+|---|---|---|
+| 1 | 25.9 s | 63.8 MiB |
+| 2 | 13.3 s | 119.7 MiB |
+| 4 | 10.9 s | 230.2 MiB |
+
+Against the official 788.9 s and 2288 MiB: **72x faster, 10x smaller** at four
+threads, or 36x smaller single-threaded.
+
+## The budget constant is now measured rather than assumed
+
+`BYTES_PER_WEIGHT_HELD` was 1.35, taken from DESIGN §5.2. That figure assumes the
+exponent stream is re-derived on a second pass rather than kept, which is not what
+the code does. The marginal cost of a worker is ~55 MiB and the first costs ~64
+MiB on a 15,728,640-weight unit, so the real figure is **3.7 to 4.25 bytes per
+weight**. The constant is set to 4.25 so the budget errs toward fewer workers,
+and its doc comment carries the measurement rather than the derivation.
+
+Getting to 1.35 N means not keeping the exponents — a second pass that re-reads
+and re-splits to feed the encoder. That is a real further saving and is not done.
+
+## Still open
+
+- **H5 is not settled.** At 4 threads on 2 cores this machine does 40M weights/s; saturating its disk would need ~446M/s. Whether parallelism closes that gap needs a machine with more cores and a characterised disk.
+- **H12 unmeasured.** Scaling past 2 cores has not been observed.

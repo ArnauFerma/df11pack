@@ -209,6 +209,15 @@ impl SafeTensorsFile {
         self.tensors.is_empty()
     }
 
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Byte offset where the data section begins.
+    pub fn data_start(&self) -> u64 {
+        self.data_start
+    }
+
     /// A reader positioned at the start of a tensor's data.
     pub fn open_at(&self, info: &TensorInfo) -> Result<File, StError> {
         let mut f = File::open(&self.path)?;
@@ -230,12 +239,50 @@ impl SafeTensorsFile {
     }
 }
 
+/// Where a tensor's bytes come from.
+pub enum Payload {
+    /// Already in memory.
+    Owned(Vec<u8>),
+    /// Copied from another file, in bounded chunks, so a large tensor never
+    /// needs to be resident to be written.
+    Borrowed {
+        path: PathBuf,
+        offset: u64,
+        len: u64,
+    },
+}
+
+impl Payload {
+    pub fn len(&self) -> u64 {
+        match self {
+            Payload::Owned(v) => v.len() as u64,
+            Payload::Borrowed { len, .. } => *len,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 /// One tensor to write.
 pub struct OutTensor {
     pub name: String,
     pub dtype: Dtype,
     pub shape: Vec<u64>,
-    pub data: Vec<u8>,
+    pub data: Payload,
+}
+
+impl OutTensor {
+    /// An in-memory tensor.
+    pub fn owned(name: impl Into<String>, dtype: Dtype, shape: Vec<u64>, data: Vec<u8>) -> Self {
+        OutTensor {
+            name: name.into(),
+            dtype,
+            shape,
+            data: Payload::Owned(data),
+        }
+    }
 }
 
 /// Write a safetensors file.
@@ -257,7 +304,7 @@ pub fn write_file(
     }
     let mut cursor: u64 = 0;
     for t in tensors {
-        let end = cursor + t.data.len() as u64;
+        let end = cursor + t.data.len();
         let mut e = serde_json::Map::new();
         e.insert("dtype".into(), serde_json::Value::String(t.dtype.0.clone()));
         e.insert(
@@ -282,8 +329,22 @@ pub fn write_file(
     let mut w = BufWriter::new(File::create(path)?);
     w.write_all(&(json.len() as u64).to_le_bytes())?;
     w.write_all(&json)?;
+    let mut buf = vec![0u8; 1 << 20];
     for t in tensors {
-        w.write_all(&t.data)?;
+        match &t.data {
+            Payload::Owned(v) => w.write_all(v)?,
+            Payload::Borrowed { path, offset, len } => {
+                let mut f = File::open(path)?;
+                f.seek(SeekFrom::Start(*offset))?;
+                let mut left = *len;
+                while left > 0 {
+                    let n = (left as usize).min(buf.len());
+                    f.read_exact(&mut buf[..n])?;
+                    w.write_all(&buf[..n])?;
+                    left -= n as u64;
+                }
+            }
+        }
     }
     w.flush()?;
     Ok(())

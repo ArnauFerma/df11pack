@@ -108,6 +108,22 @@ impl ModelSource {
         self.files[*i].read(name)
     }
 
+    /// Where a tensor's bytes live on disk: `(path, absolute offset, length)`.
+    ///
+    /// Lets the writer copy a passthrough tensor straight through without ever
+    /// holding it, which matters because the largest of them -- an embedding --
+    /// would otherwise set the floor on peak memory by itself.
+    pub fn locate(&self, name: &str) -> Option<(PathBuf, u64, u64)> {
+        let i = *self.index.get(name)?;
+        let f = &self.files[i];
+        let info = f.info(name)?;
+        Some((
+            f.path().to_path_buf(),
+            f.data_start() + info.offsets.0,
+            info.nbytes(),
+        ))
+    }
+
     /// Whether two tensors hold identical bytes, compared in chunks.
     ///
     /// Reading both into memory to compare them costs their combined size, which

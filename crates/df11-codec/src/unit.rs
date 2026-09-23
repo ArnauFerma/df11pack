@@ -4,7 +4,7 @@ use crate::arch::ArchDef;
 use crate::bitstream::Encoded;
 use crate::chunked::{encode_chunked, DEFAULT_CHUNK};
 use crate::huffman::{build_limited, build_luts};
-use crate::{check_unit_limits, split_fields, EncodeError, Histogram};
+use crate::{check_unit_limits, split_fields_into, EncodeError, Histogram};
 
 /// The six tensors DF11 stores for one unit, with the official name suffixes.
 #[derive(Debug, Clone)]
@@ -73,16 +73,46 @@ pub fn encode_unit(
     bytes_per_thread: usize,
 ) -> Result<UnitOutput, EncodeError> {
     let counts: Vec<u64> = tensors.iter().map(|t| (t.len() / 2) as u64).collect();
+    let mut it = tensors.iter();
+    encode_unit_streaming(
+        name,
+        &counts,
+        |_| Ok::<_, EncodeError>(it.next().expect("one per count").to_vec()),
+        threads_per_block,
+        bytes_per_thread,
+    )
+}
+
+/// Encode a unit without ever holding all its source tensors at once.
+///
+/// `counts` is each tensor's weight count, known from the file header without
+/// reading any data. `fetch(i)` yields the i-th tensor's bytes; it is called once
+/// per tensor, in order, and each is dropped before the next is fetched. That
+/// keeps 2 N bytes of source data out of the worker's footprint, which on a real
+/// unit is the largest single allocation it would otherwise make.
+pub fn encode_unit_streaming<E>(
+    name: &str,
+    counts: &[u64],
+    mut fetch: impl FnMut(usize) -> Result<Vec<u8>, E>,
+    threads_per_block: usize,
+    bytes_per_thread: usize,
+) -> Result<UnitOutput, EncodeError>
+where
+    EncodeError: From<E>,
+{
     let total_weights: u64 = counts.iter().sum();
     check_unit_limits(total_weights, 0)?;
 
-    let mut concatenated = Vec::with_capacity(tensors.iter().map(|t| t.len()).sum());
-    for t in tensors {
-        concatenated.extend_from_slice(t);
+    // Split each tensor straight into the two streams. The concatenated copy of
+    // the whole unit, 2 N bytes, is never built.
+    let n = total_weights as usize;
+    let mut exponents: Vec<u8> = Vec::with_capacity(n);
+    let mut sign_mantissa: Vec<u8> = Vec::with_capacity(n);
+    for i in 0..counts.len() {
+        let t = fetch(i)?;
+        split_fields_into(&t, &mut exponents, &mut sign_mantissa);
+        // Dropped here, before the next is fetched.
     }
-
-    let (exponents, sign_mantissa) = split_fields(&concatenated);
-    drop(concatenated);
 
     // Gates first: a model that cannot be represented must fail before any
     // output exists, not after.
@@ -111,7 +141,7 @@ pub fn encode_unit(
         sign_mantissa,
         output_positions,
         gaps,
-        split_positions: ArchDef::split_positions(&counts),
+        split_positions: ArchDef::split_positions(counts),
         limiter_iterations: built.iterations,
     })
 }

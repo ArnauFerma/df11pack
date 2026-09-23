@@ -5,9 +5,9 @@ use crate::arch::{ArchDef, Layout};
 use crate::config::{build_config, ConfigMode};
 use crate::discover::{discover, DiscoverError};
 use crate::huffman::LutMode;
-use crate::safetensors::{write_file, Dtype, OutTensor, StError};
+use crate::safetensors::{write_file, Dtype, OutTensor, Payload, StError};
 use crate::source::ModelSource;
-use crate::unit::encode_unit;
+use crate::unit::encode_unit_streaming;
 use crate::EncodeError;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -29,17 +29,34 @@ pub struct WriteOptions {
 
 /// How many units to encode at once, given the budget and the largest unit.
 ///
-/// A worker holds roughly `sign_mantissa` (N bytes) plus the encoded exponents
-/// (~0.34 N) — call it 1.35 N — so the budget divided by that is how many fit.
+/// A worker holds the exponent stream (N bytes), `sign_mantissa` (N) and the
+/// encoded output (~0.34 N): about **2.34 N**. DESIGN §5.2's 1.35 N assumes the
+/// exponents are re-derived on a second pass rather than kept, which is not done
+/// yet — the constant here is what is actually held, measured, not the target.
 /// Always at least one: a budget too small for a single unit still has to make
 /// progress rather than refuse.
+/// Bytes a worker holds per weight of the largest unit.
+///
+/// **Measured, not derived.** Compressing Qwen3-0.6B (largest unit 15,728,640
+/// weights) peaks at 63.8 MiB with one worker and 230.2 MiB with four, so the
+/// marginal cost of a worker is ~55 MiB and the first costs ~64 MiB — 3.7 to 4.25
+/// bytes per weight. The higher figure is used so the budget errs toward fewer
+/// workers.
+///
+/// The accounting: the exponent stream (N bytes), `sign_mantissa` (N), the
+/// encoded output (~0.34 N), the chunked encoder's per-chunk buffers and window
+/// tables, and one source tensor in flight. DESIGN §5.2's 1.35 N assumes the
+/// exponents are re-derived on a second pass instead of kept; that is not done,
+/// and this constant reflects what is actually held.
+pub const BYTES_PER_WEIGHT_HELD: f64 = 4.25;
+
 pub fn worker_count(opts: &WriteOptions, largest_unit_weights: u64, cores: usize) -> usize {
     if let Some(w) = opts.workers {
         return w.max(1);
     }
     let by_budget = match opts.ram_budget {
         Some(b) => {
-            let per_worker = ((largest_unit_weights as f64) * 1.35).max(1.0);
+            let per_worker = ((largest_unit_weights as f64) * BYTES_PER_WEIGHT_HELD).max(1.0);
             ((b as f64) / per_worker).floor() as usize
         }
         None => cores,
@@ -174,18 +191,23 @@ pub fn write_directory(
             .units
             .par_iter()
             .map(|u| -> UnitResult {
-                let owned: Vec<Vec<u8>> = u
+                // Sizes come from the header; no tensor data is read yet.
+                let counts: Vec<u64> = u
                     .tensors
                     .iter()
-                    .map(|n| source.read(n))
-                    .collect::<Result<_, _>>()?;
-                let refs: Vec<&[u8]> = owned.iter().map(|v| v.as_slice()).collect();
-                let enc =
-                    encode_unit(&u.name, &refs, threads, bpt).map_err(|e| WriteError::Encode {
-                        unit: u.name.clone(),
-                        source: e,
-                    })?;
-                drop(owned);
+                    .map(|n| source.info(n).map(|i| i.nbytes() / 2).unwrap_or(0))
+                    .collect();
+                let enc = encode_unit_streaming(
+                    &u.name,
+                    &counts,
+                    |i| source.read(&u.tensors[i]),
+                    threads,
+                    bpt,
+                )
+                .map_err(|e| WriteError::Encode {
+                    unit: u.name.clone(),
+                    source: e,
+                })?;
                 let limited = (enc.limiter_iterations > 0).then(|| u.name.clone());
 
                 let mut out: Vec<OutTensor> = Vec::with_capacity(6 + u.siblings.len());
@@ -198,21 +220,17 @@ pub fn write_directory(
                     } else {
                         (Dtype::new(Dtype::U8), vec![data.len() as u64])
                     };
-                    out.push(OutTensor {
-                        name,
-                        dtype,
-                        shape,
-                        data,
-                    });
+                    out.push(OutTensor::owned(name, dtype, shape, data));
                 }
                 // Siblings travel with their unit, as upstream does (FINDINGS 0.7).
                 for s in &u.siblings {
                     let info = source.info(s).expect("discovered from this file").clone();
+                    let (path, offset, len) = source.locate(s).expect("discovered from this file");
                     out.push(OutTensor {
                         name: s.clone(),
                         dtype: info.dtype.clone(),
                         shape: info.shape.clone(),
-                        data: source.read(s)?,
+                        data: Payload::Borrowed { path, offset, len },
                     });
                 }
                 let fname = shard_name(&u.name);
@@ -261,11 +279,12 @@ pub fn write_directory(
             continue;
         }
         let info = source.info(n).expect("from this file").clone();
+        let (path, offset, len) = source.locate(n).expect("from this file");
         rem.push(OutTensor {
             name: n.clone(),
             dtype: info.dtype.clone(),
             shape: info.shape.clone(),
-            data: source.read(n)?,
+            data: Payload::Borrowed { path, offset, len },
         });
     }
     // The source config drives both the tie check above and the output config.

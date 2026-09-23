@@ -244,7 +244,8 @@ attrs = ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.
 fn the_worker_count_follows_the_ram_budget() {
     use df11_codec::write::worker_count;
     let unit = 15_728_640u64; // a real Qwen3 layer unit
-    let per_worker = (unit as f64 * 1.35) as u64; // ~21 MiB
+                              // Same arithmetic the implementation uses, so the boundary is exact.
+    let per_worker = (unit as f64 * df11_codec::write::BYTES_PER_WEIGHT_HELD).ceil() as u64;
 
     // No budget: use every core.
     let none = WriteOptions::default();

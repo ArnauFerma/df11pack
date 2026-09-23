@@ -6,6 +6,26 @@
 //! Read `docs/COMPATIBILITY.md` before touching the LUT path: the default
 //! mode reproduces a bug in the official encoder on purpose.
 
+/// Append one BF16 buffer's split fields to existing streams.
+///
+/// Used to build a unit's exponent and `sign_mantissa` streams tensor by tensor,
+/// so the concatenated copy of the whole unit -- 2 N bytes -- never exists.
+///
+/// # Panics
+/// If `bf16_le` has an odd length.
+pub fn split_fields_into(bf16_le: &[u8], exponents: &mut Vec<u8>, sign_mantissa: &mut Vec<u8>) {
+    assert!(
+        bf16_le.len() % 2 == 0,
+        "BF16 buffer must have an even length, got {}",
+        bf16_le.len()
+    );
+    for c in bf16_le.chunks_exact(2) {
+        let w = u16::from_le_bytes([c[0], c[1]]);
+        exponents.push(((w >> 7) & 0xFF) as u8);
+        sign_mantissa.push((((w >> 8) & 0x80) | (w & 0x7F)) as u8);
+    }
+}
+
 /// Split a little-endian BF16 buffer into the two streams DF11 stores.
 ///
 /// A BF16 weight is `s eeeeeeee mmmmmmm`. The official encoder derives, from the
@@ -102,6 +122,8 @@ pub enum EncodeError {
         tied: usize,
         slots: usize,
     },
+    /// A source tensor could not be read while encoding.
+    SourceRead(String),
 }
 
 impl fmt::Display for EncodeError {
@@ -142,6 +164,7 @@ impl fmt::Display for EncodeError {
                  silently differ; compress this unit with the official compressor, or \
                  see docs/COMPATIBILITY.md"
             ),
+            Self::SourceRead(m) => write!(f, "could not read a source tensor: {m}"),
             Self::CodeTooLong { bits } => write!(
                 f,
                 "longest code is {bits} bits, over the limit of {MAX_CODE_BITS}; \
@@ -152,6 +175,18 @@ impl fmt::Display for EncodeError {
 }
 
 impl std::error::Error for EncodeError {}
+
+impl From<std::convert::Infallible> for EncodeError {
+    fn from(x: std::convert::Infallible) -> Self {
+        match x {}
+    }
+}
+
+impl From<crate::safetensors::StError> for EncodeError {
+    fn from(e: crate::safetensors::StError) -> Self {
+        EncodeError::SourceRead(e.to_string())
+    }
+}
 
 /// Counts of each exponent value in one compression unit.
 #[derive(Debug, Clone)]

@@ -1,6 +1,6 @@
 //! Phase 2 -- the safetensors reader and writer.
 
-use df11_codec::safetensors::{write_file, Dtype, OutTensor, SafeTensorsFile, StError};
+use df11_codec::safetensors::{write_file, Dtype, OutTensor, Payload, SafeTensorsFile, StError};
 use df11_fixtures::skip_if_missing;
 use std::collections::BTreeMap;
 
@@ -18,14 +18,14 @@ fn round_trips_tensors_and_metadata() {
             name: "b.second".into(),
             dtype: Dtype::new(Dtype::U8),
             shape: vec![4],
-            data: vec![9, 8, 7, 6],
+            data: Payload::Owned(vec![9, 8, 7, 6]),
         },
-        OutTensor {
-            name: "a.first".into(),
-            dtype: Dtype::new(Dtype::I64),
-            shape: vec![2],
-            data: (1i64..=2).flat_map(|v| v.to_le_bytes()).collect(),
-        },
+        OutTensor::owned(
+            "a.first",
+            Dtype::new(Dtype::I64),
+            vec![2],
+            (1i64..=2).flat_map(|v| v.to_le_bytes()).collect(),
+        ),
     ];
     let mut meta = BTreeMap::new();
     meta.insert("df11pack_luts".to_string(), "correct".to_string());
@@ -61,7 +61,7 @@ fn the_data_section_starts_eight_byte_aligned() {
         name: "x".into(),
         dtype: Dtype::new(Dtype::U8),
         shape: vec![3],
-        data: vec![1, 2, 3],
+        data: Payload::Owned(vec![1, 2, 3]),
     }];
     write_file(&path, &tensors, &BTreeMap::new()).expect("write");
     let raw = std::fs::read(&path).expect("read back");
@@ -80,11 +80,13 @@ fn the_data_section_starts_eight_byte_aligned() {
 fn tensors_are_contiguous_with_no_holes() {
     let path = tmp("contig.safetensors");
     let tensors: Vec<OutTensor> = (0..5u8)
-        .map(|i| OutTensor {
-            name: format!("t{i}"),
-            dtype: Dtype::new(Dtype::U8),
-            shape: vec![(i as u64) + 1],
-            data: vec![i; (i as usize) + 1],
+        .map(|i| {
+            OutTensor::owned(
+                format!("t{i}"),
+                Dtype::new(Dtype::U8),
+                vec![(i as u64) + 1],
+                vec![i; (i as usize) + 1],
+            )
         })
         .collect();
     write_file(&path, &tensors, &BTreeMap::new()).expect("write");
@@ -112,12 +114,12 @@ fn a_missing_tensor_is_an_error_not_a_panic() {
     let path = tmp("missing.safetensors");
     write_file(
         &path,
-        &[OutTensor {
-            name: "present".into(),
-            dtype: Dtype::new(Dtype::U8),
-            shape: vec![1],
-            data: vec![0],
-        }],
+        &[OutTensor::owned(
+            "present",
+            Dtype::new(Dtype::U8),
+            vec![1],
+            vec![0],
+        )],
         &BTreeMap::new(),
     )
     .unwrap();

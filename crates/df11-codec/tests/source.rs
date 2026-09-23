@@ -14,12 +14,7 @@ fn dir(tag: &str) -> std::path::PathBuf {
 }
 
 fn t(name: &str, byte: u8, n: usize) -> OutTensor {
-    OutTensor {
-        name: name.into(),
-        dtype: Dtype::new(Dtype::U8),
-        shape: vec![n as u64],
-        data: vec![byte; n],
-    }
+    OutTensor::owned(name, Dtype::new(Dtype::U8), vec![n as u64], vec![byte; n])
 }
 
 #[test]
@@ -81,12 +76,12 @@ fn a_sharded_source_reads_identically_to_a_single_file() {
             .filter(|(i, _)| i % 3 == part)
             .map(|(_, n)| {
                 let info = single.info(n).unwrap();
-                OutTensor {
-                    name: n.clone(),
-                    dtype: info.dtype.clone(),
-                    shape: info.shape.clone(),
-                    data: single.read(n).unwrap(),
-                }
+                OutTensor::owned(
+                    n.clone(),
+                    info.dtype.clone(),
+                    info.shape.clone(),
+                    single.read(n).unwrap(),
+                )
             })
             .collect();
         write_file(
