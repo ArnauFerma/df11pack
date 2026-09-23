@@ -71,6 +71,7 @@ pub mod io_sched;
 pub mod safetensors;
 pub mod source;
 pub mod unit;
+pub mod verify;
 pub mod write;
 
 use std::fmt;
@@ -82,8 +83,17 @@ pub const RESERVED_EXPONENT_MIN: u8 = 240;
 pub const MAX_UNIT_WEIGHTS: u64 = (1 << 31) - 1;
 /// The kernel holds `n_bytes` in an `int`, and `output_positions` is `uint32`.
 pub const MAX_UNIT_BYTES: u64 = (1 << 31) - 1;
-/// A LUT value >= 240 encodes a jump to table `256 - v`, bounding the count.
-pub const MAX_PREFIX_TABLES: usize = 16;
+/// The most prefix tables a unit may have.
+///
+/// A LUT value of 240 or more encodes a jump to table `256 - v`, so the
+/// reachable targets are 1..=16. With table 0 that is **17** tables, not 16 as
+/// DESIGN §1.3 states. Exponents are confined to 0..=239, so no symbol value
+/// collides with a jump.
+///
+/// The distinction is not academic: a unit needing a 17th table is legal and the
+/// old bound would have refused it, while a unit needing an 18th would have its
+/// jump value fall below 240 and be silently read as a symbol.
+pub const MAX_PREFIX_TABLES: usize = 17;
 /// `gaps` stores a 5-bit offset per 64-bit window, which requires this.
 pub const MAX_CODE_BITS: u32 = 32;
 

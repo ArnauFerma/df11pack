@@ -85,10 +85,13 @@ fn unit_limits_reject_only_past_the_kernels_range() {
 
 #[test]
 fn prefix_table_and_code_length_gates() {
-    assert!(check_prefix_tables(16).is_ok());
+    // 17 is the real bound: jump values 240..=255 reach tables 1..=16, plus
+    // table 0. An 18th table's jump value would fall below 240 and be read as a
+    // symbol instead.
+    assert!(check_prefix_tables(17).is_ok());
     assert_eq!(
-        check_prefix_tables(17).unwrap_err(),
-        EncodeError::TooManyPrefixTables { tables: 17 }
+        check_prefix_tables(18).unwrap_err(),
+        EncodeError::TooManyPrefixTables { tables: 18 }
     );
     assert!(check_code_len(32).is_ok());
     assert_eq!(
