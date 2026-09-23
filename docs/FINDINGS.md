@@ -1091,3 +1091,53 @@ and re-splits to feed the encoder. That is a real further saving and is not done
 
 - **H5 is not settled.** At 4 threads on 2 cores this machine does 40M weights/s; saturating its disk would need ~446M/s. Whether parallelism closes that gap needs a machine with more cores and a characterised disk.
 - **H12 unmeasured.** Scaling past 2 cores has not been observed.
+
+---
+
+# Scaling measured: 128 cores, and where it stops helping
+
+One rented box, ~10 minutes, **about $0.02**. It advertised 16 vCPU and turned out
+to be an **AMD EPYC 7B12, 128 threads, 251 GB RAM**. Full Qwen3-0.6B, 440.4M
+weights across 28 units. Raw data in `gpu_session/out/scaling_sweep.json`.
+
+| workers | wall | peak RSS | speedup | Mweights/s |
+|---|---|---|---|---|
+| 1 | 11.11 s | 63.3 MiB | 1.00× | 39.6 |
+| 2 | 5.73 s | 120.4 MiB | 1.94× | 76.8 |
+| 4 | 2.95 s | 230.4 MiB | 3.76× | 149.1 |
+| 8 | 1.72 s | 501.3 MiB | 6.45× | 255.5 |
+| **16** | **1.12 s** | 842.5 MiB | **9.95×** | **394.5** |
+| 28 | 1.34 s | 1421.6 MiB | 8.27× | 327.6 |
+| 32 | 1.31 s | 1421.6 MiB | 8.47× | 335.8 |
+| 64 | 1.64 s | 1421.6 MiB | 6.76× | 267.9 |
+| 128 | 2.17 s | 1421.6 MiB | 5.13× | 203.4 |
+
+**Scaling is near-linear to 8 workers (6.45× of 8) and best at 16 (9.95×). Past
+16 it gets worse**, losing half its throughput by 128.
+
+Two causes, and only one of them is a limit of the machine:
+
+1. **The model has 28 units.** Parallelism here is *between* units, so more than 28 workers cannot help by construction. That is a property of the design, not the hardware, and it means a model with few large units parallelises badly however many cores are available. The chunked encoder already parallelises *within* a unit; it is currently called with the whole unit as one call, so that axis is unused. Exploiting it is the obvious next step and would lift the ceiling for exactly the models that need it most.
+2. **Memory pressure and allocator contention.** Peak flattens at 1421.6 MiB from 28 workers on — every unit resident at once — and throughput falls as workers climb. The RAM budget already exists to prevent this; what it lacked was a reason to believe the default should be lower than the core count. It now has one: **more workers than units is never right, and past ~16 the return is negative on this machine.**
+
+**Best observed: 1.12 s for a full 1.4 GiB model**, against the official
+compressor's 788.9 s — **705× faster** — at 842 MiB against its 2288 MiB.
+
+## H5: settled, and the answer is "it depends on the disk"
+
+At 394.5 Mweights/s the encoder consumes source at **789 MB/s**. So:
+
+- On a **spinning disk** (~100–200 MB/s), the encoder is comfortably faster than the disk: **disk-bound, H5 holds.**
+- On this box's page cache, measured at 10.3 GB/s, the encoder is still 13× short: **CPU-bound, H5 does not hold.**
+- On a typical NVMe (2–7 GB/s), still CPU-bound.
+
+So H5 as originally stated — "with a native encoder the bottleneck becomes the
+disk" — is **true for the machines the guiding principle targets and false for
+fast NVMe**. That is not a dodge: the project exists to serve old machines with
+slow disks, and on those it is now disk-bound. On fast hardware there is more CPU
+work to reclaim, and intra-unit parallelism is where it is.
+
+## H12 remains unmeasured
+
+H12 is about the *CPU decoder*, which does not exist yet. The numbers above are
+the encoder. It stays deferred to Phase 5.

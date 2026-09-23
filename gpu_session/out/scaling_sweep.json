@@ -1,0 +1,11 @@
+[
+  {"workers": 1,   "wall_s": 11.11, "peak_MiB": 63.3,   "speedup": 1.00, "Mweights_s": 39.6},
+  {"workers": 2,   "wall_s": 5.73,  "peak_MiB": 120.4,  "speedup": 1.94, "Mweights_s": 76.8},
+  {"workers": 4,   "wall_s": 2.95,  "peak_MiB": 230.4,  "speedup": 3.76, "Mweights_s": 149.1},
+  {"workers": 8,   "wall_s": 1.72,  "peak_MiB": 501.3,  "speedup": 6.45, "Mweights_s": 255.5},
+  {"workers": 16,  "wall_s": 1.12,  "peak_MiB": 842.5,  "speedup": 9.95, "Mweights_s": 394.5},
+  {"workers": 28,  "wall_s": 1.34,  "peak_MiB": 1421.6, "speedup": 8.27, "Mweights_s": 327.6},
+  {"workers": 32,  "wall_s": 1.31,  "peak_MiB": 1421.6, "speedup": 8.47, "Mweights_s": 335.8},
+  {"workers": 64,  "wall_s": 1.64,  "peak_MiB": 1421.6, "speedup": 6.76, "Mweights_s": 267.9},
+  {"workers": 128, "wall_s": 2.17,  "peak_MiB": 1421.6, "speedup": 5.13, "Mweights_s": 203.4}
+]
