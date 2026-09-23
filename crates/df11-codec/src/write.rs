@@ -5,6 +5,7 @@ use crate::arch::{ArchDef, Layout};
 use crate::config::{build_config, ConfigMode};
 use crate::discover::{discover, DiscoverError};
 use crate::huffman::LutMode;
+use crate::io_sched::{plan, IoMode, IoPlan};
 use crate::safetensors::{write_file, Dtype, OutTensor, Payload, StError};
 use crate::source::ModelSource;
 use crate::unit::encode_unit_streaming;
@@ -25,6 +26,8 @@ pub struct WriteOptions {
     pub ram_budget: Option<u64>,
     /// Force a worker count, overriding the budget calculation.
     pub workers: Option<usize>,
+    /// Whether source reads may overlap. `Auto` detects the device.
+    pub io: IoMode,
 }
 
 /// How many units to encode at once, given the budget and the largest unit.
@@ -77,6 +80,14 @@ pub struct WriteReport {
     pub tied_dropped: Vec<String>,
     /// Units where the 32-bit limiter had to run.
     pub limited_units: Vec<String>,
+    /// How reads were scheduled, and why.
+    pub io: IoPlan,
+    /// The most source reads that were ever in flight at once.
+    ///
+    /// Reported so the scheduling decision is observable rather than merely
+    /// declared: under `Sequential` this must be 1, and a missing gate shows up
+    /// here instead of only as a timing difference.
+    pub max_concurrent_reads: usize,
     /// The config file written, if the layout has one. ComfyUI-native output is
     /// a single file with no config, so this is `None` there.
     pub config: Option<String>,
@@ -131,24 +142,33 @@ fn encode_one_unit(
     threads: usize,
     bpt: usize,
     meta: &BTreeMap<String, String>,
+    read_gate: &Option<std::sync::Mutex<()>>,
+    counters: (
+        &std::sync::atomic::AtomicUsize,
+        &std::sync::atomic::AtomicUsize,
+    ),
 ) -> Result<(usize, String, u64, Option<String>), WriteError> {
+    use std::sync::atomic::Ordering;
+    let (in_flight, peak) = counters;
+    let read = |name: &str| -> Result<Vec<u8>, crate::safetensors::StError> {
+        let _held = read_gate.as_ref().map(|m| m.lock().expect("read gate"));
+        let n = in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+        peak.fetch_max(n, Ordering::SeqCst);
+        let r = source.read(name);
+        in_flight.fetch_sub(1, Ordering::SeqCst);
+        r
+    };
     // Sizes come from the header; no tensor data is read yet.
     let counts: Vec<u64> = u
         .tensors
         .iter()
         .map(|n| source.info(n).map(|i| i.nbytes() / 2).unwrap_or(0))
         .collect();
-    let enc = encode_unit_streaming(
-        &u.name,
-        &counts,
-        |i| source.read(&u.tensors[i]),
-        threads,
-        bpt,
-    )
-    .map_err(|e| WriteError::Encode {
-        unit: u.name.clone(),
-        source: e,
-    })?;
+    let enc = encode_unit_streaming(&u.name, &counts, |i| read(&u.tensors[i]), threads, bpt)
+        .map_err(|e| WriteError::Encode {
+            unit: u.name.clone(),
+            source: e,
+        })?;
     let limited = (enc.limiter_iterations > 0).then(|| u.name.clone());
 
     let mut out: Vec<OutTensor> = Vec::with_capacity(6 + u.siblings.len());
@@ -248,6 +268,15 @@ pub fn write_directory(
     // a model with few large units could not use the cores at all.
     type UnitResult = Result<(usize, String, u64, Option<String>), WriteError>;
 
+    // On a spinning disk, overlapping readers make the head seek; one reader at
+    // a time is much faster. Encoding still overlaps -- only the reads queue.
+    let io = plan(source.dir(), opts.io);
+    let read_gate: Option<std::sync::Mutex<()>> = io.sequential.then(|| std::sync::Mutex::new(()));
+    let read_gate = &read_gate;
+    let in_flight = std::sync::atomic::AtomicUsize::new(0);
+    let peak_reads = std::sync::atomic::AtomicUsize::new(0);
+    let counters = (&in_flight, &peak_reads);
+
     let permits = std::sync::Arc::new(std::sync::Mutex::new(workers));
     let cv = std::sync::Arc::new(std::sync::Condvar::new());
     let results: std::sync::Mutex<Vec<UnitResult>> = std::sync::Mutex::new(Vec::new());
@@ -267,7 +296,9 @@ pub fn write_directory(
             let results = &results;
             let meta = &meta;
             scope.spawn(move || {
-                let r = encode_one_unit(source, u, ui, out_dir, threads, bpt, meta);
+                let r = encode_one_unit(
+                    source, u, ui, out_dir, threads, bpt, meta, read_gate, counters,
+                );
                 results.lock().expect("results").push(r);
                 *permits.lock().expect("permits") += 1;
                 cv.notify_one();
@@ -364,6 +395,8 @@ pub fn write_directory(
         output_bytes,
         tied_dropped,
         limited_units,
+        io,
+        max_concurrent_reads: peak_reads.load(std::sync::atomic::Ordering::SeqCst),
         config,
     })
 }

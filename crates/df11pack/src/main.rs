@@ -41,9 +41,30 @@ enum Command {
         /// Force a worker count, overriding --ram.
         #[arg(long)]
         workers: Option<usize>,
+        /// Read scheduling: auto detects the device; sequential suits spinning disks.
+        #[arg(long, value_enum, default_value_t = IoArg::Auto)]
+        io: IoArg,
     },
     /// List the available architecture definitions.
     Architectures,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+enum IoArg {
+    Auto,
+    Sequential,
+    Concurrent,
+}
+
+impl From<IoArg> for df11_codec::io_sched::IoMode {
+    fn from(a: IoArg) -> Self {
+        use df11_codec::io_sched::IoMode;
+        match a {
+            IoArg::Auto => IoMode::Auto,
+            IoArg::Sequential => IoMode::Sequential,
+            IoArg::Concurrent => IoMode::Concurrent,
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
@@ -174,6 +195,7 @@ fn compress(
     luts: LutModeArg,
     ram: Option<String>,
     workers: Option<usize>,
+    io: IoArg,
 ) -> Result<(), String> {
     let def = load_arch(arch)?;
     let model = ModelSource::open(source).map_err(|e| format!("{}: {e}", source.display()))?;
@@ -196,6 +218,7 @@ fn compress(
         lut_mode: luts.into(),
         ram_budget,
         workers,
+        io: io.into(),
     };
     let report = write_directory(&model, &def, out, &opts).map_err(|e| e.to_string())?;
 
@@ -226,6 +249,7 @@ fn compress(
             report.limited_units.join(", ")
         );
     }
+    println!("  reads: {}", report.io.reason);
     println!("  wrote {} -> {}", report.shards.len() + 1, out.display());
     Ok(())
 }
@@ -240,7 +264,8 @@ fn main() -> ExitCode {
             luts,
             ram,
             workers,
-        } => compress(&source, &arch, &out, luts, ram, workers),
+            io,
+        } => compress(&source, &arch, &out, luts, ram, workers, io),
         Command::Architectures => list_architectures(),
     };
     match r {

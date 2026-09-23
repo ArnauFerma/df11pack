@@ -336,3 +336,104 @@ fn worker_count_never_changes_the_output() {
     let _ = std::fs::remove_dir_all(&a);
     let _ = std::fs::remove_dir_all(&b);
 }
+
+#[test]
+fn the_io_plan_is_reported_and_obeyed() {
+    use df11_codec::io_sched::IoMode;
+    let Some(fx) = skip_if_missing("the_io_plan_is_reported_and_obeyed") else {
+        return;
+    };
+    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(defs) = architecture_defs() else {
+        return;
+    };
+    let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
+    let def = ArchDef::from_toml(toml).expect("parses");
+    let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
+
+    for (mode, want) in [(IoMode::Sequential, true), (IoMode::Concurrent, false)] {
+        let out = outdir(&format!("io{want}"));
+        let r = write_directory(
+            &src,
+            &def,
+            &out,
+            &WriteOptions {
+                io: mode,
+                workers: Some(3),
+                ..Default::default()
+            },
+        )
+        .expect("writes");
+        assert_eq!(r.io.sequential, want, "{mode:?} must be obeyed");
+        if want {
+            // Not merely declared: with three workers reading seven tensors each,
+            // a missing gate shows up here.
+            assert_eq!(
+                r.max_concurrent_reads, 1,
+                "sequential mode must actually serialise reads, not just say so"
+            );
+        }
+        assert!(!r.io.reason.is_empty(), "the plan must say why");
+        assert_eq!(r.units, 4, "{mode:?}: output must be unaffected");
+        let _ = std::fs::remove_dir_all(&out);
+    }
+}
+
+/// The Phase 3 exit gate's memory case: a 512 MiB budget must still compress a
+/// model whose units do not all fit, by running fewer workers.
+#[test]
+fn a_512_mib_budget_still_compresses_and_bounds_workers() {
+    use df11_codec::write::{worker_count, BYTES_PER_WEIGHT_HELD};
+    let Some(fx) = skip_if_missing("a_512_mib_budget_still_compresses_and_bounds_workers") else {
+        return;
+    };
+    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(defs) = architecture_defs() else {
+        return;
+    };
+    let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
+    let def = ArchDef::from_toml(toml).expect("parses");
+    let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
+
+    let budget = 512u64 << 20;
+    let out = outdir("ram512");
+    let r = write_directory(
+        &src,
+        &def,
+        &out,
+        &WriteOptions {
+            ram_budget: Some(budget),
+            ..Default::default()
+        },
+    )
+    .expect("a 512 MiB budget must not prevent compression");
+    assert_eq!(r.units, 4);
+
+    // The unit is 15,728,640 weights; the budget admits a bounded number.
+    let unit = 15_728_640u64;
+    let allowed = (budget as f64 / (unit as f64 * BYTES_PER_WEIGHT_HELD)).floor() as usize;
+    assert!(allowed >= 1, "512 MiB must admit at least one worker");
+    assert_eq!(
+        worker_count(
+            &WriteOptions {
+                ram_budget: Some(budget),
+                ..Default::default()
+            },
+            unit,
+            64
+        ),
+        allowed.min(64)
+    );
+
+    // And a budget far below one unit must still make progress, single-threaded.
+    let tiny = WriteOptions {
+        ram_budget: Some(1 << 20),
+        ..Default::default()
+    };
+    assert_eq!(worker_count(&tiny, unit, 64), 1);
+    let out2 = outdir("ram1m");
+    let r2 = write_directory(&src, &def, &out2, &tiny).expect("a 1 MiB budget must still run");
+    assert_eq!(r2.units, 4);
+    let _ = std::fs::remove_dir_all(&out);
+    let _ = std::fs::remove_dir_all(&out2);
+}

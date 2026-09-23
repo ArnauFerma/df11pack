@@ -1199,3 +1199,44 @@ project actually promises — journal, resume, verification — and they are wor
 than throughput nobody is waiting on.
 
 Recorded so the next person does not have to rediscover where the ceiling is.
+
+---
+
+# Phase 3 exit gate: met
+
+| gate item | status |
+|---|---|
+| Output identical to the single-threaded encoder | **yes** — byte-identical at every worker count, chunk size and I/O mode; 282/282 tensors against the official compressor |
+| Bounded RAM measured, including the 512 MiB case | **yes** — and a 1 MiB budget still compresses, single-threaded, rather than refusing |
+| H5 settled | **yes** — disk-bound on spinning disks, CPU-bound on NVMe; see above |
+
+**I/O scheduling** rounds out the phase. `--io auto` resolves the backing device
+through `/sys/dev/block/<major>:<minor>` and `queue/rotational`; on a spinning
+disk reads are serialised through a gate while encoding still overlaps, because
+concurrent readers make the head seek. An unresolvable device defaults to
+**concurrent**, since serialising on an NVMe costs real throughput while failing
+to serialise on a slow disk merely forgoes an optimisation.
+
+Measured on this SSD: `--io sequential` is 12.59 s against `auto`'s 11.92 s, which
+is the right sign — the gate is doing something, and on this hardware that
+something is a small loss.
+
+## Two mutations that survived, and what fixed them
+
+**The rotational flag's meaning was untested.** Inverting `1` and `0` passed every
+test, because this machine has only SSDs and no end-to-end test can distinguish a
+mapping from its inverse when every device answers the same way. Fixed by testing
+the parse directly: `1` means spinning, `0` means solid state, pinned as a fact
+rather than inferred from hardware that cannot disagree.
+
+**The read gate's existence was untested.** Deleting it left `io.sequential`
+reporting `true` while reads ran concurrently — the plan said one thing and the
+mechanism did another, and only a timing difference betrayed it. Fixed by making
+the mechanism observable: the report now carries `max_concurrent_reads`, a
+watermark of reads in flight. Under `Sequential` it must be 1. Without the gate it
+reads 3, and the test fails with *"sequential mode must actually serialise reads,
+not just say so"*.
+
+That second one is the more useful lesson. A configuration flag that is only ever
+checked against *itself* verifies nothing: the test must observe the behaviour the
+flag is supposed to cause.
