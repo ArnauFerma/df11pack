@@ -31,3 +31,8 @@
 
 # Rust
 /target/
+
+# Local tooling, never published
+.mcp.json
+__pycache__/
+*.pyc

@@ -4,7 +4,7 @@ Records per-tensor sha256 for every official output produced or validated in
 Phase 0, with provenance, so Phase 1 can grade against them without Python,
 without the official compressor, and without a large machine.
 """
-import hashlib, json, struct
+import os, hashlib, json, struct
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -85,7 +85,9 @@ def main():
                 cfg[j] = hashlib.sha256(p.read_bytes()).hexdigest()
         man["sets"].append({
             "name": s["name"], "provenance": s["provenance"], "note": s["note"],
-            "output_dir": str(s["out"]), "source_dir": str(s["src"]),
+            # Relative to the repo root, so the manifest works in any checkout.
+            "output_dir": os.path.relpath(Path(s["out"]).resolve(), ROOT.parent),
+            "source_dir": os.path.relpath(Path(s["src"]).resolve(), ROOT.parent),
             "shards": len(files), "unit_tensors": n_unit, "non_unit_tensors": n_plain,
             "total_bytes": total, "json_sha256": cfg, "files": files,
         })
