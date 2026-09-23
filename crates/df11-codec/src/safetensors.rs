@@ -285,7 +285,18 @@ impl OutTensor {
     }
 }
 
-/// Write a safetensors file.
+/// Write a safetensors file **atomically**.
+///
+/// The bytes go to a sibling `.tmp`, which is flushed and fsynced, then renamed
+/// into place; the directory is fsynced after, so the rename itself survives a
+/// power loss. On any failure the temporary is removed and the destination is
+/// left untouched.
+///
+/// This matters more than it looks. A truncated safetensors is not obviously
+/// broken — the header parses, the tensors it names are simply short — so a
+/// half-written shard can be mistaken for a finished one. Appearing complete or
+/// not at all is the property worth having, and it is the reason atomicity was
+/// kept when resume was dropped from the plan.
 ///
 /// Tensors are laid out in the order given, contiguously, with no padding
 /// between them. The header lists them in the same order.
@@ -326,9 +337,35 @@ pub fn write_file(
         json.push(b' ');
     }
 
-    let mut w = BufWriter::new(File::create(path)?);
+    let path = path.as_ref();
+    let tmp = match path.file_name() {
+        Some(n) => path.with_file_name(format!("{}.tmp", n.to_string_lossy())),
+        None => {
+            return Err(StError::Malformed(format!(
+                "{} has no file name",
+                path.display()
+            )))
+        }
+    };
+
+    // Anything that fails from here on must leave the destination alone.
+    let r = write_atomic_inner(&tmp, path, tensors, &json);
+    if r.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    r
+}
+
+fn write_atomic_inner(
+    tmp: &Path,
+    dest: &Path,
+    tensors: &[OutTensor],
+    json: &[u8],
+) -> Result<(), StError> {
+    let file = File::create(tmp)?;
+    let mut w = BufWriter::new(file);
     w.write_all(&(json.len() as u64).to_le_bytes())?;
-    w.write_all(&json)?;
+    w.write_all(json)?;
     let mut buf = vec![0u8; 1 << 20];
     for t in tensors {
         match &t.data {
@@ -347,5 +384,16 @@ pub fn write_file(
         }
     }
     w.flush()?;
+    // Durable before the rename, so the rename never publishes a partial file.
+    w.into_inner()
+        .map_err(|e| StError::Io(e.into_error()))?
+        .sync_all()?;
+    std::fs::rename(tmp, dest)?;
+    // And fsync the directory so the rename itself survives a crash.
+    if let Some(dir) = dest.parent() {
+        if let Ok(d) = File::open(dir) {
+            let _ = d.sync_all();
+        }
+    }
     Ok(())
 }

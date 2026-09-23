@@ -385,14 +385,35 @@ the 0.11 target table.
 **Needs:** the old machine (or a cgroup-limited emulation of it), and an HDD.
 Rough effort: 12–16 days.
 
-### Phase 4 — Journal, committer, resume
+### Phase 4 — ~~Journal, committer, resume~~ → **atomic output only** (revised)
 
-Append-only journal with xxh3 hashes and the source fingerprint; the in-order
-committer with spill for out-of-order UCs; `.tmp` + fsync + atomic rename for
-diffusers shards; truncate-to-last-good-entry on resume.
-**Exit gate:** killing the process at 100 random points yields, on resume, output
-identical to an uninterrupted run.
-Rough effort: 8–12 days.
+**Revised after Phase 3's measurements, with the user's agreement.**
+
+The original scope — append-only journal, source fingerprint, in-order committer
+with spill, truncate-to-last-good-entry on resume, and a gate of 100 random kills
+— was designed for a compressor that takes 1–2 hours on Flux. It does not. The
+full Qwen3-0.6B compresses in **1.12 s**, and Flux extrapolates to roughly half a
+minute on a capable machine. Resume protects against losing work that now costs
+less than the machinery protecting it, and a journal is state that can itself go
+stale or wrong.
+
+What survives is the part speed does not fix: **a half-written file must never
+look finished.** A truncated safetensors is not obviously broken — its header
+parses and its tensors are merely short — so an interrupted run could leave a
+shard a loader would happily accept.
+
+**Delivered instead:** every file is written to a sibling `.tmp`, fsynced,
+renamed into place, and the directory fsynced after, so the rename survives a
+power loss. Any failure removes the temporary and leaves the destination
+untouched. A rename that cannot succeed is an error rather than a silent no-op.
+
+**Exit gate (revised):** a failed write leaves nothing at the destination and no
+temporaries behind; a successful one leaves exactly the final file. Met.
+
+**Not done, and deliberately:** resume, the journal, the source fingerprint, the
+ordered committer with spill. If compression ever gets slow again — a much larger
+model, or safe mode on a slow GPU — this is the first thing to reconsider, and
+DESIGN §6 still describes it.
 
 ### Phase 5 — Safe mode
 

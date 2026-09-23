@@ -4,10 +4,15 @@ use df11_codec::safetensors::{write_file, Dtype, OutTensor, Payload, SafeTensors
 use df11_fixtures::skip_if_missing;
 use std::collections::BTreeMap;
 
+/// A path inside a directory unique to this test, so a leftover from another
+/// test -- or from an earlier run of this one -- can never be mistaken for
+/// output of the run under test.
 fn tmp(name: &str) -> std::path::PathBuf {
-    let mut p = std::env::temp_dir();
-    p.push(format!("df11pack_test_{}_{}", std::process::id(), name));
-    p
+    let mut d = std::env::temp_dir();
+    d.push(format!("df11pack_t{}_{}", std::process::id(), name));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).expect("test dir");
+    d.join(name)
 }
 
 #[test]
@@ -218,4 +223,130 @@ fn reads_a_real_official_shard() {
 
     // The official writer emits the six unit tensors plus the layer's norms.
     assert_eq!(f.len(), 10, "official layer shard holds 10 tensors");
+}
+
+/// A file appears complete or not at all.
+///
+/// Resume was dropped from the plan once compression got fast enough that losing
+/// a run costs less than the machinery to resume it. Atomicity was kept, because
+/// it protects against something speed does not fix: a half-written file that
+/// looks finished.
+#[test]
+fn a_successful_write_leaves_no_temporary_behind() {
+    let path = tmp("atomic_ok.safetensors");
+    let dir = path.parent().unwrap().to_path_buf();
+    assert_eq!(
+        std::fs::read_dir(&dir).unwrap().count(),
+        0,
+        "the test starts from an empty directory"
+    );
+
+    write_file(
+        &path,
+        &[OutTensor::owned(
+            "t",
+            Dtype::new(Dtype::U8),
+            vec![4],
+            vec![1, 2, 3, 4],
+        )],
+        &BTreeMap::new(),
+    )
+    .expect("write");
+
+    let after: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(
+        after.len(),
+        1,
+        "exactly the final file should remain, found {after:?}"
+    );
+    assert!(!after[0].ends_with(".tmp"), "a temporary was left behind");
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn a_failed_write_leaves_no_file_at_the_destination() {
+    use df11_codec::safetensors::Payload;
+
+    // A borrowed payload that claims more bytes than its source has, so the copy
+    // fails partway through.
+    let path = tmp("atomic_fail.safetensors");
+    // Deliberately outside the destination directory, so it does not count as a
+    // leftover there.
+    let src = std::env::temp_dir().join(format!("df11pack_short_{}.bin", std::process::id()));
+    std::fs::write(&src, [0u8; 16]).unwrap();
+
+    let r = write_file(
+        &path,
+        &[OutTensor {
+            name: "t".into(),
+            dtype: Dtype::new(Dtype::U8),
+            shape: vec![1 << 20],
+            data: Payload::Borrowed {
+                path: src.clone(),
+                offset: 0,
+                len: 1 << 20, // far more than the 16 bytes available
+            },
+        }],
+        &BTreeMap::new(),
+    );
+    assert!(r.is_err(), "the write must fail");
+    assert!(
+        !path.exists(),
+        "a failed write must not leave a file at the destination; \
+         a truncated safetensors is indistinguishable from a real one to a loader"
+    );
+    let leftovers: Vec<String> = std::fs::read_dir(path.parent().unwrap())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "the destination directory must be empty after a failed write, found {leftovers:?}"
+    );
+    let _ = std::fs::remove_file(&src);
+}
+
+/// A failing rename must be an error, not a silent no-op.
+///
+/// Without this, swallowing the rename's result reports success while leaving
+/// nothing at the destination -- the worst outcome of the three, because the
+/// caller believes the file exists.
+#[test]
+fn a_write_that_cannot_be_renamed_into_place_is_an_error() {
+    let path = tmp("rename_blocked.safetensors");
+    // Occupy the destination with a directory, which a file cannot be renamed onto.
+    let _ = std::fs::remove_file(&path);
+    std::fs::create_dir_all(&path).expect("occupy the destination");
+
+    let r = write_file(
+        &path,
+        &[OutTensor::owned(
+            "t",
+            Dtype::new(Dtype::U8),
+            vec![2],
+            vec![7, 7],
+        )],
+        &BTreeMap::new(),
+    );
+    assert!(
+        r.is_err(),
+        "a rename that cannot succeed must surface as an error, not be swallowed"
+    );
+    assert!(path.is_dir(), "the destination must be left as it was");
+    let leftovers: Vec<String> = std::fs::read_dir(path.parent().unwrap())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.ends_with(".tmp"))
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "temporaries left behind: {leftovers:?}"
+    );
+    let _ = std::fs::remove_dir_all(&path);
 }
