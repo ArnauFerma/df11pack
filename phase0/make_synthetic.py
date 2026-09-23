@@ -36,6 +36,7 @@ for _p in (ROOT.parent / "data/architectures").glob("*.toml"):
     import tomllib
     _d = tomllib.loads(_p.read_text())
     PATTERNS.setdefault(_d["name"], {"pattern_dict": {u["pattern"]: u["attrs"] for u in _d["unit"]}})
+    PATTERNS[_d["name"]]["layout"] = _d["layout"]
 
 
 def put(root, path, module):
@@ -98,7 +99,15 @@ def seed_for(name):
 
 def instances(pattern):
     """Concrete module names a pattern fullmatches: digit runs as 0 and 1, and
-    every member of a character class. Only the syntax the definitions use."""
+    every member of a character class. A group such as SD3.5's
+    `([0-9]|[1-2][0-9]|3[0-6])` is searched instead: the smallest and largest
+    integer below 100 it accepts."""
+    if "(" in pattern:
+        base = re.sub(r"\([^()]*\)", "{}", pattern, count=1)
+        ok = [i for i in range(100) for n in instances(base.replace("{}", str(i)))
+              if re.fullmatch(pattern, n)]
+        assert ok, pattern
+        return sorted({n for i in (ok[0], ok[-1]) for n in instances(base.replace("{}", str(i)))})
     toks = re.findall(r"\\d\+\+?|\[[^\]]+\]|\\.|.", pattern)
     choices = []
     for t in toks:
@@ -116,8 +125,11 @@ def instances(pattern):
     return names
 
 
-def generic_shape(i):
-    """Attribute i of a unit: every attribute in a unit has a distinct size."""
+def generic_shape(i, n_attrs):
+    """Attribute i of a unit: every attribute in a unit has a distinct size.
+    Narrower for very wide units (BAGEL's ViT has 157), to keep the model small."""
+    if n_attrs > 32:
+        return (64, 64 + 8 * (i + 1))
     return (H, H * (1 + i % 4) + 8 * (i + 1))
 
 
@@ -140,7 +152,7 @@ def build(name):
                 put(m, unit, nn.Embedding(4 * H + 8, H) if "embed" in unit else lin(H, 3 * H + 8))
                 continue
             for k, a in enumerate(attrs):
-                put(m, f"{unit}.{a}", lin(*(shape_for(a) if name in ORIGINAL else generic_shape(k))))
+                put(m, f"{unit}.{a}", lin(*(shape_for(a) if name in ORIGINAL else generic_shape(k, len(attrs)))))
             # A sibling that is not compressed, so the placement rule is exercised.
             put(m, f"{unit}.extra_norm", nn.LayerNorm(H))
     # Passthrough tensors outside every unit.
@@ -148,8 +160,9 @@ def build(name):
     put(m, "final_layer.linear", lin(H, 64))
 
     # Stand-ins for save_pretrained: the remainder file each library writes.
-    remainder = ("diffusion_pytorch_model.safetensors" if "diffusers" in name
-                 else "model.safetensors" if name.startswith("qwen3") else None)
+    layout = PATTERNS[name].get("layout", "diffusers" if "diffusers" in name else "")
+    remainder = {"diffusers": "diffusion_pytorch_model.safetensors",
+                 "transformers": "model.safetensors"}.get(layout)
 
     def save_pretrained(path):
         save_file({k: v.contiguous() for k, v in m.state_dict().items()},
@@ -174,7 +187,8 @@ def main():
     manifest = ROOT / "out/official/synthetic_manifest.json"
     out = json.loads(manifest.read_text()) if manifest.exists() else {}
     for name in names:
-        native = "comfyui" in name
+        layout = PATTERNS[name].get("layout", "")
+        native = layout in ("comfyui-native", "diffusers-single") or "comfyui" in name
         src = ROOT / "corpus/synthetic" / name
         dst = ROOT / "out/official" / f"synthetic-{name}"
         shutil.rmtree(src, ignore_errors=True)
@@ -190,6 +204,11 @@ def main():
         official.compress_model(m, pattern_dict=PATTERNS[name]["pattern_dict"],
                                 save_path=str(dst), save_single_file=native,
                                 check_correctness=False)
+        if layout == "diffusers-single":
+            # pip dfloat11 0.5.0 names its single file model.safetensors; the
+            # Qwen-Image releases ship it as diffusion_pytorch_model.safetensors
+            # (their header layout is checked against ours in FINDINGS).
+            (dst / "model.safetensors").rename(dst / "diffusion_pytorch_model.safetensors")
         files = sorted(p.name for p in dst.iterdir())
         out[name] = {"weights": n_weights, "native": native, "files": files}
         print(f"  {name:22s} {n_weights/1e6:5.2f}M weights -> {len(files)} files: {files[:4]}{' ...' if len(files) > 4 else ''}")

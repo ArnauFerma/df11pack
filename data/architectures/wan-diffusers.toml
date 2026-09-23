@@ -1,0 +1,24 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# Official DF11 layout of: Wan2.1-T2V-14B-Diffusers-DF11, Wan2.2-I2V-A14B-2-DF11, Wan2.2-I2V-A14B-DF11, Wan2.2-T2V-A14B-2-DF11, Wan2.2-T2V-A14B-DF11.
+
+name = "wan-diffusers"
+layout = "diffusers"
+format_version = "0.2.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "DFloat11/Wan2.1-T2V-14B-Diffusers-DF11"
+
+[[unit]]
+pattern = 'blocks\.\d+'
+attrs = [
+    "attn1.to_q",
+    "attn1.to_k",
+    "attn1.to_v",
+    "attn1.to_out.0",
+    "attn2.to_q",
+    "attn2.to_k",
+    "attn2.to_v",
+    "attn2.to_out.0",
+    "ffn.net.0.proj",
+    "ffn.net.2",
+]

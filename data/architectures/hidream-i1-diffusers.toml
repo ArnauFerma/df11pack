@@ -1,0 +1,66 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# Official DF11 layout of: HiDream-I1-Full-DF11.
+
+name = "hidream-i1-diffusers"
+layout = "diffusers"
+format_version = "0.2.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "DFloat11/HiDream-I1-Full-DF11"
+
+[[unit]]
+pattern = 'double_stream_blocks\.\d+'
+attrs = [
+    "block.adaLN_modulation.1",
+    "block.attn1.to_q",
+    "block.attn1.to_k",
+    "block.attn1.to_v",
+    "block.attn1.to_out",
+    "block.attn1.to_q_t",
+    "block.attn1.to_k_t",
+    "block.attn1.to_v_t",
+    "block.attn1.to_out_t",
+    "block.ff_i.shared_experts.w1",
+    "block.ff_i.shared_experts.w2",
+    "block.ff_i.shared_experts.w3",
+    "block.ff_i.experts.0.w1",
+    "block.ff_i.experts.0.w2",
+    "block.ff_i.experts.0.w3",
+    "block.ff_i.experts.1.w1",
+    "block.ff_i.experts.1.w2",
+    "block.ff_i.experts.1.w3",
+    "block.ff_i.experts.2.w1",
+    "block.ff_i.experts.2.w2",
+    "block.ff_i.experts.2.w3",
+    "block.ff_i.experts.3.w1",
+    "block.ff_i.experts.3.w2",
+    "block.ff_i.experts.3.w3",
+    "block.ff_t.w1",
+    "block.ff_t.w2",
+    "block.ff_t.w3",
+]
+
+[[unit]]
+pattern = 'single_stream_blocks\.\d+'
+attrs = [
+    "block.adaLN_modulation.1",
+    "block.attn1.to_q",
+    "block.attn1.to_k",
+    "block.attn1.to_v",
+    "block.attn1.to_out",
+    "block.ff_i.shared_experts.w1",
+    "block.ff_i.shared_experts.w2",
+    "block.ff_i.shared_experts.w3",
+    "block.ff_i.experts.0.w1",
+    "block.ff_i.experts.0.w2",
+    "block.ff_i.experts.0.w3",
+    "block.ff_i.experts.1.w1",
+    "block.ff_i.experts.1.w2",
+    "block.ff_i.experts.1.w3",
+    "block.ff_i.experts.2.w1",
+    "block.ff_i.experts.2.w2",
+    "block.ff_i.experts.2.w3",
+    "block.ff_i.experts.3.w1",
+    "block.ff_i.experts.3.w2",
+    "block.ff_i.experts.3.w3",
+]

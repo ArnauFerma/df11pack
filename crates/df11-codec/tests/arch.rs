@@ -215,6 +215,7 @@ fn layout_names_round_trip() {
         Layout::Transformers,
         Layout::Diffusers,
         Layout::ComfyuiNative,
+        Layout::DiffusersSingle,
     ] {
         let toml = format!(
             "name = \"t\"\nlayout = \"{}\"\nformat_version = \"0.5.0\"\nthreads_per_block = [512]\n\

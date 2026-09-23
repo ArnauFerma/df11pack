@@ -26,7 +26,7 @@ machines, with little RAM, no NVIDIA GPU, and spinning hard drives.
 
 - Rust, single static binary, no Python at runtime.
 - Both output layouts from the start: ComfyUI-native (single file) and diffusers (directory of shards + `config.json`).
-- v1 architectures: Flux and Chroma, both layouts. Also shipped: every model in ComfyUI-DFloat11-Extended's `pattern_dict.py` (ComfyUI-native) and Qwen3 — 24 definitions; `df11pack architectures` lists them.
+- v1 architectures: Flux and Chroma, both layouts. Also shipped: every model in ComfyUI-DFloat11-Extended's `pattern_dict.py` (ComfyUI-native) and every official DFloat11 release with a `dfloat11_config` (40 of 45) — 35 definitions; `df11pack architectures` lists them.
 - Two modes: *fast* (compress only) and *safe* (verify every unit after encoding), plus a standalone post-hoc verifier.
 - The GPU is used only for verification, never for compression.
 

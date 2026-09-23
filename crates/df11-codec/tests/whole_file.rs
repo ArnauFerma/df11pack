@@ -59,6 +59,11 @@ fn comfyui_single_file_is_identical() {
     for (set, arch) in [
         ("synthetic-flux-comfyui", "flux-comfyui"),
         ("synthetic-sdxl-comfyui", "sdxl-comfyui"),
+        // Same writer, the Qwen-Image releases' file name, and a config.json.
+        (
+            "synthetic-qwen-image-diffusers-single",
+            "qwen-image-diffusers-single",
+        ),
     ] {
         let Some((out, official)) = run(arch, set, arch) else {
             return;

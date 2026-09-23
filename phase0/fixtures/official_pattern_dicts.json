@@ -241,5 +241,579 @@
         "param_generator"
       ]
     }
+  },
+  "bagel-7b-mot": {
+    "repo": "DFloat11/BAGEL-7B-MoT-DF11",
+    "revision": "d6963482676a12d4838f66fabfbe9a3d047a6918",
+    "layout": "transformers",
+    "version": "0.2.0",
+    "threads_per_block": [
+      512
+    ],
+    "bytes_per_thread": 8,
+    "pattern_dict": {
+      "language_model\\.model\\.embed_tokens": [],
+      "language_model\\.model\\.layers.\\d+": [
+        "self_attn.q_proj",
+        "self_attn.k_proj",
+        "self_attn.v_proj",
+        "self_attn.o_proj",
+        "self_attn.q_proj_moe_gen",
+        "self_attn.k_proj_moe_gen",
+        "self_attn.v_proj_moe_gen",
+        "self_attn.o_proj_moe_gen",
+        "mlp.gate_proj",
+        "mlp.up_proj",
+        "mlp.down_proj",
+        "mlp_moe_gen.gate_proj",
+        "mlp_moe_gen.up_proj",
+        "mlp_moe_gen.down_proj"
+      ],
+      "language_model\\.lm_head": [],
+      "vit_model": [
+        "vision_model.encoder.layers.0.self_attn.k_proj",
+        "vision_model.encoder.layers.0.self_attn.v_proj",
+        "vision_model.encoder.layers.0.self_attn.q_proj",
+        "vision_model.encoder.layers.0.self_attn.out_proj",
+        "vision_model.encoder.layers.0.mlp.fc1",
+        "vision_model.encoder.layers.0.mlp.fc2",
+        "vision_model.encoder.layers.1.self_attn.k_proj",
+        "vision_model.encoder.layers.1.self_attn.v_proj",
+        "vision_model.encoder.layers.1.self_attn.q_proj",
+        "vision_model.encoder.layers.1.self_attn.out_proj",
+        "vision_model.encoder.layers.1.mlp.fc1",
+        "vision_model.encoder.layers.1.mlp.fc2",
+        "vision_model.encoder.layers.2.self_attn.k_proj",
+        "vision_model.encoder.layers.2.self_attn.v_proj",
+        "vision_model.encoder.layers.2.self_attn.q_proj",
+        "vision_model.encoder.layers.2.self_attn.out_proj",
+        "vision_model.encoder.layers.2.mlp.fc1",
+        "vision_model.encoder.layers.2.mlp.fc2",
+        "vision_model.encoder.layers.3.self_attn.k_proj",
+        "vision_model.encoder.layers.3.self_attn.v_proj",
+        "vision_model.encoder.layers.3.self_attn.q_proj",
+        "vision_model.encoder.layers.3.self_attn.out_proj",
+        "vision_model.encoder.layers.3.mlp.fc1",
+        "vision_model.encoder.layers.3.mlp.fc2",
+        "vision_model.encoder.layers.4.self_attn.k_proj",
+        "vision_model.encoder.layers.4.self_attn.v_proj",
+        "vision_model.encoder.layers.4.self_attn.q_proj",
+        "vision_model.encoder.layers.4.self_attn.out_proj",
+        "vision_model.encoder.layers.4.mlp.fc1",
+        "vision_model.encoder.layers.4.mlp.fc2",
+        "vision_model.encoder.layers.5.self_attn.k_proj",
+        "vision_model.encoder.layers.5.self_attn.v_proj",
+        "vision_model.encoder.layers.5.self_attn.q_proj",
+        "vision_model.encoder.layers.5.self_attn.out_proj",
+        "vision_model.encoder.layers.5.mlp.fc1",
+        "vision_model.encoder.layers.5.mlp.fc2",
+        "vision_model.encoder.layers.6.self_attn.k_proj",
+        "vision_model.encoder.layers.6.self_attn.v_proj",
+        "vision_model.encoder.layers.6.self_attn.q_proj",
+        "vision_model.encoder.layers.6.self_attn.out_proj",
+        "vision_model.encoder.layers.6.mlp.fc1",
+        "vision_model.encoder.layers.6.mlp.fc2",
+        "vision_model.encoder.layers.7.self_attn.k_proj",
+        "vision_model.encoder.layers.7.self_attn.v_proj",
+        "vision_model.encoder.layers.7.self_attn.q_proj",
+        "vision_model.encoder.layers.7.self_attn.out_proj",
+        "vision_model.encoder.layers.7.mlp.fc1",
+        "vision_model.encoder.layers.7.mlp.fc2",
+        "vision_model.encoder.layers.8.self_attn.k_proj",
+        "vision_model.encoder.layers.8.self_attn.v_proj",
+        "vision_model.encoder.layers.8.self_attn.q_proj",
+        "vision_model.encoder.layers.8.self_attn.out_proj",
+        "vision_model.encoder.layers.8.mlp.fc1",
+        "vision_model.encoder.layers.8.mlp.fc2",
+        "vision_model.encoder.layers.9.self_attn.k_proj",
+        "vision_model.encoder.layers.9.self_attn.v_proj",
+        "vision_model.encoder.layers.9.self_attn.q_proj",
+        "vision_model.encoder.layers.9.self_attn.out_proj",
+        "vision_model.encoder.layers.9.mlp.fc1",
+        "vision_model.encoder.layers.9.mlp.fc2",
+        "vision_model.encoder.layers.10.self_attn.k_proj",
+        "vision_model.encoder.layers.10.self_attn.v_proj",
+        "vision_model.encoder.layers.10.self_attn.q_proj",
+        "vision_model.encoder.layers.10.self_attn.out_proj",
+        "vision_model.encoder.layers.10.mlp.fc1",
+        "vision_model.encoder.layers.10.mlp.fc2",
+        "vision_model.encoder.layers.11.self_attn.k_proj",
+        "vision_model.encoder.layers.11.self_attn.v_proj",
+        "vision_model.encoder.layers.11.self_attn.q_proj",
+        "vision_model.encoder.layers.11.self_attn.out_proj",
+        "vision_model.encoder.layers.11.mlp.fc1",
+        "vision_model.encoder.layers.11.mlp.fc2",
+        "vision_model.encoder.layers.12.self_attn.k_proj",
+        "vision_model.encoder.layers.12.self_attn.v_proj",
+        "vision_model.encoder.layers.12.self_attn.q_proj",
+        "vision_model.encoder.layers.12.self_attn.out_proj",
+        "vision_model.encoder.layers.12.mlp.fc1",
+        "vision_model.encoder.layers.12.mlp.fc2",
+        "vision_model.encoder.layers.13.self_attn.k_proj",
+        "vision_model.encoder.layers.13.self_attn.v_proj",
+        "vision_model.encoder.layers.13.self_attn.q_proj",
+        "vision_model.encoder.layers.13.self_attn.out_proj",
+        "vision_model.encoder.layers.13.mlp.fc1",
+        "vision_model.encoder.layers.13.mlp.fc2",
+        "vision_model.encoder.layers.14.self_attn.k_proj",
+        "vision_model.encoder.layers.14.self_attn.v_proj",
+        "vision_model.encoder.layers.14.self_attn.q_proj",
+        "vision_model.encoder.layers.14.self_attn.out_proj",
+        "vision_model.encoder.layers.14.mlp.fc1",
+        "vision_model.encoder.layers.14.mlp.fc2",
+        "vision_model.encoder.layers.15.self_attn.k_proj",
+        "vision_model.encoder.layers.15.self_attn.v_proj",
+        "vision_model.encoder.layers.15.self_attn.q_proj",
+        "vision_model.encoder.layers.15.self_attn.out_proj",
+        "vision_model.encoder.layers.15.mlp.fc1",
+        "vision_model.encoder.layers.15.mlp.fc2",
+        "vision_model.encoder.layers.16.self_attn.k_proj",
+        "vision_model.encoder.layers.16.self_attn.v_proj",
+        "vision_model.encoder.layers.16.self_attn.q_proj",
+        "vision_model.encoder.layers.16.self_attn.out_proj",
+        "vision_model.encoder.layers.16.mlp.fc1",
+        "vision_model.encoder.layers.16.mlp.fc2",
+        "vision_model.encoder.layers.17.self_attn.k_proj",
+        "vision_model.encoder.layers.17.self_attn.v_proj",
+        "vision_model.encoder.layers.17.self_attn.q_proj",
+        "vision_model.encoder.layers.17.self_attn.out_proj",
+        "vision_model.encoder.layers.17.mlp.fc1",
+        "vision_model.encoder.layers.17.mlp.fc2",
+        "vision_model.encoder.layers.18.self_attn.k_proj",
+        "vision_model.encoder.layers.18.self_attn.v_proj",
+        "vision_model.encoder.layers.18.self_attn.q_proj",
+        "vision_model.encoder.layers.18.self_attn.out_proj",
+        "vision_model.encoder.layers.18.mlp.fc1",
+        "vision_model.encoder.layers.18.mlp.fc2",
+        "vision_model.encoder.layers.19.self_attn.k_proj",
+        "vision_model.encoder.layers.19.self_attn.v_proj",
+        "vision_model.encoder.layers.19.self_attn.q_proj",
+        "vision_model.encoder.layers.19.self_attn.out_proj",
+        "vision_model.encoder.layers.19.mlp.fc1",
+        "vision_model.encoder.layers.19.mlp.fc2",
+        "vision_model.encoder.layers.20.self_attn.k_proj",
+        "vision_model.encoder.layers.20.self_attn.v_proj",
+        "vision_model.encoder.layers.20.self_attn.q_proj",
+        "vision_model.encoder.layers.20.self_attn.out_proj",
+        "vision_model.encoder.layers.20.mlp.fc1",
+        "vision_model.encoder.layers.20.mlp.fc2",
+        "vision_model.encoder.layers.21.self_attn.k_proj",
+        "vision_model.encoder.layers.21.self_attn.v_proj",
+        "vision_model.encoder.layers.21.self_attn.q_proj",
+        "vision_model.encoder.layers.21.self_attn.out_proj",
+        "vision_model.encoder.layers.21.mlp.fc1",
+        "vision_model.encoder.layers.21.mlp.fc2",
+        "vision_model.encoder.layers.22.self_attn.k_proj",
+        "vision_model.encoder.layers.22.self_attn.v_proj",
+        "vision_model.encoder.layers.22.self_attn.q_proj",
+        "vision_model.encoder.layers.22.self_attn.out_proj",
+        "vision_model.encoder.layers.22.mlp.fc1",
+        "vision_model.encoder.layers.22.mlp.fc2",
+        "vision_model.encoder.layers.23.self_attn.k_proj",
+        "vision_model.encoder.layers.23.self_attn.v_proj",
+        "vision_model.encoder.layers.23.self_attn.q_proj",
+        "vision_model.encoder.layers.23.self_attn.out_proj",
+        "vision_model.encoder.layers.23.mlp.fc1",
+        "vision_model.encoder.layers.23.mlp.fc2",
+        "vision_model.encoder.layers.24.self_attn.k_proj",
+        "vision_model.encoder.layers.24.self_attn.v_proj",
+        "vision_model.encoder.layers.24.self_attn.q_proj",
+        "vision_model.encoder.layers.24.self_attn.out_proj",
+        "vision_model.encoder.layers.24.mlp.fc1",
+        "vision_model.encoder.layers.24.mlp.fc2",
+        "vision_model.encoder.layers.25.self_attn.k_proj",
+        "vision_model.encoder.layers.25.self_attn.v_proj",
+        "vision_model.encoder.layers.25.self_attn.q_proj",
+        "vision_model.encoder.layers.25.self_attn.out_proj",
+        "vision_model.encoder.layers.25.mlp.fc1",
+        "vision_model.encoder.layers.25.mlp.fc2",
+        "vision_model.embeddings.patch_embedding"
+      ]
+    },
+    "used_by": [
+      "BAGEL-7B-MoT-DF11"
+    ]
+  },
+  "flux-kontext-dev-diffusers": {
+    "repo": "DFloat11/FLUX.1-Kontext-dev-DF11",
+    "revision": "ba3e7ce75f4114755b78af80cb3596ef1c0bf999",
+    "layout": "diffusers",
+    "version": "0.2.0",
+    "threads_per_block": [
+      512
+    ],
+    "bytes_per_thread": 8,
+    "pattern_dict": {
+      "transformer_blocks\\.\\d+": [
+        "norm1.linear",
+        "norm1_context.linear",
+        "attn.to_q",
+        "attn.to_k",
+        "attn.to_v",
+        "attn.add_k_proj",
+        "attn.add_v_proj",
+        "attn.add_q_proj",
+        "attn.to_out.0",
+        "attn.to_add_out",
+        "ff.net.0.proj",
+        "ff.net.2",
+        "ff_context.net.0.proj",
+        "ff_context.net.2"
+      ],
+      "single_transformer_blocks\\.\\d+": [
+        "norm.linear",
+        "proj_mlp",
+        "proj_out",
+        "attn.to_q",
+        "attn.to_k",
+        "attn.to_v"
+      ]
+    },
+    "used_by": [
+      "FLUX.1-Kontext-dev-DF11",
+      "FLUX.1-Krea-dev-DF11"
+    ]
+  },
+  "hidream-i1-diffusers": {
+    "repo": "DFloat11/HiDream-I1-Full-DF11",
+    "revision": "2ace206588bdadce70612fd07c7124c02f975475",
+    "layout": "diffusers",
+    "version": "0.2.0",
+    "threads_per_block": [
+      512
+    ],
+    "bytes_per_thread": 8,
+    "pattern_dict": {
+      "double_stream_blocks\\.\\d+": [
+        "block.adaLN_modulation.1",
+        "block.attn1.to_q",
+        "block.attn1.to_k",
+        "block.attn1.to_v",
+        "block.attn1.to_out",
+        "block.attn1.to_q_t",
+        "block.attn1.to_k_t",
+        "block.attn1.to_v_t",
+        "block.attn1.to_out_t",
+        "block.ff_i.shared_experts.w1",
+        "block.ff_i.shared_experts.w2",
+        "block.ff_i.shared_experts.w3",
+        "block.ff_i.experts.0.w1",
+        "block.ff_i.experts.0.w2",
+        "block.ff_i.experts.0.w3",
+        "block.ff_i.experts.1.w1",
+        "block.ff_i.experts.1.w2",
+        "block.ff_i.experts.1.w3",
+        "block.ff_i.experts.2.w1",
+        "block.ff_i.experts.2.w2",
+        "block.ff_i.experts.2.w3",
+        "block.ff_i.experts.3.w1",
+        "block.ff_i.experts.3.w2",
+        "block.ff_i.experts.3.w3",
+        "block.ff_t.w1",
+        "block.ff_t.w2",
+        "block.ff_t.w3"
+      ],
+      "single_stream_blocks\\.\\d+": [
+        "block.adaLN_modulation.1",
+        "block.attn1.to_q",
+        "block.attn1.to_k",
+        "block.attn1.to_v",
+        "block.attn1.to_out",
+        "block.ff_i.shared_experts.w1",
+        "block.ff_i.shared_experts.w2",
+        "block.ff_i.shared_experts.w3",
+        "block.ff_i.experts.0.w1",
+        "block.ff_i.experts.0.w2",
+        "block.ff_i.experts.0.w3",
+        "block.ff_i.experts.1.w1",
+        "block.ff_i.experts.1.w2",
+        "block.ff_i.experts.1.w3",
+        "block.ff_i.experts.2.w1",
+        "block.ff_i.experts.2.w2",
+        "block.ff_i.experts.2.w3",
+        "block.ff_i.experts.3.w1",
+        "block.ff_i.experts.3.w2",
+        "block.ff_i.experts.3.w3"
+      ]
+    },
+    "used_by": [
+      "HiDream-I1-Full-DF11"
+    ]
+  },
+  "llama-3.3-70b": {
+    "repo": "DFloat11/Llama-3.3-70B-Instruct-DF11",
+    "revision": "a3ef3c834588a036fba688f55670eb5fe3a85057",
+    "layout": "transformers",
+    "version": "0.2.0",
+    "threads_per_block": [
+      512
+    ],
+    "bytes_per_thread": 8,
+    "pattern_dict": {
+      "lm_head": [],
+      "model\\.embed_tokens": [],
+      "model\\.layers\\.\\d+": [
+        "self_attn.q_proj",
+        "self_attn.k_proj",
+        "self_attn.v_proj",
+        "self_attn.o_proj",
+        "mlp.gate_proj",
+        "mlp.up_proj",
+        "mlp.down_proj"
+      ]
+    },
+    "used_by": [
+      "Llama-3.3-70B-Instruct-DF11",
+      "Mistral-Nemo-Instruct-2407-DF11",
+      "Mistral-Small-24B-Instruct-2501-DF11"
+    ]
+  },
+  "omnigen2-mllm": {
+    "repo": "DFloat11/OmniGen2-mllm-DF11",
+    "revision": "f830167f773b3a5564fafdb323333bb266af9c82",
+    "layout": "transformers",
+    "version": "0.2.0",
+    "threads_per_block": [
+      512
+    ],
+    "bytes_per_thread": 8,
+    "pattern_dict": {
+      "lm_head": [],
+      "model\\.embed_tokens": [],
+      "model\\.layers\\.\\d+": [
+        "self_attn.q_proj",
+        "self_attn.k_proj",
+        "self_attn.v_proj",
+        "self_attn.o_proj",
+        "mlp.gate_proj",
+        "mlp.up_proj",
+        "mlp.down_proj"
+      ],
+      "visual\\.blocks\\.\\d+": [
+        "attn.qkv",
+        "attn.proj",
+        "mlp.gate_proj",
+        "mlp.up_proj",
+        "mlp.down_proj"
+      ],
+      "visual\\.merger\\.mlp": [
+        "0",
+        "2"
+      ]
+    },
+    "used_by": [
+      "OmniGen2-mllm-DF11"
+    ]
+  },
+  "omnigen2-transformer-diffusers": {
+    "repo": "DFloat11/OmniGen2-transformer-DF11",
+    "revision": "a5747bf9fc5dbde87a710cfe2073a01e7468d033",
+    "layout": "diffusers",
+    "version": "0.2.0",
+    "threads_per_block": [
+      512
+    ],
+    "bytes_per_thread": 8,
+    "pattern_dict": {
+      "noise_refiner\\.\\d+": [
+        "attn.to_q",
+        "attn.to_k",
+        "attn.to_v",
+        "attn.to_out.0",
+        "feed_forward.linear_1",
+        "feed_forward.linear_2",
+        "feed_forward.linear_3",
+        "norm1.linear"
+      ],
+      "ref_image_refiner\\.\\d+": [
+        "attn.to_q",
+        "attn.to_k",
+        "attn.to_v",
+        "attn.to_out.0",
+        "feed_forward.linear_1",
+        "feed_forward.linear_2",
+        "feed_forward.linear_3",
+        "norm1.linear"
+      ],
+      "context_refiner\\.\\d+": [
+        "attn.to_q",
+        "attn.to_k",
+        "attn.to_v",
+        "attn.to_out.0",
+        "feed_forward.linear_1",
+        "feed_forward.linear_2",
+        "feed_forward.linear_3"
+      ],
+      "layers\\.\\d+": [
+        "attn.to_q",
+        "attn.to_k",
+        "attn.to_v",
+        "attn.to_out.0",
+        "feed_forward.linear_1",
+        "feed_forward.linear_2",
+        "feed_forward.linear_3",
+        "norm1.linear"
+      ]
+    },
+    "used_by": [
+      "OmniGen2-transformer-DF11"
+    ]
+  },
+  "phi-4": {
+    "repo": "DFloat11/Phi-4-reasoning-plus-DF11",
+    "revision": "3124e501bed4242733d256623c8b644f02a8e0e4",
+    "layout": "transformers",
+    "version": "0.2.0",
+    "threads_per_block": [
+      512
+    ],
+    "bytes_per_thread": 8,
+    "pattern_dict": {
+      "lm_head": [],
+      "model.embed_tokens": [],
+      "model.layers.\\d+": [
+        "self_attn.o_proj",
+        "self_attn.qkv_proj",
+        "mlp.gate_up_proj",
+        "mlp.down_proj"
+      ]
+    },
+    "used_by": [
+      "Phi-4-reasoning-plus-DF11"
+    ]
+  },
+  "qwen-image-diffusers-single": {
+    "repo": "DFloat11/Qwen-Image-DF11",
+    "revision": "e78d713015b713a3d5d6965c3399f74fadba0822",
+    "layout": "diffusers-single",
+    "version": "0.3.1",
+    "threads_per_block": [
+      512
+    ],
+    "bytes_per_thread": 8,
+    "pattern_dict": {
+      "transformer_blocks\\.\\d+": [
+        "img_mod.1",
+        "attn.to_q",
+        "attn.to_k",
+        "attn.to_v",
+        "attn.add_k_proj",
+        "attn.add_v_proj",
+        "attn.add_q_proj",
+        "attn.to_out.0",
+        "attn.to_add_out",
+        "img_mlp.net.0.proj",
+        "img_mlp.net.2",
+        "txt_mod.1",
+        "txt_mlp.net.0.proj",
+        "txt_mlp.net.2"
+      ]
+    },
+    "used_by": [
+      "Qwen-Image-DF11",
+      "Qwen-Image-Edit-2509-DF11",
+      "Qwen-Image-Edit-DF11"
+    ]
+  },
+  "wan-diffusers": {
+    "repo": "DFloat11/Wan2.1-T2V-14B-Diffusers-DF11",
+    "revision": "cdd716c8dc404c23815912c86c21b11a9cc82ba4",
+    "layout": "diffusers",
+    "version": "0.2.0",
+    "threads_per_block": [
+      512
+    ],
+    "bytes_per_thread": 8,
+    "pattern_dict": {
+      "blocks\\.\\d+": [
+        "attn1.to_q",
+        "attn1.to_k",
+        "attn1.to_v",
+        "attn1.to_out.0",
+        "attn2.to_q",
+        "attn2.to_k",
+        "attn2.to_v",
+        "attn2.to_out.0",
+        "ffn.net.0.proj",
+        "ffn.net.2"
+      ]
+    },
+    "used_by": [
+      "Wan2.1-T2V-14B-Diffusers-DF11",
+      "Wan2.2-I2V-A14B-2-DF11",
+      "Wan2.2-I2V-A14B-DF11",
+      "Wan2.2-T2V-A14B-2-DF11",
+      "Wan2.2-T2V-A14B-DF11"
+    ]
+  },
+  "gemma-3": {
+    "repo": "DFloat11/gemma-3-4b-it-DF11",
+    "revision": "4d4a43ee7e834817ef6389095b8bb7341abb052d",
+    "layout": "transformers",
+    "version": "0.2.0",
+    "threads_per_block": [
+      512
+    ],
+    "bytes_per_thread": 8,
+    "pattern_dict": {
+      "language_model.model.layers.\\d+": [
+        "self_attn.q_proj",
+        "self_attn.k_proj",
+        "self_attn.v_proj",
+        "self_attn.o_proj",
+        "mlp.gate_proj",
+        "mlp.up_proj",
+        "mlp.down_proj"
+      ]
+    },
+    "used_by": [
+      "gemma-3-12b-it-DF11",
+      "gemma-3-27b-it-DF11",
+      "gemma-3-4b-it-DF11"
+    ]
+  },
+  "sd35-large-diffusers": {
+    "repo": "DFloat11/stable-diffusion-3.5-large-DF11",
+    "revision": "5114965c4749cef559514d89027949509c569ec3",
+    "layout": "diffusers",
+    "version": "0.2.0",
+    "threads_per_block": [
+      512
+    ],
+    "bytes_per_thread": 8,
+    "pattern_dict": {
+      "transformer_blocks\\.([0-9]|[1-2][0-9]|3[0-6])": [
+        "norm1.linear",
+        "norm1_context.linear",
+        "attn.to_q",
+        "attn.to_k",
+        "attn.to_v",
+        "attn.add_k_proj",
+        "attn.add_v_proj",
+        "attn.add_q_proj",
+        "attn.to_out.0",
+        "attn.to_add_out",
+        "ff.net.0.proj",
+        "ff.net.2",
+        "ff_context.net.0.proj",
+        "ff_context.net.2"
+      ],
+      "transformer_blocks\\.37": [
+        "norm1.linear",
+        "norm1_context.linear",
+        "attn.to_q",
+        "attn.to_k",
+        "attn.to_v",
+        "attn.add_k_proj",
+        "attn.add_v_proj",
+        "attn.add_q_proj",
+        "attn.to_out.0",
+        "ff.net.0.proj",
+        "ff.net.2"
+      ]
+    },
+    "used_by": [
+      "stable-diffusion-3.5-large-DF11"
+    ]
   }
 }

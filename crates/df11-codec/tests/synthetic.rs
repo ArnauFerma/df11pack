@@ -128,5 +128,5 @@ fn every_definition_matches_the_official_output() {
         check(&set, &name);
         checked += 1;
     }
-    assert!(checked >= 18, "checked {checked}");
+    assert!(checked >= 29, "checked {checked}");
 }

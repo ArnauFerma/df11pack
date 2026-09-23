@@ -24,6 +24,9 @@ pub enum Layout {
     Diffusers,
     /// ComfyUI-native: a single safetensors, no `config.json`.
     ComfyuiNative,
+    /// Diffusers, single file: one `diffusion_pytorch_model.safetensors` holding
+    /// every tensor, plus `config.json`. What the Qwen-Image releases ship.
+    DiffusersSingle,
 }
 
 impl Layout {
@@ -33,7 +36,13 @@ impl Layout {
             Layout::Transformers => "transformers",
             Layout::Diffusers => "diffusers",
             Layout::ComfyuiNative => "comfyui-native",
+            Layout::DiffusersSingle => "diffusers-single",
         }
+    }
+
+    /// Whether the output is one file rather than a shard per unit.
+    pub fn single_file(self) -> bool {
+        matches!(self, Layout::ComfyuiNative | Layout::DiffusersSingle)
     }
 }
 

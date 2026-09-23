@@ -1,0 +1,48 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# Official DF11 layout of: OmniGen2-mllm-DF11.
+
+name = "omnigen2-mllm"
+layout = "transformers"
+format_version = "0.2.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "DFloat11/OmniGen2-mllm-DF11"
+
+[[unit]]
+pattern = "lm_head"
+# empty: the matched module is itself one tensor
+attrs = []
+
+[[unit]]
+pattern = 'model\.embed_tokens'
+# empty: the matched module is itself one tensor
+attrs = []
+
+[[unit]]
+pattern = 'model\.layers\.\d+'
+attrs = [
+    "self_attn.q_proj",
+    "self_attn.k_proj",
+    "self_attn.v_proj",
+    "self_attn.o_proj",
+    "mlp.gate_proj",
+    "mlp.up_proj",
+    "mlp.down_proj",
+]
+
+[[unit]]
+pattern = 'visual\.blocks\.\d+'
+attrs = [
+    "attn.qkv",
+    "attn.proj",
+    "mlp.gate_proj",
+    "mlp.up_proj",
+    "mlp.down_proj",
+]
+
+[[unit]]
+pattern = 'visual\.merger\.mlp'
+attrs = [
+    "0",
+    "2",
+]

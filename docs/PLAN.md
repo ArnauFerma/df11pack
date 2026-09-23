@@ -455,18 +455,21 @@ Rough effort: 10–14 days.
 damage without the source, value errors with it — and located to unit and chunk
 (FINDINGS, Phase 6).
 
-### Phase 7 — Remaining architectures — **DONE for Extended and `qwen3-8b`**
+### Phase 7 — Remaining architectures — **DONE**
 
-All 19 models in Extended's `pattern_dict.py`, pinned to commit `414506d`
-(`phase0/import_extended.py`, parsed with `ast`, never executed), generated into
-`data/architectures/` by `gen_arch_defs.py`: 16 new definitions, plus a drift check
-that the three already shipped (Flux, Chroma, ChromaRadiance) still match upstream.
-Each has a synthetic model compressed by the official tool, and df11pack's output is
-byte-identical for all of them (`tests/synthetic.rs`); `verify --level full` passes
-on each official output.
-**Still open:** the official
-LLM examples beyond Qwen3 are not yet added; and synthetic models prove the
-definition is reproduced, not that it fits a real checkpoint's names.
+35 definitions, each byte-identical (whole files where the official code writes
+them) against a stand-in compressed by the official tool, and each passing
+`verify --level full`:
+
+- all 19 models in Extended's `pattern_dict.py` @ `414506d`, ComfyUI-native;
+- every official DFloat11 release with a `dfloat11_config` — 40 of 45 map to a
+  definition (`phase0/fixtures/official_releases.json`); the other 5 are the legacy
+  0.1.0 format or a ComfyUI file;
+- a fourth layout, `diffusers-single`, for the Qwen-Image releases.
+
+**Still open:** stand-ins prove each definition is reproduced, not that it fits a
+real checkpoint's tensor names. That needs one real source file per architecture
+(the user's call on which are worth the download).
 
 ---
 

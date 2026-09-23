@@ -390,13 +390,14 @@ pub fn shard_name(unit: &str) -> String {
 /// everything.
 pub fn remainder_name(layout: Layout) -> &'static str {
     match layout {
-        Layout::Diffusers => "diffusion_pytorch_model.safetensors",
+        Layout::Diffusers | Layout::DiffusersSingle => "diffusion_pytorch_model.safetensors",
         _ => "model.safetensors",
     }
 }
 
 /// Compress a model into a DF11 output: a directory of shards for the
-/// transformers and diffusers layouts, a single file for ComfyUI-native.
+/// transformers and diffusers layouts, a single file for ComfyUI-native and
+/// diffusers-single (the latter with a `config.json` beside it).
 pub fn write_directory(
     source: &ModelSource,
     def: &ArchDef,
@@ -499,7 +500,7 @@ pub fn write_directory(
     let mut verified = Vec::new();
     let mut output_bytes: u64 = 0;
 
-    if def.layout == Layout::ComfyuiNative {
+    if def.layout.single_file() {
         // One file. Its header must list every tensor's byte range before any
         // data is written, but encoded sizes are only known after encoding.
         // Holding every unit in memory would break the budget, and staging to
@@ -667,7 +668,7 @@ pub fn write_directory(
         // Extended node discards it (DESIGN 5.5).
         Layout::ComfyuiNative => None,
         layout => {
-            let mode = if layout == Layout::Diffusers {
+            let mode = if matches!(layout, Layout::Diffusers | Layout::DiffusersSingle) {
                 // What every published diffusers release actually ships.
                 ConfigMode::Minimal
             } else {

@@ -1517,3 +1517,52 @@ never removed them; after the mutation runs this reached 29 GB and the disk fill
 mid-suite. All test output now goes through `df11_fixtures::scratch`, under
 `df11pack-tests/<pid>/`, and each run removes the directories of processes no
 longer running. After a full suite, 8 KB remains.
+
+---
+
+# Phase 7 — The official releases
+
+`phase0/import_official_releases.py` reads the `config.json` of every release in the
+DFloat11 Hugging Face organisation at a pinned commit (JSON only, no weights) and
+maps each to the definition that reproduces its `pattern_dict`
+(`phase0/fixtures/official_releases.json`).
+
+- **45 releases; 40 map to a definition.** The other 5 carry no `dfloat11_config`:
+  four use the legacy 0.1.0 pickle format (Dolphin3.0 ×2, Llama-3.1-405B,
+  Qwen2.5-32B), out of scope; one is a ComfyUI file, which Extended's Flux covers.
+- **15 distinct pattern_dicts.** Four were already shipped (Chroma, FLUX.1-dev,
+  Qwen3-4B, Qwen3-8B; the last also covers the DeepSeek distills, Llama-3.1-8B,
+  QwQ, Qwen2.5-14B and Qwen3-14B/32B). **11 new definitions**: BAGEL, FLUX.1-Kontext
+  (and Krea — same patterns with escaped dots), HiDream-I1, Llama-3.3-70B (and both
+  Mistrals), OmniGen2 ×2, Phi-4, Qwen-Image (three releases), Wan (2.1 and all four
+  2.2), Gemma-3 (three sizes), SD3.5-large.
+- **Each is byte-identical** against a stand-in run through the official
+  compressor, and passes `verify --level full`.
+
+## A fourth layout: diffusers, single file
+
+The Qwen-Image releases are one 26 GB `diffusion_pytorch_model.safetensors` and a
+`config.json` — neither the shard-per-unit diffusers layout nor ComfyUI's
+`model.safetensors` without config. Added as `diffusers-single`: the single-file
+writer, that file name, and the diffusers `config.json`.
+
+Its header was read from the real release by HTTP range request (the first few KB,
+not the 26 GB): no metadata, 1,453 tensors, contiguous, laid out in exactly the
+`safetensors` library's order — **the first check of our layout rule against a real
+release**, and it holds. pip `dfloat11` 0.5.0 would name this file
+`model.safetensors`; the releases do not, so the stand-in renames it — the one
+place the fixture follows the release rather than the tool.
+
+## Also in the stand-in generator
+
+SD3.5 splits `transformer_blocks` with an alternation group,
+`([0-9]|[1-2][0-9]|3[0-6])` and a separate `transformer_blocks\.37`; the generator
+now instantiates groups by searching the integers they accept. BAGEL's `vit_model`
+unit concatenates 157 attributes; wide units get narrower stand-in tensors.
+
+## Version strings
+
+A definition carries one `format_version`, from its canonical release. Releases
+sharing a pattern_dict do not always share it (Wan2.1 is 0.2.0, Wan2.2 0.3.1;
+Qwen-Image 0.3.1, its Edit variants 0.3.2 and 0.5.0). It only reaches
+`config.json`'s `dfloat11_config.version`; the tensors do not depend on it.

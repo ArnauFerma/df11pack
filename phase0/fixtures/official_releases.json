@@ -1,0 +1,227 @@
+{
+ "DFloat11/BAGEL-7B-MoT-DF11": {
+  "sha": "d6963482676a12d4838f66fabfbe9a3d047a6918",
+  "version": "0.2.0",
+  "definition": "bagel-7b-mot"
+ },
+ "DFloat11/Chroma-DF11": {
+  "sha": "08256171e3d12ae63295f4e280c37d46842b55e5",
+  "version": "0.2.0",
+  "definition": "chroma-diffusers"
+ },
+ "DFloat11/DeepSeek-R1-0528-Qwen3-8B-DF11": {
+  "sha": "bc28716e482dc3bb5287c7b30e7b469bf9b96fec",
+  "version": "0.2.0",
+  "definition": "qwen3-8b"
+ },
+ "DFloat11/DeepSeek-R1-Distill-Llama-8B-DF11": {
+  "sha": "18d799c502da7aa075c29ba0a9705b2d643c249d",
+  "version": "0.2.0",
+  "definition": "qwen3-8b"
+ },
+ "DFloat11/DeepSeek-R1-Distill-Qwen-14B-DF11": {
+  "sha": "eaed215915de17e0c635fc68d46504dc2bb00e79",
+  "version": "0.2.0",
+  "definition": "qwen3-8b"
+ },
+ "DFloat11/DeepSeek-R1-Distill-Qwen-32B-DF11": {
+  "sha": "af17d2a1fd07588668f533f8c191663ccbc17838",
+  "version": "0.2.0",
+  "definition": "qwen3-8b"
+ },
+ "DFloat11/DeepSeek-R1-Distill-Qwen-7B-DF11": {
+  "sha": "dd7ae6352dc4f20dbbdb7d394db5d5da78f35554",
+  "version": "0.2.0",
+  "definition": "qwen3-8b"
+ },
+ "DFloat11/Dolphin3.0-Mistral-24B-DF11": {
+  "sha": "e5220948306fd2f823bb4edba258525c49dc8981",
+  "definition": null,
+  "why": "no dfloat11_config: the legacy 0.1.0 format, or a ComfyUI file"
+ },
+ "DFloat11/Dolphin3.0-R1-Mistral-24B-DF11": {
+  "sha": "9debd4385529fddbb73134e72fd5f826a0836f54",
+  "definition": null,
+  "why": "no dfloat11_config: the legacy 0.1.0 format, or a ComfyUI file"
+ },
+ "DFloat11/FLUX.1-Canny-dev-DF11": {
+  "sha": "c716d5aa29c5d8b2240f9414aad8d2468f9c7b65",
+  "version": "0.2.0",
+  "definition": "flux-dev-diffusers"
+ },
+ "DFloat11/FLUX.1-Depth-dev-DF11": {
+  "sha": "bbd8d9af4e1f24ae349a015608fc14eaa501e005",
+  "version": "0.2.0",
+  "definition": "flux-dev-diffusers"
+ },
+ "DFloat11/FLUX.1-Fill-dev-DF11": {
+  "sha": "3bea9e8cc362dd20438c0c8857e84ad1c6928a3d",
+  "version": "0.2.0",
+  "definition": "flux-dev-diffusers"
+ },
+ "DFloat11/FLUX.1-Kontext-dev-DF11": {
+  "sha": "ba3e7ce75f4114755b78af80cb3596ef1c0bf999",
+  "version": "0.2.0",
+  "definition": "flux-kontext-dev-diffusers"
+ },
+ "DFloat11/FLUX.1-Krea-dev-DF11": {
+  "sha": "cee243ef011bb6c740f35dd1357f6c67b9da9d8d",
+  "version": "0.3.1",
+  "definition": "flux-kontext-dev-diffusers"
+ },
+ "DFloat11/FLUX.1-Krea-dev-DF11-ComfyUI": {
+  "sha": "bed57d0ebc811f666c5eaeda1d4d3090bd8695bf",
+  "definition": null,
+  "why": "no dfloat11_config: the legacy 0.1.0 format, or a ComfyUI file"
+ },
+ "DFloat11/FLUX.1-dev-DF11": {
+  "sha": "d662d6d46f637dc00ca03d8b814351230ae81e3b",
+  "version": "0.2.0",
+  "definition": "flux-dev-diffusers"
+ },
+ "DFloat11/FLUX.1-schnell-DF11": {
+  "sha": "51a428b928197e0531cb93d6e438941e2d0b247e",
+  "version": "0.2.0",
+  "definition": "flux-dev-diffusers"
+ },
+ "DFloat11/HiDream-I1-Full-DF11": {
+  "sha": "2ace206588bdadce70612fd07c7124c02f975475",
+  "version": "0.2.0",
+  "definition": "hidream-i1-diffusers"
+ },
+ "DFloat11/Llama-3.1-405B-Instruct-DF11": {
+  "sha": "b848ad9c1ab185d17314106cc18cef898cd795dc",
+  "definition": null,
+  "why": "no dfloat11_config: the legacy 0.1.0 format, or a ComfyUI file"
+ },
+ "DFloat11/Llama-3.1-8B-Instruct-DF11": {
+  "sha": "8fcadb86deccc193f0c2f78ae1a7abc456820df5",
+  "version": "0.2.0",
+  "definition": "qwen3-8b"
+ },
+ "DFloat11/Llama-3.3-70B-Instruct-DF11": {
+  "sha": "a3ef3c834588a036fba688f55670eb5fe3a85057",
+  "version": "0.2.0",
+  "definition": "llama-3.3-70b"
+ },
+ "DFloat11/Mistral-Nemo-Instruct-2407-DF11": {
+  "sha": "53f2587180a70468d11966d1fd79f23d53620c4b",
+  "version": "0.2.0",
+  "definition": "llama-3.3-70b"
+ },
+ "DFloat11/Mistral-Small-24B-Instruct-2501-DF11": {
+  "sha": "5f927fbd2baa0b729fdc1862af5e71b8af87f1a8",
+  "version": "0.2.0",
+  "definition": "llama-3.3-70b"
+ },
+ "DFloat11/OmniGen2-mllm-DF11": {
+  "sha": "f830167f773b3a5564fafdb323333bb266af9c82",
+  "version": "0.2.0",
+  "definition": "omnigen2-mllm"
+ },
+ "DFloat11/OmniGen2-transformer-DF11": {
+  "sha": "a5747bf9fc5dbde87a710cfe2073a01e7468d033",
+  "version": "0.2.0",
+  "definition": "omnigen2-transformer-diffusers"
+ },
+ "DFloat11/Phi-4-reasoning-plus-DF11": {
+  "sha": "3124e501bed4242733d256623c8b644f02a8e0e4",
+  "version": "0.2.0",
+  "definition": "phi-4"
+ },
+ "DFloat11/QwQ-32B-DF11": {
+  "sha": "e20dde21f8c0840070140ce6f0681a99a7976163",
+  "version": "0.2.0",
+  "definition": "qwen3-8b"
+ },
+ "DFloat11/Qwen-Image-DF11": {
+  "sha": "e78d713015b713a3d5d6965c3399f74fadba0822",
+  "version": "0.3.1",
+  "definition": "qwen-image-diffusers-single"
+ },
+ "DFloat11/Qwen-Image-Edit-2509-DF11": {
+  "sha": "c53d7f0196e55bf3007214ac945786f5e9421004",
+  "version": "0.5.0",
+  "definition": "qwen-image-diffusers-single"
+ },
+ "DFloat11/Qwen-Image-Edit-DF11": {
+  "sha": "4f8f85749619ef78ae4c56dc912480e559573813",
+  "version": "0.3.2",
+  "definition": "qwen-image-diffusers-single"
+ },
+ "DFloat11/Qwen2.5-14B-Instruct-DF11": {
+  "sha": "52fa77651852ad0ff744a07d1ad1b69fb34f9149",
+  "version": "0.2.0",
+  "definition": "qwen3-8b"
+ },
+ "DFloat11/Qwen2.5-32B-Instruct-DF11": {
+  "sha": "b24af0fcb5d2c4b091e8186221876066c26cf9bc",
+  "definition": null,
+  "why": "no dfloat11_config: the legacy 0.1.0 format, or a ComfyUI file"
+ },
+ "DFloat11/Qwen3-14B-DF11": {
+  "sha": "1b98c7539a10fdf293c66b3f9db0e69dd90454b0",
+  "version": "0.2.0",
+  "definition": "qwen3-8b"
+ },
+ "DFloat11/Qwen3-32B-DF11": {
+  "sha": "c61c74b61ec916fba4982c08bb913e994645cecf",
+  "version": "0.2.0",
+  "definition": "qwen3-8b"
+ },
+ "DFloat11/Qwen3-4B-DF11": {
+  "sha": "618eddad93ca71dacf56cef22e69c5968357dd6e",
+  "version": "0.2.0",
+  "definition": "qwen3-4b"
+ },
+ "DFloat11/Qwen3-8B-DF11": {
+  "sha": "24545db8fabc4190a4c684502ad90afdfb059cc4",
+  "version": "0.2.0",
+  "definition": "qwen3-8b"
+ },
+ "DFloat11/Wan2.1-T2V-14B-Diffusers-DF11": {
+  "sha": "cdd716c8dc404c23815912c86c21b11a9cc82ba4",
+  "version": "0.2.0",
+  "definition": "wan-diffusers"
+ },
+ "DFloat11/Wan2.2-I2V-A14B-2-DF11": {
+  "sha": "45ec3943137c1728f5b545833a78868ee733f3fb",
+  "version": "0.3.1",
+  "definition": "wan-diffusers"
+ },
+ "DFloat11/Wan2.2-I2V-A14B-DF11": {
+  "sha": "0e8271df16c32034de5307fa1f062502fda889db",
+  "version": "0.3.1",
+  "definition": "wan-diffusers"
+ },
+ "DFloat11/Wan2.2-T2V-A14B-2-DF11": {
+  "sha": "7ef87452093e3d117d098b89af62e8ddc1924b12",
+  "version": "0.3.1",
+  "definition": "wan-diffusers"
+ },
+ "DFloat11/Wan2.2-T2V-A14B-DF11": {
+  "sha": "93a563498020e21a87c615a0ce8ad6eddca1ea51",
+  "version": "0.3.1",
+  "definition": "wan-diffusers"
+ },
+ "DFloat11/gemma-3-12b-it-DF11": {
+  "sha": "83b38e367da03b015b93d4c62b7243a5f9c34e61",
+  "version": "0.2.0",
+  "definition": "gemma-3"
+ },
+ "DFloat11/gemma-3-27b-it-DF11": {
+  "sha": "62ea8d57c106acdad6980102ef2b3ea73aaa3526",
+  "version": "0.2.0",
+  "definition": "gemma-3"
+ },
+ "DFloat11/gemma-3-4b-it-DF11": {
+  "sha": "4d4a43ee7e834817ef6389095b8bb7341abb052d",
+  "version": "0.2.0",
+  "definition": "gemma-3"
+ },
+ "DFloat11/stable-diffusion-3.5-large-DF11": {
+  "sha": "5114965c4749cef559514d89027949509c569ec3",
+  "version": "0.2.0",
+  "definition": "sd35-large-diffusers"
+ }
+}

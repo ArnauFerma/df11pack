@@ -1,0 +1,60 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# Official DF11 layout of: OmniGen2-transformer-DF11.
+
+name = "omnigen2-transformer-diffusers"
+layout = "diffusers"
+format_version = "0.2.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "DFloat11/OmniGen2-transformer-DF11"
+
+[[unit]]
+pattern = 'noise_refiner\.\d+'
+attrs = [
+    "attn.to_q",
+    "attn.to_k",
+    "attn.to_v",
+    "attn.to_out.0",
+    "feed_forward.linear_1",
+    "feed_forward.linear_2",
+    "feed_forward.linear_3",
+    "norm1.linear",
+]
+
+[[unit]]
+pattern = 'ref_image_refiner\.\d+'
+attrs = [
+    "attn.to_q",
+    "attn.to_k",
+    "attn.to_v",
+    "attn.to_out.0",
+    "feed_forward.linear_1",
+    "feed_forward.linear_2",
+    "feed_forward.linear_3",
+    "norm1.linear",
+]
+
+[[unit]]
+pattern = 'context_refiner\.\d+'
+attrs = [
+    "attn.to_q",
+    "attn.to_k",
+    "attn.to_v",
+    "attn.to_out.0",
+    "feed_forward.linear_1",
+    "feed_forward.linear_2",
+    "feed_forward.linear_3",
+]
+
+[[unit]]
+pattern = 'layers\.\d+'
+attrs = [
+    "attn.to_q",
+    "attn.to_k",
+    "attn.to_v",
+    "attn.to_out.0",
+    "feed_forward.linear_1",
+    "feed_forward.linear_2",
+    "feed_forward.linear_3",
+    "norm1.linear",
+]

@@ -1,0 +1,28 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# Official DF11 layout of: Qwen-Image-DF11, Qwen-Image-Edit-2509-DF11, Qwen-Image-Edit-DF11.
+
+name = "qwen-image-diffusers-single"
+layout = "diffusers-single"
+format_version = "0.3.1"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "DFloat11/Qwen-Image-DF11"
+
+[[unit]]
+pattern = 'transformer_blocks\.\d+'
+attrs = [
+    "img_mod.1",
+    "attn.to_q",
+    "attn.to_k",
+    "attn.to_v",
+    "attn.add_k_proj",
+    "attn.add_v_proj",
+    "attn.add_q_proj",
+    "attn.to_out.0",
+    "attn.to_add_out",
+    "img_mlp.net.0.proj",
+    "img_mlp.net.2",
+    "txt_mod.1",
+    "txt_mlp.net.0.proj",
+    "txt_mlp.net.2",
+]

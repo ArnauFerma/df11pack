@@ -1,0 +1,21 @@
+# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.
+# Official DF11 layout of: gemma-3-12b-it-DF11, gemma-3-27b-it-DF11, gemma-3-4b-it-DF11.
+
+name = "gemma-3"
+layout = "transformers"
+format_version = "0.2.0"
+threads_per_block = [512]
+bytes_per_thread = 8
+source = "DFloat11/gemma-3-4b-it-DF11"
+
+[[unit]]
+pattern = 'language_model.model.layers.\d+'
+attrs = [
+    "self_attn.q_proj",
+    "self_attn.k_proj",
+    "self_attn.v_proj",
+    "self_attn.o_proj",
+    "mlp.gate_proj",
+    "mlp.up_proj",
+    "mlp.down_proj",
+]

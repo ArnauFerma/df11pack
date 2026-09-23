@@ -81,6 +81,12 @@ def main():
     outdir = root / "data/architectures"
     outdir.mkdir(parents=True, exist_ok=True)
     for key, d in fx.items():
+        # Entries from import_official_releases.py carry their own layout and the
+        # releases they reproduce.
+        if "layout" in d:
+            LAYOUT[key] = d["layout"]
+        if d.get("used_by"):
+            DESC[key] = "Official DF11 layout of: " + ", ".join(d["used_by"]) + "."
         ver = d.get("version") or "0.5.0"
         lines = ["# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.",
                  f"# {DESC[key]}", "",
