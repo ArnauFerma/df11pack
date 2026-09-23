@@ -10,6 +10,7 @@ regex = "1"
 toml = "0.8"
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = "0.10"
 
 [dev-dependencies]
 df11-fixtures = { path = "../df11-fixtures" }

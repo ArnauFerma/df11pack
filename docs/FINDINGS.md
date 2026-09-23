@@ -1379,6 +1379,7 @@ output **on disk**, then runs the checker.
 | one weight wrong in a mandatory chunk (first/last/boundary) | **missed** | caught, located to the chunk | caught |
 | one weight wrong in a chunk the sample skipped | **missed** | **missed** | caught |
 | a unit the source defines but the output lacks | not looked for | caught | caught |
+| any DF11 tensor byte changed, output written with `--hashes` | **caught** | caught | caught |
 
 The last-but-one row is the honest limit of sampling, and a test pins it: it finds
 a chunk that a seeded 20-chunk sample does not visit, corrupts it, and requires the
@@ -1386,9 +1387,14 @@ sample to pass and the full sweep to fail. Sampling finds *systematic* faults; o
 `full` finds an isolated one.
 
 Integrity without a source cannot see a wrong value at all — the journal that would
-have held hashes was dropped in Phase 4. Adding per-tensor hashes to the output's
-metadata would fix that, but it changes the files we write, which COMPATIBILITY.md
-keeps byte-identical to the official tool. Left as a decision, not done.
+have held hashes was dropped in Phase 4. **Decided:** `compress --hashes` (opt-in,
+off by default) stores a SHA-256 per DF11 tensor in the header metadata; with it,
+integrity catches a flipped value with no source and names the tensor. Tensor bytes
+are unchanged; only the header differs (COMPATIBILITY.md). In single-file mode the
+hashes come from the first encoding pass and describe bytes the second pass writes,
+so a clean `verify` also confirms the two passes agreed. Every part — the stamp, the
+count, the comparison, the native-mode hashes, hashing the right bytes (checked
+against `sha256sum`) — has a mutation that turns a test red.
 
 ## Every structural check is proven by a mutation
 
@@ -1406,3 +1412,7 @@ runs at about 19M weights/s on one core: ~3.3 s for the 63M-weight Qwen fixture,
 roughly **10 minutes for a 12B model**. The default sample (1000 chunks, ~12M weights at ~12k per chunk)
 takes under a second plus the source reads. The decoder is still sequential;
 the parallel one is the remaining H12 work.
+
+Erratum found while writing this: COMPATIBILITY.md said `--luts=correct` output is
+also stamped `df11pack_version`. The code never wrote it. The document now matches
+the code.

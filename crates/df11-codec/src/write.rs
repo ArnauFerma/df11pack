@@ -36,6 +36,10 @@ pub struct WriteOptions {
     /// Costs a second pass over the unit's source (2 N bytes held during the
     /// check) and the decode itself. That is the trade safe mode exists to make.
     pub verify: bool,
+    /// Store a SHA-256 of each unit's six DF11 tensors in the shard's metadata,
+    /// so `verify` can catch a wrong value without the source. Off by default:
+    /// the header then differs from the official tool's (COMPATIBILITY.md).
+    pub hashes: bool,
 }
 
 /// How many units to encode at once, given the budget and the largest unit.
@@ -287,6 +291,31 @@ fn build_unit(
     })
 }
 
+/// Metadata key prefix for a tensor's SHA-256, and the stamp that says an
+/// output carries them.
+pub const HASH_KEY_PREFIX: &str = "df11pack_sha256:";
+pub const HASH_STAMP: &str = "df11pack_hashes";
+
+/// Lowercase hex SHA-256.
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+/// Add the hash of every in-memory tensor -- the six DF11 tensors; siblings are
+/// borrowed copies of the source -- to `meta`.
+fn add_hashes(meta: &mut BTreeMap<String, String>, tensors: &[OutTensor]) {
+    meta.insert(HASH_STAMP.to_string(), "sha256".to_string());
+    for t in tensors {
+        if let Payload::Owned(data) = &t.data {
+            meta.insert(format!("{HASH_KEY_PREFIX}{}", t.name), sha256_hex(data));
+        }
+    }
+}
+
 /// A source tensor copied by byte range rather than read into memory.
 fn borrowed(src: &View, name: &str) -> OutTensor {
     let info = src.info(name).expect("discovered from this source").clone();
@@ -477,10 +506,18 @@ pub fn write_directory(
         // is an error rather than a corrupt file.
         let pass1 = run_units(&found.units, workers, &|u| {
             let b = build_unit(&src, u, threads, bpt, &read, false)?;
-            Ok((decls_of(&b.tensors), b.limited))
+            // Hashed here, before the header: pass two must then write exactly
+            // these bytes, which `verify` will confirm.
+            let mut h = BTreeMap::new();
+            if opts.hashes {
+                add_hashes(&mut h, &b.tensors);
+            }
+            Ok((decls_of(&b.tensors), b.limited, h))
         })?;
         let mut decls = Vec::new();
-        for (d, limited) in &pass1 {
+        let mut meta = meta.clone();
+        for (d, limited, h) in &pass1 {
+            meta.extend(h.iter().map(|(k, v)| (k.clone(), v.clone())));
             decls.extend(d.iter().cloned());
             if let Some(l) = limited {
                 limited_units.push(l.clone());
@@ -510,6 +547,10 @@ pub fn write_directory(
             let b = build_unit(&src, u, threads, bpt, &read, opts.verify)?;
             let fname = shard_name(&u.name);
             let path = out_dir.join(&fname);
+            let mut meta = meta.clone();
+            if opts.hashes {
+                add_hashes(&mut meta, &b.tensors);
+            }
             write_file(&path, &b.tensors, &meta)?;
             let sz = std::fs::metadata(&path)?.len();
             Ok((fname, sz, b.limited, b.verified.then(|| u.name.clone())))

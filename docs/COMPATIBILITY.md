@@ -95,14 +95,14 @@ rather than documented around. It passed, so it stays.
 
 ## How to tell which mode produced a file
 
-Compat output carries no extra marking: it must stay byte-identical, so nothing
-may be added to it.
+Default compat output carries no extra marking: it must stay byte-identical, so
+nothing may be added to it. (`--hashes` is the one opt-in exception, below; it
+marks the header, never the tensors.)
 
 `--luts=correct` output is stamped in the safetensors `__metadata__` header:
 
 ```
 df11pack_luts = "correct"
-df11pack_version = "<version>"
 ```
 
 `__metadata__` is a free-form string map that the official loaders ignore, so the
@@ -110,6 +110,24 @@ stamp costs no compatibility. The absence of a stamp means compat mode — which
 also true of every file the official compressor ever produced, which is the point.
 
 Never stamp compat output. Never emit correct output unstamped.
+
+## `--hashes` — opt-in, header only
+
+`compress --hashes` adds to each unit shard's `__metadata__`:
+
+```
+df11pack_hashes = "sha256"
+df11pack_sha256:<unit>.<field> = "<hex>"     # for each of the six DF11 tensors
+```
+
+Every **tensor byte** stays identical to the official output (a test compares them
+all); only the **header** differs, so the *file* is no longer byte-identical. The
+loaders ignore `__metadata__`. What it buys: `df11pack verify <out>` with no source
+then catches a wrong value, not just broken structure. Siblings and passthrough
+tensors are copies of the source and are not hashed.
+
+It composes with `--luts`: a hashed compat file is still compat-mode in its
+tensors. The default — no flag — adds nothing.
 
 ---
 

@@ -124,6 +124,11 @@ impl ModelSource {
         ))
     }
 
+    /// The `__metadata__` of the file that holds `name`.
+    pub fn metadata_of(&self, name: &str) -> Option<&BTreeMap<String, String>> {
+        Some(self.files[*self.index.get(name)?].metadata())
+    }
+
     /// Whether two tensors hold identical bytes, compared in chunks.
     ///
     /// Reading both into memory to compare them costs their combined size, which

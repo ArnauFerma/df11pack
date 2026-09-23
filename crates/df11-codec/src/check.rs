@@ -42,6 +42,9 @@ pub struct CheckReport {
     pub units: usize,
     /// `(unit, chunk)` for every chunk decoded against the source.
     pub checked: Vec<(String, usize)>,
+    /// Stored per-tensor hashes that were compared (outputs written with
+    /// `--hashes`). Zero means a value error was not looked for without a source.
+    pub hashed: usize,
     /// The seed a sampled run used, so it can be reproduced exactly.
     pub seed: Option<u64>,
     pub failures: Vec<Failure>,
@@ -95,16 +98,35 @@ struct Loaded {
     pos: Vec<u32>,
     gaps: Vec<u8>,
     split: Vec<i64>,
+    /// How many stored hashes were compared, and the first that did not match.
+    hashed: usize,
+    hash_error: Option<String>,
 }
 
 impl Loaded {
     fn read(out: &ModelSource, unit: &str) -> Result<Self, String> {
+        use crate::write::{sha256_hex, HASH_KEY_PREFIX};
+        let hashed = std::cell::Cell::new(0usize);
+        let hash_error = std::cell::RefCell::new(None);
         let g = |f: &str| {
             let name = format!("{unit}.{f}");
             if out.info(&name).is_none() {
                 return Err(format!("{name} is missing from the output"));
             }
-            out.read(&name).map_err(|e| format!("{name}: {e}"))
+            let bytes = out.read(&name).map_err(|e| format!("{name}: {e}"))?;
+            let stored = out
+                .metadata_of(&name)
+                .and_then(|m| m.get(&format!("{HASH_KEY_PREFIX}{name}")));
+            if let Some(want) = stored {
+                hashed.set(hashed.get() + 1);
+                let got = sha256_hex(&bytes);
+                if &got != want && hash_error.borrow().is_none() {
+                    *hash_error.borrow_mut() = Some(format!(
+                        "{name}: SHA-256 {got} does not match the stored {want}"
+                    ));
+                }
+            }
+            Ok(bytes)
         };
         let pos = g("output_positions")?;
         let split = g("split_positions")?;
@@ -124,6 +146,8 @@ impl Loaded {
                 .chunks_exact(8)
                 .map(|c| i64::from_le_bytes(c.try_into().unwrap()))
                 .collect(),
+            hashed: hashed.get(),
+            hash_error: hash_error.into_inner(),
         })
     }
 
@@ -227,6 +251,12 @@ fn structure(l: &Loaded, geo: Geometry) -> Result<(), String> {
     Ok(())
 }
 
+/// A stored hash that did not match. Checked before structure: it is the most
+/// exact statement of what is wrong.
+fn verified(l: &Loaded) -> Result<(), String> {
+    l.hash_error.clone().map_or(Ok(()), Err)
+}
+
 /// Geometry from the output's own config.json, as the loader reads it.
 fn geometry_from_config(out: &ModelSource) -> Geometry {
     let fallback = Geometry { bpt: 8, tpb: 512 };
@@ -294,6 +324,7 @@ pub fn check_output(
     };
     let mut report = CheckReport {
         units: 0,
+        hashed: 0,
         checked: Vec::new(),
         seed: match level {
             Level::Sample { seed, .. } => Some(seed),
@@ -315,8 +346,14 @@ pub fn check_output(
             .collect();
         report.units = units.len();
         for u in units {
-            if let Err(e) = Loaded::read(output, &u).and_then(|l| structure(&l, geo)) {
-                report.failures.push(fail(&u, None, e));
+            match Loaded::read(output, &u) {
+                Ok(l) => {
+                    report.hashed += l.hashed;
+                    if let Err(e) = verified(&l).and_then(|()| structure(&l, geo)) {
+                        report.failures.push(fail(&u, None, e));
+                    }
+                }
+                Err(e) => report.failures.push(fail(&u, None, e)),
             }
         }
         return Ok(report);
@@ -344,7 +381,10 @@ pub fn check_output(
             .iter()
             .map(|n| src.info(n).map_or(0, |t| t.nbytes() / 2))
             .collect();
-        let l = match Loaded::read(output, &u.name).and_then(|l| structure(&l, geo).map(|()| l)) {
+        let l = match Loaded::read(output, &u.name).and_then(|l| {
+            report.hashed += l.hashed;
+            verified(&l).and_then(|()| structure(&l, geo)).map(|()| l)
+        }) {
             Ok(l) => l,
             Err(e) => {
                 report.failures.push(fail(&u.name, None, e));
@@ -452,6 +492,8 @@ mod tests {
             pos,
             gaps: vec![0; chunks * 5],
             split: vec![],
+            hashed: 0,
+            hash_error: None,
         }
     }
 

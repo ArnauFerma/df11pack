@@ -39,13 +39,15 @@ and conversion between layouts.
 df11pack architectures                                   # list definitions
 df11pack compress model.safetensors --arch flux-comfyui -o out/
 df11pack compress model/ --arch qwen3-4b -o out/ --safe   # verify each unit before writing
-df11pack verify out/                                     # structure only, no source needed
+df11pack compress model/ --arch qwen3-4b -o out/ --hashes # store SHA-256s (header differs from official)
+df11pack verify out/                                     # structure (+ hashes if stored), no source needed
 df11pack verify out/ --source model/ --arch qwen3-4b     # + 1000 sampled chunks vs the source
 df11pack verify out/ --source model/ --arch qwen3-4b --level full
 ```
 
 `verify` exits 0 on pass, 1 when a check fails, 2 when it could not check. Without
-`--source` it cannot see a wrong weight value, only broken structure; a sampled run
+`--source` it cannot see a wrong weight value unless the output was written with
+`--hashes`; a sampled run
 prints its seed so it can be repeated with `--seed`.
 
 ## Documents

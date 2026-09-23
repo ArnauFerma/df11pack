@@ -48,6 +48,12 @@ enum Command {
         /// writing it, so a wrong unit never reaches disk.
         #[arg(long)]
         safe: bool,
+        /// Store a SHA-256 of every DF11 tensor in the file metadata, so
+        /// `verify` can catch a wrong value without the source. Tensor bytes are
+        /// unchanged, but the header is no longer byte-identical to the official
+        /// tool's.
+        #[arg(long)]
+        hashes: bool,
     },
     /// Check a written output, optionally against the model it was made from.
     ///
@@ -235,6 +241,7 @@ struct CompressArgs {
     workers: Option<usize>,
     io: IoArg,
     safe: bool,
+    hashes: bool,
 }
 
 fn compress(a: CompressArgs) -> Result<(), String> {
@@ -247,6 +254,7 @@ fn compress(a: CompressArgs) -> Result<(), String> {
         workers,
         io,
         safe,
+        hashes,
     } = a;
     let def = load_arch(&arch)?;
     let model = ModelSource::open(&source).map_err(|e| format!("{}: {e}", source.display()))?;
@@ -271,6 +279,7 @@ fn compress(a: CompressArgs) -> Result<(), String> {
         workers,
         io: io.into(),
         verify: safe,
+        hashes,
     };
     let report = write_directory(&model, &def, &out, &opts).map_err(|e| e.to_string())?;
 
@@ -306,6 +315,9 @@ fn compress(a: CompressArgs) -> Result<(), String> {
             "  verified {} unit(s) against the source before writing",
             report.verified.len()
         );
+    }
+    if hashes {
+        println!("  stored a SHA-256 of every DF11 tensor; the headers now differ from the official tool's");
     }
     println!("  reads: {}", report.io.reason);
     println!("  wrote {} -> {}", report.shards.len() + 1, out.display());
@@ -357,8 +369,13 @@ fn verify(a: VerifyArgs) -> Result<bool, String> {
         Level::Full => format!("structure, and all {} chunk(s) decoded", r.checked.len()),
     };
     println!("checked {} unit(s): {what}", r.units);
-    if level == Level::Integrity && reference.is_none() {
-        println!("  note: without --source, a wrong weight value in a well-formed unit is not detectable");
+    if r.hashed > 0 {
+        println!("  {} stored SHA-256 hash(es) compared", r.hashed);
+    } else if level == Level::Integrity && reference.is_none() {
+        println!(
+            "  note: this output has no stored hashes and no --source was given, so a\n  \
+             wrong weight value in a well-formed unit is not detectable"
+        );
     }
     for f in &r.failures {
         match f.chunk {
@@ -386,6 +403,7 @@ fn main() -> ExitCode {
             workers,
             io,
             safe,
+            hashes,
         } => compress(CompressArgs {
             source,
             arch,
@@ -395,6 +413,7 @@ fn main() -> ExitCode {
             workers,
             io,
             safe,
+            hashes,
         }),
         Command::Verify {
             output,
