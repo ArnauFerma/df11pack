@@ -1141,3 +1141,61 @@ work to reclaim, and intra-unit parallelism is where it is.
 
 H12 is about the *CPU decoder*, which does not exist yet. The numbers above are
 the encoder. It stays deferred to Phase 5.
+
+---
+
+# Separating memory from CPU: same speed, half the memory
+
+Re-measured on the same class of machine (EPYC 7B12, 128 threads) after the
+worker count stopped doing two jobs. ~12 minutes, **about $0.03**. Raw data in
+`gpu_session/out/scaling_sweep2.json`.
+
+## Qwen3-0.6B, layers-only pattern (28 units, 440.4M weights)
+
+| workers | before | after | peak RSS before → after |
+|---|---|---|---|
+| 1 | 11.11 s (39.6 Mw/s) | **4.96 s (88.7 Mw/s)** | 63.3 → 85.7 MiB |
+| 4 | 2.95 s | 1.57 s | 230.4 → 284.9 MiB |
+| **8** | 1.72 s | **1.16 s (381.0 Mw/s)** | 501.3 → 474.8 MiB |
+| 16 | **1.12 s (394.5 Mw/s)** | 1.24 s | 842.5 → 858.3 MiB |
+| 64 | 1.64 s | 1.42 s | 1421.6 → 1215.2 MiB |
+
+**Single-worker throughput more than doubled**, and peak performance now arrives
+at **8 workers instead of 16** — the same speed for **44% less memory**. Best
+observed throughput is essentially unchanged (381 vs 394.5 Mw/s); what changed is
+that you no longer have to spend memory to get it.
+
+That matters because memory is the binding constraint on the machines this
+project exists for. Before, a 512 MiB budget forced few workers and therefore few
+cores. Now few workers still use every core.
+
+## Few large units: the case the change was for
+
+The `qwen3-8b` pattern compresses `lm_head` and `model.embed_tokens` as standalone
+units of 155.6M weights each — ten times a layer. Single-worker throughput there
+is **88.9 Mw/s**, indistinguishable from the 28-small-unit case's 88.7. Before the
+change a unit was encoded by one thread, so a model shaped like this would have
+been ten times slower per unit with no way to use the cores. Throughput is now
+independent of how the model divides into units, which was the point.
+
+## What limits a single unit now, measured
+
+Chunk size was the obvious suspect and is **not** the answer. Sweeping it across a
+256× range at one worker:
+
+| chunk (symbols) | 1,048,576 | 262,144 | 65,536 | 16,384 | 4,096 |
+|---|---|---|---|---|---|
+| Mweights/s | 82.6 | 90.8 | **93.9** | 90.4 | 87.6 |
+
+14% between best and worst. The cap is elsewhere: **the field split, the histogram
+and the merge passes are all sequential O(N) work**, three passes over the unit
+that no amount of chunking touches. Amdahl's law does the rest.
+
+Both are per-chunk reductions and could be parallelised the same way the encoder
+was. That is a real and available optimisation, and it is **not being taken now**:
+the encoder is already 683× the official compressor and, per H5, disk-bound on the
+machines this project targets. Phases 4 through 7 are correctness features the
+project actually promises — journal, resume, verification — and they are worth more
+than throughput nobody is waiting on.
+
+Recorded so the next person does not have to rediscover where the ceiling is.
