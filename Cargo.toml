@@ -6,6 +6,7 @@ members = ["crates/df11-codec", "crates/df11pack", "crates/df11-fixtures"]
 version = "0.0.0"
 edition = "2021"
 rust-version = "1.85"
+license = "MIT"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

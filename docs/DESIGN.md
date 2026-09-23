@@ -529,7 +529,7 @@ writer, config) are designed from the start, not bolted on afterwards.
 
 1. ~~v1 architectures and layouts~~ **Closed:** Flux and Chroma, both layouts from the start.
 2. **[DECISION] Python dependency for GPU verification**, if H7 is not confirmed: an optional shim, or CPU decoder only?
-3. **[DECISION] Licence.** The official code is Apache-2.0; replicating its format and its construction algorithm is compatible with any permissive licence, but if `decode.ptx` is redistributed its licence and attribution must be respected.
+3. **[DECISION] Licence.** The official code is Apache-2.0; replicating its format and its construction algorithm is compatible with any permissive licence, but if `decode.ptx` is redistributed its licence and attribution must be respected. **Decided (2026-09-23): MIT.** `decode.ptx` is not redistributed.
 4. **[DECISION] ComfyUI integration**: CLI binary only, or also a thin node that invokes it?
 5. **[DECISION] Name** (`df11pack` is provisional).
 6. ~~Chroma in diffusers~~ **Closed:** `ChromaTransformer2DModel` is stable (diffusers ≥0.34) and both layout definitions are derived in §1.7. It stays in Phase 1.

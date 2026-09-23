@@ -1,16 +1,21 @@
-LICENCE — NOT YET DECIDED
-=========================
+MIT License
 
-This project has no licence yet. It is an open decision, tracked as item 3 in
-docs/DESIGN.md §11 and in docs/PLAN.md.
+Copyright (c) 2026 Arnau Ferrerons Manich
 
-Context for the decision:
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-- The official DFloat11 implementation (https://github.com/LeanModels/DFloat11)
-  is Apache-2.0. Replicating its file format and its codebook-construction
-  algorithm is compatible with any permissive licence.
-- If this project ever redistributes `decode.ptx` (or any other artefact taken
-  from the official repository), that file's licence and attribution
-  requirements must be respected and reproduced.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-Until the decision is made and this file is replaced, no licence is granted.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

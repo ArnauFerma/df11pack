@@ -478,7 +478,7 @@ real checkpoint's tensor names. That needs one real source file per architecture
 Carried from DESIGN §11 — listed here, not decided.
 
 1. **If H7 fails:** an optional Python + CuPy shim for GPU verification, or CPU decoder only? Blocks nothing before Phase 5, but it changes what "no Python at runtime" means.
-2. **Licence.** The official code is Apache-2.0. Replicating the format and construction algorithm is compatible with any permissive licence; redistributing `decode.ptx` carries its licence and attribution. Should be settled before any public release, and it affects whether Phase 5 can ship the PTX.
+2. **Licence.** The official code is Apache-2.0. Replicating the format and construction algorithm is compatible with any permissive licence; redistributing `decode.ptx` carries its licence and attribution. Should be settled before any public release, and it affects whether Phase 5 can ship the PTX. **Decided (2026-09-23): MIT.** `decode.ptx` is not redistributed.
 3. **ComfyUI integration:** CLI binary only, or also a thin node that invokes it?
 4. **Final project name** (`df11pack` is provisional). Cheapest to change now.
 5. **Does ChromaRadiance ship in v1?** One extra definition, but it drags in the single-tensor UC edge case (DESIGN §1.7). Affects step 1.8.

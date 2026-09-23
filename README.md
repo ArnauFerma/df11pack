@@ -65,4 +65,10 @@ prints its seed so it can be repeated with `--seed`.
 
 ## Licence
 
-Not yet decided — see [`LICENSE`](LICENSE).
+MIT — see [`LICENSE`](LICENSE). Free to use, modify and redistribute; keep the
+copyright notice.
+
+df11pack reimplements the DFloat11 file format and its codebook construction from
+the official implementation (Apache-2.0, <https://github.com/LeanModels/DFloat11>)
+and reads model definitions derived from ComfyUI-DFloat11-Extended. It contains no
+code from either and does not redistribute `decode.ptx`.
