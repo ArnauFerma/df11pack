@@ -37,6 +37,7 @@ for _p in (ROOT.parent / "data/architectures").glob("*.toml"):
     _d = tomllib.loads(_p.read_text())
     PATTERNS.setdefault(_d["name"], {"pattern_dict": {u["pattern"]: u["attrs"] for u in _d["unit"]}})
     PATTERNS[_d["name"]]["layout"] = _d["layout"]
+    PATTERNS[_d["name"]]["file"] = _d.get("file")
 
 
 def put(root, path, module):
@@ -204,11 +205,12 @@ def main():
         official.compress_model(m, pattern_dict=PATTERNS[name]["pattern_dict"],
                                 save_path=str(dst), save_single_file=native,
                                 check_correctness=False)
-        if layout == "diffusers-single":
+        target = PATTERNS[name].get("file") or "diffusion_pytorch_model.safetensors"
+        if layout == "diffusers-single" and target != "model.safetensors":
             # pip dfloat11 0.5.0 names its single file model.safetensors; the
             # Qwen-Image releases ship it as diffusion_pytorch_model.safetensors
             # (their header layout is checked against ours in FINDINGS).
-            (dst / "model.safetensors").rename(dst / "diffusion_pytorch_model.safetensors")
+            (dst / "model.safetensors").rename(dst / target)
         files = sorted(p.name for p in dst.iterdir())
         out[name] = {"weights": n_weights, "native": native, "files": files}
         print(f"  {name:22s} {n_weights/1e6:5.2f}M weights -> {len(files)} files: {files[:4]}{' ...' if len(files) > 4 else ''}")

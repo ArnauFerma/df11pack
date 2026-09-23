@@ -111,7 +111,10 @@
         "attn.to_k",
         "attn.to_v"
       ]
-    }
+    },
+    "layout": "diffusers-single",
+    "file": "model.safetensors",
+    "revision": "d240f5525f9a05bd48017044c4ecd307fb15660f"
   },
   "qwen3-8b": {
     "repo": "DFloat11/Qwen3-8B-DF11",

@@ -79,6 +79,39 @@ pub struct ArchDef {
     pub source: String,
     #[serde(default, rename = "unit")]
     pub units: Vec<UnitPattern>,
+    /// How source tensor names become output names, beyond the ComfyUI
+    /// checkpoint prefix. Empty for most definitions. See [`crate::keys`].
+    #[serde(default)]
+    pub keys: KeyRules,
+    /// The single output file's name, for the single-file layouts, when it is
+    /// not the layout's usual one.
+    #[serde(default)]
+    pub file: Option<String>,
+}
+
+/// Name rules a definition can carry: what ComfyUI's key conversion does to a
+/// checkpoint before the Extended releases were saved. Names only; values are
+/// never changed.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KeyRules {
+    /// Prefixes removed where present, after the ComfyUI checkpoint prefix.
+    #[serde(default)]
+    pub strip_prefix: Vec<String>,
+    /// Regexes (searched) for tensors left out entirely, such as training state.
+    #[serde(default)]
+    pub drop: Vec<String>,
+    /// Applied in order to every remaining name.
+    #[serde(default)]
+    pub rename: Vec<Rename>,
+}
+
+/// Replace the first match of `pattern` with `replacement`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rename {
+    pub pattern: String,
+    pub replacement: String,
 }
 
 /// Why a definition was rejected.
@@ -90,12 +123,16 @@ pub enum ArchError {
     DuplicateAttr { pattern: String, attr: String },
     BadNumber(&'static str),
     Parse(String),
+    BadKeyRule { rule: String, message: String },
 }
 
 impl fmt::Display for ArchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Empty(field) => write!(f, "`{field}` must not be empty"),
+            Self::BadKeyRule { rule, message } => {
+                write!(f, "key rule {rule:?} is not a valid regex: {message}")
+            }
             Self::NoUnits => write!(f, "a definition needs at least one [[unit]]"),
             Self::DuplicatePattern(p) => write!(f, "pattern {p:?} appears more than once"),
             Self::DuplicateAttr { pattern, attr } => write!(
@@ -137,6 +174,17 @@ impl ArchDef {
         }
         if self.units.is_empty() {
             return Err(ArchError::NoUnits);
+        }
+        let rules = self
+            .keys
+            .drop
+            .iter()
+            .chain(self.keys.rename.iter().map(|r| &r.pattern));
+        for rule in rules {
+            regex::Regex::new(rule).map_err(|e| ArchError::BadKeyRule {
+                rule: rule.clone(),
+                message: e.to_string(),
+            })?;
         }
         let mut seen = Vec::new();
         for u in &self.units {

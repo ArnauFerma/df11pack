@@ -1623,3 +1623,29 @@ transcribed, has since been re-published as a single `model.safetensors`
 
 Divergences 2–4 are decisions, not bugs: each means writing names or tensors the
 source does not have, which the design so far has never done.
+
+## Decided and done: 23 of 28 now fit exactly
+
+The user chose all three recommendations:
+
+- **Per-definition key rules** (`[keys]` in a definition: `strip_prefix`, `drop`,
+  ordered `rename` regexes; `crate::keys`). Names only — every read goes to the
+  physical name, so values are untouched. Flux family: `.scale` → `.weight`. Cosmos
+  family: strip `net.`, drop `accum_*`, `_extra_state`, and three position-embedder
+  buffers the first pass had not surfaced (`pos_embedder.seq`, `dim_spatial_range`,
+  `dim_temporal_range`). **Per definition, not global**: Krea-2's release keeps its
+  130 `.scale` tensors, so a global rule would have broken it. Where a rule is
+  applied to a definition without a real release to observe (FLUX.1-dev, FLUX.2-alt,
+  LongCat), the TOML says so; they share the ComfyUI model class. Two source names
+  landing on one output name is refused.
+- **Tied `lm_head` reproduced.** When the source config says `tie_word_embeddings`,
+  the definition compresses a standalone `lm_head`, and the source has no
+  `lm_head.weight`, that name becomes an alias of `model.embed_tokens.weight`: the
+  shared weight is compressed twice, as upstream does. Safe mode verifies both.
+- **Chroma1-Base** is now `diffusers-single` with `file = "model.safetensors"` —
+  pip 0.5.0's own name — and its stand-in was regenerated in that layout.
+
+Result: **23 of 28 fit their real checkpoint exactly.** The 5 left are all non-BF16
+sources (HiDream F16; OmniGen2 ×2, Wan2.1 F32; Krea-2's five F32 tensors), which
+df11pack refuses by design; apart from dtype, each fits. Every rule is proven by a
+mutation that turns a test red.

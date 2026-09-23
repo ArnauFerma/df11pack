@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-23T14:40:05.665803+00:00",
+  "generated": "2026-09-23T15:24:10.424599+00:00",
   "note": "Per-tensor sha256 of official DFloat11 output. Phase 1 grades byte-identity against these.",
   "sets": [
     {
@@ -9498,7 +9498,7 @@
       "note": "Synthetic chroma-base-diffusers-mingyi: definition's module names, hidden 256, every pattern instantiated (digit runs 0 and 1, every class member).",
       "output_dir": "/home/cindy/proj3cts/compression/df11pack/phase0/out/official/synthetic-chroma-base-diffusers-mingyi",
       "source_dir": "/home/cindy/proj3cts/compression/df11pack/phase0/corpus/synthetic/chroma-base-diffusers-mingyi",
-      "shards": 7,
+      "shards": 1,
       "unit_tensors": 36,
       "non_unit_tensors": 54,
       "total_bytes": 8442318,
@@ -9506,43 +9506,7 @@
         "config.json": "35fccea99fe6fd8ccfe01883702b7f013321700ebe9877fc25e192ce69822d25"
       },
       "files": {
-        "diffusion_pytorch_model.safetensors": {
-          "final_layer.linear.bias": {
-            "dtype": "BF16",
-            "shape": [
-              64
-            ],
-            "bytes": 128,
-            "sha256": "1d87c7684e9ef6d9489894b7802da6b88d17ac64c4b254af736bf286ea9fd20a"
-          },
-          "final_layer.linear.weight": {
-            "dtype": "BF16",
-            "shape": [
-              64,
-              256
-            ],
-            "bytes": 32768,
-            "sha256": "1a806762cba4e83c7460aacd42f58b4d49453dcb32fbd39084e23a7410ea2faa"
-          },
-          "img_in.bias": {
-            "dtype": "BF16",
-            "shape": [
-              256
-            ],
-            "bytes": 512,
-            "sha256": "d126b1ea872aa33392353766b579c454cb415d8df1d32fa61417fb6841b9f4ad"
-          },
-          "img_in.weight": {
-            "dtype": "BF16",
-            "shape": [
-              256,
-              64
-            ],
-            "bytes": 32768,
-            "sha256": "1301486ef5f732fdf8cedbf2f83bdd34bcdf00e2d9823cbbedeeaa110a8719c8"
-          }
-        },
-        "distilled_guidance_layer_layers_0.safetensors": {
+        "model.safetensors": {
           "distilled_guidance_layer.layers.0.encoded_exponent": {
             "dtype": "U8",
             "shape": [
@@ -9623,9 +9587,7 @@
             ],
             "bytes": 8,
             "sha256": "427c22503920fd5674c7849af8ebdcb61cdcc35f126d9bb18b8ea79826da7237"
-          }
-        },
-        "distilled_guidance_layer_layers_1.safetensors": {
+          },
           "distilled_guidance_layer.layers.1.encoded_exponent": {
             "dtype": "U8",
             "shape": [
@@ -9706,9 +9668,41 @@
             ],
             "bytes": 8,
             "sha256": "427c22503920fd5674c7849af8ebdcb61cdcc35f126d9bb18b8ea79826da7237"
-          }
-        },
-        "single_transformer_blocks_0.safetensors": {
+          },
+          "final_layer.linear.bias": {
+            "dtype": "BF16",
+            "shape": [
+              64
+            ],
+            "bytes": 128,
+            "sha256": "1d87c7684e9ef6d9489894b7802da6b88d17ac64c4b254af736bf286ea9fd20a"
+          },
+          "final_layer.linear.weight": {
+            "dtype": "BF16",
+            "shape": [
+              64,
+              256
+            ],
+            "bytes": 32768,
+            "sha256": "1a806762cba4e83c7460aacd42f58b4d49453dcb32fbd39084e23a7410ea2faa"
+          },
+          "img_in.bias": {
+            "dtype": "BF16",
+            "shape": [
+              256
+            ],
+            "bytes": 512,
+            "sha256": "d126b1ea872aa33392353766b579c454cb415d8df1d32fa61417fb6841b9f4ad"
+          },
+          "img_in.weight": {
+            "dtype": "BF16",
+            "shape": [
+              256,
+              64
+            ],
+            "bytes": 32768,
+            "sha256": "1301486ef5f732fdf8cedbf2f83bdd34bcdf00e2d9823cbbedeeaa110a8719c8"
+          },
           "single_transformer_blocks.0.attn.to_k.bias": {
             "dtype": "BF16",
             "shape": [
@@ -9813,9 +9807,7 @@
             ],
             "bytes": 32,
             "sha256": "749428dcc492ae6a0758657982e073ac2c22e29aaa66baec39c2356ab7f6a58a"
-          }
-        },
-        "single_transformer_blocks_1.safetensors": {
+          },
           "single_transformer_blocks.1.attn.to_k.bias": {
             "dtype": "BF16",
             "shape": [
@@ -9920,9 +9912,7 @@
             ],
             "bytes": 32,
             "sha256": "749428dcc492ae6a0758657982e073ac2c22e29aaa66baec39c2356ab7f6a58a"
-          }
-        },
-        "transformer_blocks_0.safetensors": {
+          },
           "transformer_blocks.0.attn.add_k_proj.bias": {
             "dtype": "BF16",
             "shape": [
@@ -10083,9 +10073,7 @@
             ],
             "bytes": 88,
             "sha256": "42bc920c57d9012e7a1444298314edbc99ff1e77a9dce7575a25031d738edc47"
-          }
-        },
-        "transformer_blocks_1.safetensors": {
+          },
           "transformer_blocks.1.attn.add_k_proj.bias": {
             "dtype": "BF16",
             "shape": [

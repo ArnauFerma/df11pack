@@ -173,42 +173,62 @@ impl ModelSource {
 /// The prefix ComfyUI puts on every diffusion-model key in a full checkpoint.
 pub const COMFYUI_PREFIX: &str = "model.diffusion_model.";
 
-/// A [`ModelSource`] seen through an optional key prefix.
+/// A [`ModelSource`] seen through the names the output will carry.
 ///
 /// Architecture definitions are written against bare names (`double_blocks.0`),
 /// while ComfyUI checkpoints usually carry `model.diffusion_model.` on every
 /// diffusion key. With a prefix set, only names carrying it are visible, and
 /// they are visible without it; everything else in the file -- a VAE or text
 /// encoder in a full checkpoint -- is left out, as it is not part of the model
-/// being compressed.
+/// being compressed. A definition's key rules, and a tied `lm_head`, map names
+/// further ([`crate::keys`]); every read goes to the physical name.
 pub struct View<'a> {
     src: &'a ModelSource,
-    prefix: String,
+    map: crate::keys::NameMap,
 }
 
 impl<'a> View<'a> {
     pub fn new(src: &'a ModelSource, prefix: Option<&str>) -> Self {
         View {
             src,
-            prefix: prefix.unwrap_or("").to_string(),
+            map: crate::keys::NameMap::with_prefix(&src.names(), prefix),
         }
+    }
+
+    /// A view through a full name map ([`crate::keys::map_names`]).
+    pub fn mapped(src: &'a ModelSource, map: crate::keys::NameMap) -> Self {
+        View { src, map }
+    }
+
+    /// The source view a definition asks for: checkpoint prefix, key rules, and
+    /// the tied `lm_head` if the source's `config.json` says the embeddings are
+    /// tied.
+    pub fn for_def(
+        src: &'a ModelSource,
+        def: &crate::arch::ArchDef,
+    ) -> Result<Self, crate::keys::KeyError> {
+        let tied = std::fs::read(src.dir().join("config.json"))
+            .ok()
+            .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+            .and_then(|v| v.get("tie_word_embeddings").and_then(|t| t.as_bool()))
+            .unwrap_or(false);
+        Ok(View::mapped(
+            src,
+            crate::keys::map_names(def, &src.names(), tied)?,
+        ))
     }
 
     /// The prefix being stripped, if any.
     pub fn prefix(&self) -> Option<&str> {
-        (!self.prefix.is_empty()).then_some(self.prefix.as_str())
+        self.map.prefix()
     }
 
     fn phys(&self, name: &str) -> String {
-        format!("{}{}", self.prefix, name)
+        self.map.physical(name).unwrap_or(name).to_string()
     }
 
     pub fn names(&self) -> Vec<String> {
-        self.src
-            .names()
-            .into_iter()
-            .filter_map(|n| n.strip_prefix(&self.prefix).map(str::to_string))
-            .collect()
+        self.map.visible()
     }
 
     pub fn info(&self, name: &str) -> Option<&crate::safetensors::TensorInfo> {

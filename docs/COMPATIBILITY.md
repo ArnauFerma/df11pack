@@ -131,6 +131,19 @@ tensors are copies of the source and are not hashed.
 It composes with `--luts`: a hashed compat file is still compat-mode in its
 tensors. The default — no flag — adds nothing.
 
+## Names: key rules and the tied `lm_head`
+
+Output names equal source names unless the definition says otherwise. Two cases
+do, both reproducing what the published releases contain (FINDINGS, "Definitions
+against real checkpoints"):
+
+- a definition's `[keys]` rules — the ComfyUI key conversion the Extended releases
+  carry (`.scale` → `.weight` for the Flux family; `net.` stripped and training
+  state dropped for the Cosmos family);
+- a tied `lm_head` compressed as its own unit when the definition names one.
+
+Tensor values are never changed by either. A source that is not BF16 is refused.
+
 ---
 
 ## The 32-bit limiter: refuse rather than guess

@@ -2,11 +2,12 @@
 # Chroma, diffusers, community variant: guidance layer split per layer.
 
 name = "chroma-base-diffusers-mingyi"
-layout = "diffusers"
+layout = "diffusers-single"
 format_version = "0.5.0"
 threads_per_block = [512]
 bytes_per_thread = 8
 source = "mingyi456/Chroma1-Base-DF11"
+file = "model.safetensors"
 
 [[unit]]
 pattern = 'distilled_guidance_layer\.layers\.\d+'

@@ -178,6 +178,13 @@ pub enum WriteError {
         tensor: String,
         dtype: String,
     },
+    Keys(crate::keys::KeyError),
+}
+
+impl From<crate::keys::KeyError> for WriteError {
+    fn from(e: crate::keys::KeyError) -> Self {
+        Self::Keys(e)
+    }
 }
 
 impl fmt::Display for WriteError {
@@ -191,6 +198,7 @@ impl fmt::Display for WriteError {
             ),
             Self::St(e) => write!(f, "{e}"),
             Self::Io(e) => write!(f, "{e}"),
+            Self::Keys(e) => write!(f, "{e}"),
             Self::NotBf16 { tensor, dtype } => write!(
                 f,
                 "{tensor:?} is {dtype}, not BF16. DFloat11 compresses BF16 weights only; \
@@ -421,10 +429,8 @@ pub fn write_directory(
 
     // ComfyUI checkpoints carry `model.diffusion_model.` on every diffusion key;
     // the definitions do not. Strip it when present (DESIGN 5.5).
-    let prefix = (def.layout == Layout::ComfyuiNative
-        && source.names().iter().any(|n| n.starts_with(COMFYUI_PREFIX)))
-    .then_some(COMFYUI_PREFIX);
-    let src = View::new(source, prefix);
+    // Plus the definition's key rules and a tied lm_head (crate::keys).
+    let src = View::for_def(source, def)?;
 
     let names: Vec<String> = src.names();
     let found = discover(def, &names)?;
@@ -519,7 +525,12 @@ pub fn write_directory(
         .filter(|n| !tied_dropped.contains(n))
         .collect();
 
-    let remainder = remainder_name(def.layout).to_string();
+    // A definition may name its single file (Chroma1-Base: pip's model.safetensors).
+    let remainder = def
+        .file
+        .clone()
+        .filter(|_| def.layout.single_file())
+        .unwrap_or_else(|| remainder_name(def.layout).to_string());
     let mut shards = Vec::new();
     let mut limited_units = Vec::new();
     let mut verified = Vec::new();

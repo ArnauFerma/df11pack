@@ -122,11 +122,23 @@ def resolve(repo, spec):
     return sha, files
 
 
+def tied(repo, sha, files):
+    """The source config's tie_word_embeddings, from the config.json beside its
+    weights; None if there is none."""
+    d = files[0].rsplit("/", 1)[0] + "/" if "/" in files[0] else ""
+    try:
+        return json.loads(get(f"https://huggingface.co/{repo}/resolve/{sha}/{d}config.json")).get(
+            "tie_word_embeddings")
+    except Exception:  # noqa: BLE001 -- no config is a normal answer
+        return None
+
+
 def fetch(repo, spec):
     sha, files = resolve(repo, spec)
     with ThreadPoolExecutor(8) as ex:
         heads = list(ex.map(lambda f: header(repo, sha, f), files))
-    return {"repo": repo, "sha": sha, "files": dict(zip(files, heads))}
+    return {"repo": repo, "sha": sha, "tie_word_embeddings": tied(repo, sha, files),
+            "files": dict(zip(files, heads))}
 
 
 def main(which):

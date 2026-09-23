@@ -15,9 +15,9 @@
 //!   exactly our siblings, its remainder exactly our passthrough; a single-file
 //!   release holds exactly what we would write.
 
-use df11_codec::arch::{ArchDef, Layout};
+use df11_codec::arch::ArchDef;
 use df11_codec::discover::discover;
-use df11_codec::source::COMFYUI_PREFIX;
+use df11_codec::keys::map_names;
 use df11_codec::write::{remainder_name, shard_name};
 use df11_fixtures::architecture_defs;
 use serde_json::Value;
@@ -59,27 +59,18 @@ fn check(name: &str, fx: &Value, def: &ArchDef) -> Vec<String> {
     let src = tensors(&fx["source"]);
     let rel = tensors(&fx["release"]);
 
-    // What we would see: the ComfyUI prefix stripped, as the writer does.
-    let prefixed =
-        def.layout == Layout::ComfyuiNative && src.keys().any(|n| n.starts_with(COMFYUI_PREFIX));
-    let names: Vec<String> = src
-        .keys()
-        .filter_map(|n| {
-            if prefixed {
-                n.strip_prefix(COMFYUI_PREFIX).map(str::to_string)
-            } else {
-                Some(n.clone())
-            }
-        })
-        .collect();
-    let lookup = |n: &str| {
-        let k = if prefixed {
-            format!("{COMFYUI_PREFIX}{n}")
-        } else {
-            n.to_string()
-        };
-        src[&k].clone()
+    // What we would see: the writer's own name map -- the ComfyUI prefix, the
+    // definition's key rules, and a tied lm_head.
+    let tied = fx["source"]["tie_word_embeddings"]
+        .as_bool()
+        .unwrap_or(false);
+    let physical: Vec<String> = src.keys().cloned().collect();
+    let map = match map_names(def, &physical, tied) {
+        Ok(m) => m,
+        Err(e) => return vec![format!("name mapping failed: {e}")],
     };
+    let names = map.visible();
+    let lookup = |n: &str| src[map.physical(n).expect("visible")].clone();
 
     let found = match discover(def, &names) {
         Ok(f) => f,
@@ -187,7 +178,7 @@ fn diff(bad: &mut Vec<String>, what: &str, want: &BTreeSet<String>, got: &BTreeS
 /// lines must contain. The test fails on anything else -- and on a listed
 /// divergence that no longer occurs, so this list cannot go stale. See FINDINGS,
 /// "Definitions against real checkpoints".
-const KNOWN: [(&str, &[&str], &str); 13] = [
+const KNOWN: [(&str, &[&str], &str); 5] = [
     // The release converted the source to BF16 first; df11pack refuses non-BF16.
     ("hidream-i1-diffusers", &["source not BF16"], "F16 source"),
     ("krea2-comfyui", &["source not BF16"], "5 F32 tensors"),
@@ -197,31 +188,8 @@ const KNOWN: [(&str, &[&str], &str); 13] = [
         "F32 source",
     ),
     ("wan-diffusers", &["source not BF16"], "F32 source"),
-    // ...and compressed the tied lm_head as its own unit, a copy of embed_tokens.
-    (
-        "omnigen2-mllm",
-        &["source not BF16", "only release [\"lm_head\"]"],
-        "F32, tied lm_head",
-    ),
-    // ComfyUI's key conversion: RMSNorm `.scale` is saved as `.weight`.
-    ("flux-schnell-comfyui", &[".scale"], "scale -> weight"),
-    ("chroma-comfyui", &[".scale"], "scale -> weight"),
-    ("chroma-radiance-comfyui", &[".scale"], "scale -> weight"),
-    ("flux2-comfyui", &[".scale"], "scale -> weight"),
-    ("ovis-image-comfyui", &[".scale"], "scale -> weight"),
-    // ComfyUI strips the Cosmos checkpoints' `net.` prefix (and drops training state).
-    ("anima-comfyui", &["matched no modules"], "net. prefix"),
-    (
-        "cosmos-t2i-predict2-comfyui",
-        &["matched no modules"],
-        "net. prefix",
-    ),
-    // The release has since been re-published as a single model.safetensors.
-    (
-        "chroma-base-diffusers-mingyi",
-        &["release has 0"],
-        "release re-laid out",
-    ),
+    // Its tied lm_head is now reproduced; only the dtype remains.
+    ("omnigen2-mllm", &["source not BF16"], "F32 source"),
 ];
 
 #[test]

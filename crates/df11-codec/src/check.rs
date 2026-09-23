@@ -12,10 +12,10 @@
 //!   them with the source.
 //! - **Full** decodes everything.
 
-use crate::arch::{ArchDef, Layout};
+use crate::arch::ArchDef;
 use crate::discover::discover;
 use crate::sample::{chunk_of, plan, UnitShape};
-use crate::source::{ModelSource, View, COMFYUI_PREFIX};
+use crate::source::{ModelSource, View};
 use crate::verify::{chunk_range, verify_chunk, verify_unit, UnitView};
 use crate::MAX_PREFIX_TABLES;
 use std::collections::BTreeMap;
@@ -361,10 +361,7 @@ pub fn check_output(
 
     // With a source, the units are what the definition finds in it -- so a unit
     // the output lacks is a failure rather than something nobody looked for.
-    let prefix = (def.layout == Layout::ComfyuiNative
-        && source.names().iter().any(|n| n.starts_with(COMFYUI_PREFIX)))
-    .then_some(COMFYUI_PREFIX);
-    let src = View::new(source, prefix);
+    let src = View::for_def(source, def).map_err(|e| CheckError::Other(e.to_string()))?;
     let found = discover(def, &src.names()).map_err(|e| CheckError::Other(e.to_string()))?;
     let geo = Geometry {
         bpt: def.bytes_per_thread as usize,

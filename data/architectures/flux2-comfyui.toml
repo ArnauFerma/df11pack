@@ -8,6 +8,13 @@ threads_per_block = [512]
 bytes_per_thread = 8
 source = "github.com/mingyi456/ComfyUI-DFloat11-Extended pattern_dict.py @ 414506d"
 
+# ComfyUI key conversion, as in the real releases (FINDINGS).
+[keys]
+
+[[keys.rename]]
+pattern = '\.scale$'
+replacement = ".weight"
+
 [[unit]]
 pattern = 'double_blocks\.\d+'
 attrs = [

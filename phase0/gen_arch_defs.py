@@ -27,6 +27,38 @@ DESC = {"qwen3-4b": "Qwen3-class LLM, transformer layers only; embeddings left u
         "chroma-radiance-comfyui": "ChromaRadiance, native; adds nerf_blocks with a single-tensor unit."}
 
 
+# ComfyUI's load-time key conversion, which the Extended releases carry (they are
+# ComfyUI's in-memory state_dict). Observed by comparing real source headers with
+# the real releases (FINDINGS, "Definitions against real checkpoints"); per
+# definition, because Krea-2's release keeps `.scale`.
+SCALE_TO_WEIGHT = {"rename": [(r"\.scale$", ".weight")]}
+COSMOS = {"strip_prefix": ["net."],
+          "drop": [r"^accum_", r"\._extra_state$",
+                   r"^pos_embedder\.(seq|dim_spatial_range|dim_temporal_range)$"]}
+KEYS = {
+    # observed: Flux-schnell, Chroma, Chroma-Radiance, FLUX.2-klein, Ovis
+    "flux-schnell-comfyui": SCALE_TO_WEIGHT, "chroma-comfyui": SCALE_TO_WEIGHT,
+    "chroma-radiance-comfyui": SCALE_TO_WEIGHT, "flux2-comfyui": SCALE_TO_WEIGHT,
+    "ovis-image-comfyui": SCALE_TO_WEIGHT,
+    # same ComfyUI model classes, not observed (gated, or no .scale in the source)
+    "flux-comfyui": SCALE_TO_WEIGHT, "flux2-alt-comfyui": SCALE_TO_WEIGHT,
+    "longcat-image-comfyui": SCALE_TO_WEIGHT,
+    # observed: Cosmos-Predict2, Anima
+    "cosmos-t2i-predict2-comfyui": COSMOS, "anima-comfyui": COSMOS,
+}
+
+
+def keys_toml(rules):
+    out = ["# ComfyUI key conversion, as in the real releases (FINDINGS).", "[keys]"]
+    if rules.get("strip_prefix"):
+        out.append("strip_prefix = [" + ", ".join(f'"{p}"' for p in rules["strip_prefix"]) + "]")
+    if rules.get("drop"):
+        out.append("drop = [" + ", ".join(f"'{r}'" for r in rules["drop"]) + "]")
+    for pat, rep in rules.get("rename", []):
+        out += ["", "[[keys.rename]]", f"pattern = '{pat}'", f'replacement = "{rep}"']
+    return out + [""]
+
+
 def esc(s):
     return "'" + s + "'" if "\\" in s or '"' in s else '"' + s + '"'
 
@@ -93,7 +125,12 @@ def main():
                  f'name = "{key}"', f'layout = "{LAYOUT[key]}"', f'format_version = "{ver}"',
                  f'threads_per_block = {d["threads_per_block"]}',
                  f'bytes_per_thread = {d["bytes_per_thread"]}',
-                 f'source = "{d["repo"]}"', ""]
+                 f'source = "{d["repo"]}"']
+        if d.get("file"):
+            lines.append(f'file = "{d["file"]}"')
+        lines.append("")
+        if key in KEYS:
+            lines += keys_toml(KEYS[key])
         for pat, attrs in d["pattern_dict"].items():
             lines += ["[[unit]]", f"pattern = {esc(pat)}"]
             if attrs:
