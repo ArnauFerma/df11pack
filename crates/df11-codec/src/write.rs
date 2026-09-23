@@ -320,7 +320,10 @@ fn build_unit(
             (Dtype::new(Dtype::U8), vec![rows, 256])
         } else if name.ends_with(".split_positions") || name.ends_with(".idx8_meta") {
             (Dtype::new(Dtype::I64), vec![(data.len() / 8) as u64])
-        } else if name.ends_with(".idx8_superblocks") {
+        } else if name.ends_with(".idx8_superblocks")
+            || name.ends_with(".idx8_escape_blocks")
+            || name.ends_with(".idx8_escape_lengths")
+        {
             (Dtype::new("U32"), vec![(data.len() / 4) as u64])
         } else {
             (Dtype::new(Dtype::U8), vec![data.len() as u64])

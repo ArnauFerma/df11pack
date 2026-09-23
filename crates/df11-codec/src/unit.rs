@@ -43,6 +43,8 @@ impl UnitOutput {
                 (format!("{n}.idx8_lengths"), ix.lengths.clone()),
                 (format!("{n}.idx8_superblocks"), ix.superblock_bytes()),
                 (format!("{n}.idx8_meta"), ix.meta_bytes()),
+                (format!("{n}.idx8_escape_blocks"), ix.escape_bytes().0),
+                (format!("{n}.idx8_escape_lengths"), ix.escape_bytes().1),
                 (
                     format!("{n}.split_positions"),
                     self.split_positions

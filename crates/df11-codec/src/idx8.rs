@@ -12,6 +12,13 @@
 //! - `idx8_superblocks`: one `u32` per 32 blocks (a warp), the absolute bit offset
 //!   of its first block. A block's start is its superblock's base plus the
 //!   lengths of the blocks before it in that superblock.
+//! - **Escapes** (df11pack's extension, chosen by the user after measuring real
+//!   layers): the u8 value 255 means "this block's length is in the side table".
+//!   `idx8_escape_blocks` lists those blocks (sorted u32) and
+//!   `idx8_escape_lengths` their exact lengths. Real Qwen3 layers need 0 to ~130
+//!   per 245,760 blocks -- rare exponents with 20-25-bit codes clustering -- so
+//!   the kernel's prefix sum is unchanged and a lane with code 255 does one
+//!   lookup. Without escapes most real units cannot be indexed at all.
 //!
 //! The kernel pads both arrays to its grid; the file stores them unpadded.
 
@@ -20,6 +27,9 @@ use std::fmt;
 /// Blocks per superblock: one warp.
 pub const SUPERBLOCK: usize = 32;
 
+/// The length code that means "see the escape table".
+pub const ESCAPE: u8 = 255;
+
 /// The index for one unit.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Idx8 {
@@ -27,6 +37,8 @@ pub struct Idx8 {
     pub minlen: u32,
     pub lengths: Vec<u8>,
     pub superblocks: Vec<u32>,
+    /// `(block, exact length in bits)` for every block coded [`ESCAPE`], sorted.
+    pub escapes: Vec<(u32, u32)>,
     /// Total bits of the symbol stream, excluding the EOF code.
     pub total_bits: u64,
 }
@@ -34,12 +46,6 @@ pub struct Idx8 {
 /// Why a unit cannot be indexed this way. Never a silent fallback to DF11.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Idx8Error {
-    /// Block lengths spread over more than a byte can hold.
-    LengthRange {
-        block: u32,
-        min: u64,
-        max: u64,
-    },
     /// The stream is longer than a `u32` bit offset can address.
     TooLong {
         bits: u64,
@@ -50,12 +56,6 @@ pub enum Idx8Error {
 impl fmt::Display for Idx8Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::LengthRange { block, min, max } => write!(
-                f,
-                "idx8: block lengths run {min}..={max} bits at block={block}, a range of {} \
-                 > 255 that a u8 cannot hold; try a smaller --idx8-block",
-                max - min
-            ),
             Self::TooLong { bits } => write!(
                 f,
                 "idx8: the unit's stream is {bits} bits, past the u32 offsets idx8 stores"
@@ -90,26 +90,14 @@ pub fn build(code_lengths: impl Iterator<Item = u32>, block: usize) -> Result<Id
     if total > u64::from(u32::MAX) {
         return Err(Idx8Error::TooLong { bits: total });
     }
-    // Only full blocks set the range. A final partial block can be far shorter;
-    // the kernel never reads its length (only later lanes would, and those are
-    // padding), and its end is `total_bits`. Counting it would refuse units that
-    // index perfectly well.
+    // The minimum comes from full blocks: a final partial block can be far
+    // shorter, and would push every other block toward an escape.
     let full = if in_block > 0 && lens.len() > 1 {
         &lens[..lens.len() - 1]
     } else {
         &lens[..]
     };
-    let (min, max) = (
-        full.iter().copied().min().unwrap_or(0),
-        full.iter().copied().max().unwrap_or(0),
-    );
-    if max - min > 255 {
-        return Err(Idx8Error::LengthRange {
-            block: block as u32,
-            min,
-            max,
-        });
-    }
+    let min = full.iter().copied().min().unwrap_or(0);
     let mut superblocks = Vec::with_capacity(lens.len().div_ceil(SUPERBLOCK));
     let mut off = 0u64;
     for (b, l) in lens.iter().enumerate() {
@@ -118,15 +106,25 @@ pub fn build(code_lengths: impl Iterator<Item = u32>, block: usize) -> Result<Id
         }
         off += l;
     }
+    let mut escapes = Vec::new();
+    let mut lengths = Vec::with_capacity(lens.len());
+    for (b, &l) in lens.iter().enumerate() {
+        match l.checked_sub(min).filter(|d| *d < u64::from(ESCAPE)) {
+            Some(d) => lengths.push(d as u8),
+            None => {
+                // Too long for a u8 -- or, for a short final block, below the
+                // minimum. Either way the exact length goes in the side table.
+                lengths.push(ESCAPE);
+                escapes.push((b as u32, l as u32));
+            }
+        }
+    }
     Ok(Idx8 {
         block: block as u32,
         minlen: min as u32,
-        // The final partial block's code saturates; it is never read.
-        lengths: lens
-            .iter()
-            .map(|l| l.saturating_sub(min).min(255) as u8)
-            .collect(),
+        lengths,
         superblocks,
+        escapes,
         total_bits: total,
     })
 }
@@ -134,19 +132,29 @@ pub fn build(code_lengths: impl Iterator<Item = u32>, block: usize) -> Result<Id
 impl Idx8 {
     /// Block `b`'s start and end bit, recovered exactly as the kernel does.
     pub fn block_range(&self, b: usize) -> Option<(u64, u64)> {
-        let len = |i: usize| u64::from(self.lengths[i]) + u64::from(self.minlen);
         if b >= self.lengths.len() {
             return None;
         }
         let base = u64::from(*self.superblocks.get(b / SUPERBLOCK)?);
-        let start = base + (b - b % SUPERBLOCK..b).map(len).sum::<u64>();
-        // The last block ends where the stream does.
-        let end = if b + 1 == self.lengths.len() {
-            self.total_bits
+        let mut start = base;
+        for i in b - b % SUPERBLOCK..b {
+            start += self.length(i)?;
+        }
+        Some((start, start + self.length(b)?))
+    }
+
+    /// Block `i`'s length: its code plus the minimum, or its escape entry.
+    pub fn length(&self, i: usize) -> Option<u64> {
+        let code = *self.lengths.get(i)?;
+        if code == ESCAPE {
+            let k = self
+                .escapes
+                .binary_search_by_key(&(i as u32), |e| e.0)
+                .ok()?;
+            Some(u64::from(self.escapes[k].1))
         } else {
-            start + len(b)
-        };
-        Some((start, end))
+            Some(u64::from(code) + u64::from(self.minlen))
+        }
     }
 
     /// The `idx8_meta` tensor: `[block, minlen, total_bits]` as little-endian
@@ -162,11 +170,40 @@ impl Idx8 {
         .collect()
     }
 
-    /// Rebuild the index from its three stored tensors.
-    pub fn from_tensors(lengths: &[u8], superblocks: &[u8], meta: &[u8]) -> Option<Self> {
-        if meta.len() != 24 || superblocks.len() % 4 != 0 {
+    /// The escape table as its two tensors: block indices, then lengths.
+    pub fn escape_bytes(&self) -> (Vec<u8>, Vec<u8>) {
+        (
+            self.escapes
+                .iter()
+                .flat_map(|e| e.0.to_le_bytes())
+                .collect(),
+            self.escapes
+                .iter()
+                .flat_map(|e| e.1.to_le_bytes())
+                .collect(),
+        )
+    }
+
+    /// Rebuild the index from its five stored tensors.
+    pub fn from_tensors(
+        lengths: &[u8],
+        superblocks: &[u8],
+        meta: &[u8],
+        escape_blocks: &[u8],
+        escape_lengths: &[u8],
+    ) -> Option<Self> {
+        if meta.len() != 24
+            || superblocks.len() % 4 != 0
+            || escape_blocks.len() % 4 != 0
+            || escape_blocks.len() != escape_lengths.len()
+        {
             return None;
         }
+        let u32s = |b: &[u8]| -> Vec<u32> {
+            b.chunks_exact(4)
+                .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+                .collect()
+        };
         let m: Vec<i64> = meta
             .chunks_exact(8)
             .map(|c| i64::from_le_bytes(c.try_into().unwrap()))
@@ -176,9 +213,10 @@ impl Idx8 {
             minlen: u32::try_from(m[1]).ok()?,
             total_bits: u64::try_from(m[2]).ok()?,
             lengths: lengths.to_vec(),
-            superblocks: superblocks
-                .chunks_exact(4)
-                .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+            superblocks: u32s(superblocks),
+            escapes: u32s(escape_blocks)
+                .into_iter()
+                .zip(u32s(escape_lengths))
                 .collect(),
         })
     }

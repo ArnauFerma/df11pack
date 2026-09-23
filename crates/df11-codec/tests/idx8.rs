@@ -1,7 +1,7 @@
 //! The idx8 index scheme: construction, the representability check, and the
 //! offsets it recovers.
 
-use df11_codec::idx8::{build, Idx8Error, SUPERBLOCK};
+use df11_codec::idx8::{build, Idx8Error, ESCAPE, SUPERBLOCK};
 
 #[test]
 fn every_block_range_is_recovered_exactly() {
@@ -22,26 +22,31 @@ fn every_block_range_is_recovered_exactly() {
     assert_eq!(ix.block_range(ix.lengths.len()), None);
 }
 
-/// Rule 1 of the seam: a builder may refuse, and must, rather than wrap a u8.
+/// A block whose length a u8 cannot hold is escaped, not refused: code 255 and
+/// its exact length in the side table. Every offset still comes out exact.
 #[test]
-fn a_spread_over_255_bits_is_refused() {
-    // Block 4: most blocks 4 bits, one 4 x 70 = 280 bits.
+fn an_overlong_block_is_escaped_and_still_placed_exactly() {
+    // Block 4: most blocks 4 bits; block 2 is 280 bits (delta 276), block 5 is
+    // exactly min + 254 (the largest plain code), block 7 min + 255 (escaped).
     let mut lens = [1u32; 40];
     lens[8..12].copy_from_slice(&[70, 70, 70, 70]);
-    let e = build(lens.iter().copied(), 4).unwrap_err();
+    lens[20..24].copy_from_slice(&[64, 64, 64, 66]);
+    lens[28..32].copy_from_slice(&[65, 65, 65, 64]);
+    let ix = build(lens.iter().copied(), 4).unwrap();
+    assert_eq!(ix.minlen, 4);
+    assert_eq!(ix.lengths[2], ESCAPE);
+    assert_eq!(ix.lengths[5], 254, "254 is a plain code");
     assert_eq!(
-        e,
-        Idx8Error::LengthRange {
-            block: 4,
-            min: 4,
-            max: 280
-        }
+        ix.lengths[7], ESCAPE,
+        "255 itself must escape: it is the marker"
     );
-    // Exactly 255 still fits.
-    let mut ok = [1u32; 40];
-    ok[8..12].copy_from_slice(&[65, 65, 65, 64]);
-    let ix = build(ok.iter().copied(), 4).unwrap();
-    assert_eq!(ix.lengths.iter().max(), Some(&255));
+    assert_eq!(ix.escapes, vec![(2, 280), (7, 259)]);
+    let mut start = 0u64;
+    for (b, chunk) in lens.chunks(4).enumerate() {
+        let len: u64 = chunk.iter().map(|&l| u64::from(l)).sum();
+        assert_eq!(ix.block_range(b), Some((start, start + len)), "block {b}");
+        start += len;
+    }
 }
 
 #[test]
@@ -53,18 +58,20 @@ fn a_zero_block_is_refused() {
 }
 
 /// A unit's last block is usually partial -- here one 2-bit symbol against
-/// 7-symbol blocks of ~40 bits. It must not set the range (the kernel never reads
-/// its length), and its end must still be exact.
+/// 7-symbol blocks of 280 bits. It must not set the minimum (every full block
+/// would then escape); being below it, it is escaped itself, and placed exactly.
 #[test]
-fn a_short_final_block_neither_refuses_nor_misplaces() {
-    let mut lens = vec![6u32; 7 * 300];
+fn a_short_final_block_does_not_set_the_minimum() {
+    let mut lens = vec![40u32; 7 * 300];
     lens.push(2);
-    // Full blocks of 42 bits, plus one of 2: counted, the range would be 40 --
-    // fine -- so make the full blocks long enough that it would not be.
-    let lens: Vec<u32> = lens.iter().map(|&l| if l == 6 { 40 } else { l }).collect();
-    let ix = build(lens.iter().copied(), 7).expect("the partial block does not count");
+    let ix = build(lens.iter().copied(), 7).unwrap();
     assert_eq!(ix.minlen, 280);
     let last = ix.lengths.len() - 1;
+    assert_eq!(
+        ix.escapes,
+        vec![(last as u32, 2)],
+        "only the final block escapes"
+    );
     let start = 280 * last as u64;
     assert_eq!(ix.block_range(last), Some((start, start + 2)));
     assert_eq!(ix.total_bits, start + 2);
@@ -187,8 +194,14 @@ fn a_wrong_idx8_length_on_disk_is_caught() {
     let unit = "single_transformer_blocks.1";
     let f = SafeTensorsFile::open(out.join("single_transformer_blocks_1.safetensors")).unwrap();
     let g = |t: &str| f.read(&format!("{unit}.{t}")).unwrap();
-    let mut ix =
-        Idx8::from_tensors(&g("idx8_lengths"), &g("idx8_superblocks"), &g("idx8_meta")).unwrap();
+    let mut ix = Idx8::from_tensors(
+        &g("idx8_lengths"),
+        &g("idx8_superblocks"),
+        &g("idx8_meta"),
+        &g("idx8_escape_blocks"),
+        &g("idx8_escape_lengths"),
+    )
+    .unwrap();
     let source: Vec<u8> = [
         "norm.linear",
         "proj_mlp",
@@ -222,4 +235,48 @@ fn a_wrong_idx8_length_on_disk_is_caught() {
         matches!(e, VerifyError::Idx8BlockBoundary { block: 3, .. }),
         "{e}"
     );
+}
+
+/// The real layer that plain idx8 had to refuse (block lengths 133..=515 at
+/// block 64): with escapes it indexes, every block verifies against the source,
+/// and the whole index is still smaller than gaps + output_positions.
+#[test]
+fn a_real_layer_with_outliers_indexes_and_verifies() {
+    let Some(fx) = skip_if_missing("idx8_real") else {
+        return;
+    };
+    let set = fx.set("tier0-qwen3-trunc-layers-only").unwrap();
+    let defs = architecture_defs().unwrap();
+    let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").unwrap();
+    let def = ArchDef::from_toml(toml).unwrap();
+    let src = ModelSource::open(set.source_dir.join("model.safetensors")).unwrap();
+    let out = df11_fixtures::scratch("idx8_real");
+    let opts = WriteOptions {
+        idx8_block: Some(64),
+        verify: true,
+        ..Default::default()
+    };
+    let r = write_directory(&src, &def, &out, &opts).expect("escapes make it representable");
+    assert_eq!(r.verified.len(), 4);
+
+    let official = set.tensors()[0].file.parent().unwrap().to_path_buf();
+    let f = SafeTensorsFile::open(out.join("model_layers_0.safetensors")).unwrap();
+    let o = SafeTensorsFile::open(official.join("model_layers_0.safetensors")).unwrap();
+    let u = "model.layers.0";
+    let n = |f: &SafeTensorsFile, t: &str| f.info(&format!("{u}.{t}")).unwrap().nbytes();
+    let escapes = n(&f, "idx8_escape_blocks") / 4;
+    assert!(escapes > 0, "this layer has outlier blocks");
+    let idx8: u64 = [
+        "idx8_lengths",
+        "idx8_superblocks",
+        "idx8_meta",
+        "idx8_escape_blocks",
+        "idx8_escape_lengths",
+    ]
+    .iter()
+    .map(|t| n(&f, t))
+    .sum();
+    let df11 = n(&o, "gaps") + n(&o, "output_positions");
+    eprintln!("layer 0: {escapes} escapes; idx8 index {idx8} B vs DF11 {df11} B");
+    assert!(idx8 < df11);
 }

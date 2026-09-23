@@ -1669,5 +1669,7 @@ real Qwen3-0.6B:
 The median block is ~170 bits; the tail is a few blocks where exponents with
 20–25-bit codes cluster (≤ 61 such symbols per layer). Block 32 would fit more
 often but costs 0.28 bits/weight — more than DF11's `gaps` (0.208) — so it saves
-nothing. The fix is a format choice, left to the user: an escape for the rare
-overflowing block is the obvious candidate.
+nothing. **Decided: an escape table** (INDEX_SCHEMES.md). With it the tier-0
+layer that refused indexes with 14 escapes, verifies block by block, and its index
+is 276.6 KB against DF11's 414.1 KB: 0.64% of the unit, inside the 0.6–1.3%
+predicted before any of this was built.

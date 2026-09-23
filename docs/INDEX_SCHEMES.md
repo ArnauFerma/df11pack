@@ -99,9 +99,16 @@ partial block does not set the range (the kernel never reads its length).
 At block 64, block lengths spread 237–543 bits across layers (range must be
 ≤ 255): 0 to 130 of 245,760 blocks overflow per layer — at most 0.05%, where rare
 exponents with 20–25-bit codes cluster. Only layer 1 of those sampled fits. The
-sibling project's 130–273 came from a slice without those outliers. df11pack
-refuses such units, as rule 1 requires; making idx8 usable on real models needs a
-format decision (FINDINGS, "idx8 against real layers").
+sibling project's 130–273 came from a slice without those outliers.
+
+**Decided: an escape table** (the user's choice). The u8 code 255 means "this
+block's exact length is in the side table": `idx8_escape_blocks` (sorted u32 block
+indices) and `idx8_escape_lengths` (u32). The warp prefix sum is unchanged; a lane
+whose code is 255 does one lookup. Every unit is now representable (up to u32 bit
+offsets). **The sibling project's kernel must learn the same branch** before it can
+read these files. On the real tier-0 layer 0: 14 escapes, index 276.6 KB against
+DF11's 414.1 KB (`gaps` + `output_positions`) — 0.07 bits/weight, 0.64% of the
+unit, within the predicted 0.6–1.3%.
 
 **Credit and source.** This is the design from the sibling project
 `bf16-exponent-compression` (`kernel_idx8.py`), where it was implemented,
