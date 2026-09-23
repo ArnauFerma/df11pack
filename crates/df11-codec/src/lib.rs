@@ -68,6 +68,7 @@ pub mod chunked;
 pub mod config;
 pub mod discover;
 pub mod huffman;
+pub mod idx8;
 pub mod io_sched;
 pub mod keys;
 pub mod safetensors;
@@ -138,6 +139,8 @@ pub enum EncodeError {
     },
     /// A source tensor could not be read while encoding.
     SourceRead(String),
+    /// The unit cannot be indexed with idx8 (only when idx8 was asked for).
+    Idx8(crate::idx8::Idx8Error),
 }
 
 impl fmt::Display for EncodeError {
@@ -179,6 +182,7 @@ impl fmt::Display for EncodeError {
                  see docs/COMPATIBILITY.md"
             ),
             Self::SourceRead(m) => write!(f, "could not read a source tensor: {m}"),
+            Self::Idx8(e) => write!(f, "{e}"),
             Self::CodeTooLong { bits } => write!(
                 f,
                 "longest code is {bits} bits, over the limit of {MAX_CODE_BITS}; \

@@ -54,6 +54,14 @@ enum Command {
         /// tool's.
         #[arg(long)]
         hashes: bool,
+        /// Index scheme. `df11` is the format every DF11 loader reads. `idx8`
+        /// (docs/INDEX_SCHEMES.md) is smaller but NOT DF11: the official kernel
+        /// cannot read it.
+        #[arg(long, value_enum, default_value_t = IndexArg::Df11)]
+        index: IndexArg,
+        /// Symbols per idx8 block.
+        #[arg(long, default_value_t = 64)]
+        idx8_block: usize,
     },
     /// Check a written output, optionally against the model it was made from.
     ///
@@ -83,6 +91,12 @@ enum Command {
     },
     /// List the available architecture definitions.
     Architectures,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+enum IndexArg {
+    Df11,
+    Idx8,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
@@ -242,6 +256,8 @@ struct CompressArgs {
     io: IoArg,
     safe: bool,
     hashes: bool,
+    index: IndexArg,
+    idx8_block: usize,
 }
 
 fn compress(a: CompressArgs) -> Result<(), String> {
@@ -255,6 +271,8 @@ fn compress(a: CompressArgs) -> Result<(), String> {
         io,
         safe,
         hashes,
+        index,
+        idx8_block,
     } = a;
     let def = load_arch(&arch)?;
     let model = ModelSource::open(&source).map_err(|e| format!("{}: {e}", source.display()))?;
@@ -269,6 +287,15 @@ fn compress(a: CompressArgs) -> Result<(), String> {
         );
     }
 
+    if index == IndexArg::Idx8 {
+        eprintln!(
+            "warning: --index=idx8 output is NOT DFloat11. No DF11 loader or the official\n\
+             kernel can read it; it needs an idx8 decoder. It is stamped\n\
+             df11pack_index=\"idx8\" and carries no dfloat11_config.\n\
+             See docs/INDEX_SCHEMES.md."
+        );
+    }
+
     let ram_budget = match &ram {
         Some(s) => Some(parse_size(s)?),
         None => None,
@@ -280,6 +307,7 @@ fn compress(a: CompressArgs) -> Result<(), String> {
         io: io.into(),
         verify: safe,
         hashes,
+        idx8_block: (index == IndexArg::Idx8).then_some(idx8_block),
     };
     let report = write_directory(&model, &def, &out, &opts).map_err(|e| e.to_string())?;
 
@@ -404,6 +432,8 @@ fn main() -> ExitCode {
             io,
             safe,
             hashes,
+            index,
+            idx8_block,
         } => compress(CompressArgs {
             source,
             arch,
@@ -414,6 +444,8 @@ fn main() -> ExitCode {
             io,
             safe,
             hashes,
+            index,
+            idx8_block,
         }),
         Command::Verify {
             output,

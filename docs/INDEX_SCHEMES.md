@@ -85,7 +85,23 @@ thread's output position, then the real decode pass.
 
 ## Scheme `idx8` — designed and measured in `bf16-exponent-compression`
 
-Not implemented here. Specified so that implementing it later is additive.
+**Implemented (2026-09-23), strict:** `df11pack compress --index idx8
+[--idx8-block 64]`. Per unit it writes `idx8_lengths` (u8 per block),
+`idx8_superblocks` (u32 per 32 blocks) and `idx8_meta` (i64
+`[block, minlen, total_bits]`) in place of `gaps` and `output_positions`; `luts`,
+`encoded_exponent`, `sign_mantissa` and `split_positions` are byte-identical to
+DF11's. Files are stamped `df11pack_index = "idx8"`; `config.json` carries
+`df11pack_idx8_config`, never `dfloat11_config`. Safe mode decodes every block from
+its indexed start and requires it to end exactly where the index says. The final
+partial block does not set the range (the kernel never reads its length).
+
+**Measured on real Qwen3-0.6B layers, plain idx8 is usually not representable.**
+At block 64, block lengths spread 237–543 bits across layers (range must be
+≤ 255): 0 to 130 of 245,760 blocks overflow per layer — at most 0.05%, where rare
+exponents with 20–25-bit codes cluster. Only layer 1 of those sampled fits. The
+sibling project's 130–273 came from a slice without those outliers. df11pack
+refuses such units, as rule 1 requires; making idx8 usable on real models needs a
+format decision (FINDINGS, "idx8 against real layers").
 
 **Credit and source.** This is the design from the sibling project
 `bf16-exponent-compression` (`kernel_idx8.py`), where it was implemented,

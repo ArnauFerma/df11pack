@@ -1649,3 +1649,25 @@ Result: **23 of 28 fit their real checkpoint exactly.** The 5 left are all non-B
 sources (HiDream F16; OmniGen2 ×2, Wan2.1 F32; Krea-2's five F32 tensors), which
 df11pack refuses by design; apart from dtype, each fits. Every rule is proven by a
 mutation that turns a test red.
+
+---
+
+# idx8 against real layers
+
+Implemented strictly (INDEX_SCHEMES.md). On the tier-0 fixture the first unit
+already refuses: block lengths 133–515 bits at block 64, range 382 > 255. Over the
+real Qwen3-0.6B:
+
+| layer | block 64: range | blocks over | block 128: blocks over |
+|---|---|---|---|
+| 0 | 382 | 14 / 245,760 | 145 |
+| 1 | 237 | **0** | 82 |
+| 2 | 259 | 1 | 154 |
+| 13 | 376 | 9 | 374 |
+| 27 | 543 | 130 | 220 |
+
+The median block is ~170 bits; the tail is a few blocks where exponents with
+20–25-bit codes cluster (≤ 61 such symbols per layer). Block 32 would fit more
+often but costs 0.28 bits/weight — more than DF11's `gaps` (0.208) — so it saves
+nothing. The fix is a format choice, left to the user: an escape for the rare
+overflowing block is the obvious candidate.

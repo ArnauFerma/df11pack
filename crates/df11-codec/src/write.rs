@@ -10,7 +10,7 @@ use crate::safetensors::{
     write_bytes_atomic, write_file, Dtype, OutTensor, Payload, StError, StreamingWriter, TensorDecl,
 };
 use crate::source::{ModelSource, View, COMFYUI_PREFIX};
-use crate::unit::encode_unit_streaming;
+use crate::unit::encode_unit_streaming_with;
 use crate::EncodeError;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -40,6 +40,11 @@ pub struct WriteOptions {
     /// so `verify` can catch a wrong value without the source. Off by default:
     /// the header then differs from the official tool's (COMPATIBILITY.md).
     pub hashes: bool,
+    /// Index with idx8 at this block size instead of DF11's `gaps` and
+    /// `output_positions`. **The output is not DF11**: the official kernel cannot
+    /// read it, and it is stamped `df11pack_index = "idx8"` and carries no
+    /// `dfloat11_config` (docs/INDEX_SCHEMES.md).
+    pub idx8_block: Option<usize>,
 }
 
 /// How many units to encode at once, given the budget and the largest unit.
@@ -247,6 +252,7 @@ fn build_unit(
     u: &crate::discover::DiscoveredUnit,
     threads: usize,
     bpt: usize,
+    idx8_block: Option<usize>,
     read: &Reader,
     verify: bool,
 ) -> Result<Built, WriteError> {
@@ -256,11 +262,18 @@ fn build_unit(
         .iter()
         .map(|n| src.info(n).map(|i| i.nbytes() / 2).unwrap_or(0))
         .collect();
-    let enc = encode_unit_streaming(&u.name, &counts, |i| read(&u.tensors[i]), threads, bpt)
-        .map_err(|e| WriteError::Encode {
-            unit: u.name.clone(),
-            source: e,
-        })?;
+    let enc = encode_unit_streaming_with(
+        &u.name,
+        &counts,
+        |i| read(&u.tensors[i]),
+        threads,
+        bpt,
+        idx8_block,
+    )
+    .map_err(|e| WriteError::Encode {
+        unit: u.name.clone(),
+        source: e,
+    })?;
     let limited = (enc.limiter_iterations > 0).then(|| u.name.clone());
 
     // Safe mode checks the unit BEFORE anything is written, so a wrong one never
@@ -282,7 +295,18 @@ fn build_unit(
             bytes_per_thread: bpt,
             threads_per_block: threads,
         };
-        crate::verify::verify_unit(&view, &source_bytes).map_err(|e| WriteError::Verify {
+        // With idx8, the index actually written is what must be proven.
+        let checked = match &enc.idx8 {
+            Some(ix) => crate::verify::verify_idx8_unit(
+                &luts,
+                &enc.encoded_exponent,
+                &enc.sign_mantissa,
+                ix,
+                &source_bytes,
+            ),
+            None => crate::verify::verify_unit(&view, &source_bytes),
+        };
+        checked.map_err(|e| WriteError::Verify {
             unit: u.name.clone(),
             source: e,
         })?;
@@ -294,8 +318,10 @@ fn build_unit(
     for (name, data) in enc.tensors() {
         let (dtype, shape) = if name.ends_with(".luts") {
             (Dtype::new(Dtype::U8), vec![rows, 256])
-        } else if name.ends_with(".split_positions") {
+        } else if name.ends_with(".split_positions") || name.ends_with(".idx8_meta") {
             (Dtype::new(Dtype::I64), vec![(data.len() / 8) as u64])
+        } else if name.ends_with(".idx8_superblocks") {
+            (Dtype::new("U32"), vec![(data.len() / 4) as u64])
         } else {
             (Dtype::new(Dtype::U8), vec![data.len() as u64])
         };
@@ -476,6 +502,10 @@ pub fn write_directory(
         // that is. See docs/COMPATIBILITY.md.
         meta.insert("df11pack_luts".to_string(), "correct".to_string());
     }
+    if opts.idx8_block.is_some() {
+        // Never let an idx8 file pass for DF11.
+        meta.insert("df11pack_index".to_string(), "idx8".to_string());
+    }
     let mut remainder_meta = meta.clone();
     remainder_meta.insert("format".to_string(), "pt".to_string());
 
@@ -553,7 +583,7 @@ pub fn write_directory(
         // tensor comes up; a unit's U8 tensors are contiguous in that order.
         const KEEP: u64 = 1 << 20;
         let pass1 = run_units(&found.units, workers, &|u| {
-            let b = build_unit(&src, u, threads, bpt, &read, false)?;
+            let b = build_unit(&src, u, threads, bpt, opts.idx8_block, &read, false)?;
             // Hashed here, before the header: pass two must then write exactly
             // these bytes, which `verify` will confirm.
             let mut h = BTreeMap::new();
@@ -626,7 +656,15 @@ pub fn write_directory(
                         found.units[ui].name
                     ))));
                 }
-                let b = build_unit(&src, &found.units[ui], threads, bpt, &read, opts.verify)?;
+                let b = build_unit(
+                    &src,
+                    &found.units[ui],
+                    threads,
+                    bpt,
+                    opts.idx8_block,
+                    &read,
+                    opts.verify,
+                )?;
                 if b.verified {
                     verified.push(found.units[ui].name.clone());
                 }
@@ -656,7 +694,7 @@ pub fn write_directory(
         if opts.verify {
             for (ui, u) in found.units.iter().enumerate() {
                 if !encoded[ui] {
-                    let b = build_unit(&src, u, threads, bpt, &read, true)?;
+                    let b = build_unit(&src, u, threads, bpt, opts.idx8_block, &read, true)?;
                     for t in &b.tensors {
                         if let (Payload::Owned(v), Some(k)) = (&t.data, kept.get(&t.name)) {
                             if v != k {
@@ -675,7 +713,7 @@ pub fn write_directory(
         output_bytes += std::fs::metadata(&path)?.len();
     } else {
         let written = run_units(&found.units, workers, &|u| {
-            let b = build_unit(&src, u, threads, bpt, &read, opts.verify)?;
+            let b = build_unit(&src, u, threads, bpt, opts.idx8_block, &read, opts.verify)?;
             let fname = shard_name(&u.name);
             let path = out_dir.join(&fname);
             let mut meta = meta.clone();
@@ -710,7 +748,18 @@ pub fn write_directory(
             } else {
                 ConfigMode::PreserveSource
             };
-            let cfg = build_config(source_config.as_ref(), def, mode);
+            let mut cfg = build_config(source_config.as_ref(), def, mode);
+            if let (Some(block), Some(o)) = (opts.idx8_block, cfg.as_object_mut()) {
+                // Not DF11: no loader may take this for a dfloat11_config.
+                if let Some(mut c) = o.remove("dfloat11_config") {
+                    if let Some(co) = c.as_object_mut() {
+                        co.insert("index".into(), "idx8".into());
+                        co.insert("idx8_block".into(), block.into());
+                        co.insert("idx8_superblock".into(), crate::idx8::SUPERBLOCK.into());
+                    }
+                    o.insert("df11pack_idx8_config".into(), c);
+                }
+            }
             let path = out_dir.join("config.json");
             write_bytes_atomic(&path, &serde_json::to_vec_pretty(&cfg).unwrap_or_default())?;
             output_bytes += std::fs::metadata(&path)?.len();

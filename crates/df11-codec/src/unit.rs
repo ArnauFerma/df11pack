@@ -19,6 +19,9 @@ pub struct UnitOutput {
     pub split_positions: Vec<i64>,
     /// How many demotion rounds the 32-bit limiter needed; 0 when it never ran.
     pub limiter_iterations: usize,
+    /// The idx8 index, when asked for. Its tensors then replace `gaps` and
+    /// `output_positions` (docs/INDEX_SCHEMES.md). Not DF11-compatible.
+    pub idx8: Option<crate::idx8::Idx8>,
 }
 
 impl UnitOutput {
@@ -26,6 +29,29 @@ impl UnitOutput {
     /// ready to write into a safetensors shard.
     pub fn tensors(&self) -> Vec<(String, Vec<u8>)> {
         let n = &self.name;
+        if let Some(ix) = &self.idx8 {
+            return vec![
+                (
+                    format!("{n}.luts"),
+                    self.luts.iter().flat_map(|r| r.iter().copied()).collect(),
+                ),
+                (
+                    format!("{n}.encoded_exponent"),
+                    self.encoded_exponent.clone(),
+                ),
+                (format!("{n}.sign_mantissa"), self.sign_mantissa.clone()),
+                (format!("{n}.idx8_lengths"), ix.lengths.clone()),
+                (format!("{n}.idx8_superblocks"), ix.superblock_bytes()),
+                (format!("{n}.idx8_meta"), ix.meta_bytes()),
+                (
+                    format!("{n}.split_positions"),
+                    self.split_positions
+                        .iter()
+                        .flat_map(|v| v.to_le_bytes())
+                        .collect(),
+                ),
+            ];
+        }
         vec![
             (
                 format!("{n}.luts"),
@@ -93,9 +119,32 @@ pub fn encode_unit(
 pub fn encode_unit_streaming<E>(
     name: &str,
     counts: &[u64],
+    fetch: impl FnMut(usize) -> Result<Vec<u8>, E>,
+    threads_per_block: usize,
+    bytes_per_thread: usize,
+) -> Result<UnitOutput, EncodeError>
+where
+    EncodeError: From<E>,
+{
+    encode_unit_streaming_with(
+        name,
+        counts,
+        fetch,
+        threads_per_block,
+        bytes_per_thread,
+        None,
+    )
+}
+
+/// [`encode_unit_streaming`], optionally also building the idx8 index with
+/// blocks of `idx8_block` symbols.
+pub fn encode_unit_streaming_with<E>(
+    name: &str,
+    counts: &[u64],
     mut fetch: impl FnMut(usize) -> Result<Vec<u8>, E>,
     threads_per_block: usize,
     bytes_per_thread: usize,
+    idx8_block: Option<usize>,
 ) -> Result<UnitOutput, EncodeError>
 where
     EncodeError: From<E>,
@@ -134,6 +183,18 @@ where
 
     check_unit_limits(total_weights, bytes.len() as u64)?;
 
+    // idx8 needs only each symbol's code length, in stream order.
+    let idx8 = match idx8_block {
+        None => None,
+        Some(block) => {
+            let (bits, _) = crate::chunked::code_table(&built.codebook);
+            Some(
+                crate::idx8::build(exponents.iter().map(|&e| bits[e as usize]), block)
+                    .map_err(EncodeError::Idx8)?,
+            )
+        }
+    };
+
     Ok(UnitOutput {
         name: name.to_string(),
         luts,
@@ -143,5 +204,6 @@ where
         gaps,
         split_positions: ArchDef::split_positions(counts),
         limiter_iterations: built.iterations,
+        idx8,
     })
 }

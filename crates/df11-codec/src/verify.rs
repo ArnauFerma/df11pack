@@ -60,6 +60,12 @@ pub enum VerifyError {
     SymbolWithoutCode {
         symbol: u8,
     },
+    /// An idx8 block's decoded symbols did not end where its index says.
+    Idx8BlockBoundary {
+        block: usize,
+        indexed_end: u64,
+        decoded_end: u64,
+    },
     Malformed(String),
 }
 
@@ -102,6 +108,15 @@ impl fmt::Display for VerifyError {
             Self::SymbolWithoutCode { symbol } => {
                 write!(f, "decoded symbol {symbol}, which has no code length")
             }
+            Self::Idx8BlockBoundary {
+                block,
+                indexed_end,
+                decoded_end,
+            } => write!(
+                f,
+                "idx8 block {block}: the index says it ends at bit {indexed_end}, its \
+                 symbols end at {decoded_end}"
+            ),
             Self::Malformed(m) => write!(f, "{m}"),
         }
     }
@@ -428,4 +443,103 @@ fn gap_at(packed: &[u8], window: usize) -> Option<u32> {
         v = (v << 1) | u32::from((packed[bit / 8] >> (7 - bit % 8)) & 1);
     }
     Some(v)
+}
+
+/// Decode one idx8 block on its own and compare it with the source.
+///
+/// The block starts where the index says -- superblock base plus the lengths of
+/// the blocks before it in its superblock, as the kernel computes it -- and
+/// covers weights `b * block ..` up to `block` of them. Its symbols must end
+/// exactly where the index says the block ends: that is what proves every stored
+/// length, not just the ones a sequential decode would happen to pass through.
+///
+/// `expected` is the source BF16 bytes for exactly that weight range.
+pub fn verify_idx8_block(
+    luts: &[u8],
+    encoded_exponent: &[u8],
+    sign_mantissa: &[u8],
+    ix: &crate::idx8::Idx8,
+    b: usize,
+    expected: &[u8],
+) -> Result<(), VerifyError> {
+    if luts.len() % 256 != 0 || luts.len() < 512 {
+        return Err(VerifyError::Malformed(
+            "luts is not whole 256-byte rows".into(),
+        ));
+    }
+    let tables = luts.len() / 256 - 1;
+    let lens = &luts[tables * 256..];
+    let (start, end) = ix
+        .block_range(b)
+        .ok_or_else(|| VerifyError::Malformed(format!("idx8 has no block {b}")))?;
+    let block = ix.block as usize;
+    let a = b * block;
+    let e = (a + block).min(sign_mantissa.len());
+    if expected.len() != (e - a) * 2 {
+        return Err(VerifyError::Malformed(format!(
+            "block {b} covers {} weights but {} source bytes were given",
+            e - a,
+            expected.len()
+        )));
+    }
+    let mut bit = start as usize;
+    for (i, &sm) in sign_mantissa.iter().enumerate().take(e).skip(a) {
+        let (symbol, len) = decode_at(luts, tables, lens, encoded_exponent, bit)?;
+        let got = ((u16::from(sm & 0x80)) << 8) | (u16::from(symbol) << 7) | u16::from(sm & 0x7F);
+        let k = (i - a) * 2;
+        let want = u16::from_le_bytes([expected[k], expected[k + 1]]);
+        if got != want {
+            return Err(VerifyError::WeightMismatch {
+                index: i,
+                expected: want,
+                got,
+            });
+        }
+        bit += len as usize;
+    }
+    if bit as u64 != end {
+        return Err(VerifyError::Idx8BlockBoundary {
+            block: b,
+            indexed_end: end,
+            decoded_end: bit as u64,
+        });
+    }
+    Ok(())
+}
+
+/// Every idx8 block of a unit, against the whole unit's source bytes.
+pub fn verify_idx8_unit(
+    luts: &[u8],
+    encoded_exponent: &[u8],
+    sign_mantissa: &[u8],
+    ix: &crate::idx8::Idx8,
+    source_bf16_le: &[u8],
+) -> Result<(), VerifyError> {
+    let n = sign_mantissa.len();
+    if source_bf16_le.len() != n * 2 {
+        return Err(VerifyError::Malformed(format!(
+            "source has {} weights, the unit has {n}",
+            source_bf16_le.len() / 2
+        )));
+    }
+    let block = ix.block as usize;
+    if ix.lengths.len() != n.div_ceil(block) {
+        return Err(VerifyError::Malformed(format!(
+            "{} idx8 blocks for {n} weights at block {block}",
+            ix.lengths.len()
+        )));
+    }
+    for b in 0..ix.lengths.len() {
+        let a = b * block;
+        let e = (a + block).min(n);
+        verify_idx8_block(
+            luts,
+            encoded_exponent,
+            sign_mantissa,
+            ix,
+            b,
+            &source_bf16_le[a * 2..e * 2],
+        )?;
+    }
+    Ok(())
 }
