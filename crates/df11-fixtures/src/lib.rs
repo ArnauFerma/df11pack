@@ -237,7 +237,7 @@ fn resolve(root: &Path, p: &str) -> PathBuf {
     }
 }
 
-fn workspace_root() -> Option<PathBuf> {
+pub fn workspace_root() -> Option<PathBuf> {
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     loop {
         if d.join("phase0").is_dir() {

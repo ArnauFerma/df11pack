@@ -171,6 +171,13 @@ pub enum WriteError {
     },
     St(StError),
     Io(std::io::Error),
+    /// A tensor to be compressed is not BF16. DF11 is a BF16 format and dtype
+    /// conversion is out of scope; read as BF16, the bytes would encode wrong
+    /// weights that even safe mode could not catch.
+    NotBf16 {
+        tensor: String,
+        dtype: String,
+    },
 }
 
 impl fmt::Display for WriteError {
@@ -184,6 +191,12 @@ impl fmt::Display for WriteError {
             ),
             Self::St(e) => write!(f, "{e}"),
             Self::Io(e) => write!(f, "{e}"),
+            Self::NotBf16 { tensor, dtype } => write!(
+                f,
+                "{tensor:?} is {dtype}, not BF16. DFloat11 compresses BF16 weights only; \
+                 convert the model to BF16 first (the official releases of such models \
+                 were converted, e.g. by loading with torch_dtype=torch.bfloat16)"
+            ),
         }
     }
 }
@@ -415,6 +428,18 @@ pub fn write_directory(
 
     let names: Vec<String> = src.names();
     let found = discover(def, &names)?;
+    // Before anything is written: every tensor to be compressed must be BF16.
+    for u in &found.units {
+        for t in &u.tensors {
+            let dtype = src.info(t).map(|i| i.dtype.0.clone()).unwrap_or_default();
+            if dtype != Dtype::BF16 {
+                return Err(WriteError::NotBf16 {
+                    tensor: t.clone(),
+                    dtype,
+                });
+            }
+        }
+    }
     let source_bytes = src.total_bytes();
 
     let threads = *def.threads_per_block.first().unwrap_or(&512) as usize;

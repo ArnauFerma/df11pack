@@ -615,3 +615,57 @@ fn generation_config_is_copied_when_present_and_never_invented() {
         let _ = std::fs::remove_dir_all(d);
     }
 }
+
+/// A tensor to be compressed must be BF16. Found checking definitions against
+/// real checkpoints: several real sources are F32 or F16 (OmniGen2, Wan2.1,
+/// HiDream). The encoder reads bytes as BF16 pairs, so an F32 weight would become
+/// two garbage BF16 values -- a well-formed DF11 file of wrong weights -- and safe
+/// mode, comparing against the same raw bytes, would pass it. It must be refused,
+/// before anything is written.
+#[test]
+fn a_non_bf16_unit_tensor_is_refused_before_writing() {
+    use df11_codec::safetensors::{write_file, Dtype, OutTensor};
+    use df11_codec::write::WriteError;
+    let def = ArchDef::from_toml(
+        "name = \"t\"\nlayout = \"diffusers\"\nformat_version = \"0.5.0\"\n\
+         threads_per_block = [512]\nbytes_per_thread = 8\nsource = \"t\"\n\
+         [[unit]]\npattern = 'blocks\\.\\d+'\nattrs = [\"a\", \"b\"]\n",
+    )
+    .unwrap();
+    for bad in ["F32", "F16"] {
+        let dir = outdir(&format!("dtype_{bad}"));
+        let width = if bad == "F32" { 4 } else { 2 };
+        write_file(
+            dir.join("model.safetensors"),
+            &[
+                OutTensor::owned(
+                    "blocks.0.a.weight",
+                    Dtype::new("BF16"),
+                    vec![64, 64],
+                    vec![1u8; 64 * 64 * 2],
+                ),
+                OutTensor::owned(
+                    "blocks.0.b.weight",
+                    Dtype::new(bad),
+                    vec![64, 64],
+                    vec![1u8; 64 * 64 * width],
+                ),
+            ],
+            &Default::default(),
+        )
+        .unwrap();
+        let src = ModelSource::open(dir.join("model.safetensors")).unwrap();
+        let out = outdir(&format!("dtype_{bad}_out"));
+        let e = write_directory(&src, &def, &out, &WriteOptions::default())
+            .expect_err(&format!("{bad} must be refused"));
+        assert!(
+            matches!(&e, WriteError::NotBf16 { tensor, dtype } if tensor == "blocks.0.b.weight" && dtype == bad),
+            "{e}"
+        );
+        assert_eq!(
+            std::fs::read_dir(&out).unwrap().count(),
+            0,
+            "nothing written"
+        );
+    }
+}

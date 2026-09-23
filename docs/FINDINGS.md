@@ -1566,3 +1566,60 @@ A definition carries one `format_version`, from its canonical release. Releases
 sharing a pattern_dict do not always share it (Wan2.1 is 0.2.0, Wan2.2 0.3.1;
 Qwen-Image 0.3.1, its Edit variants 0.3.2 and 0.5.0). It only reaches
 `config.json`'s `dfloat11_config.version`; the tensors do not depend on it.
+
+---
+
+# Definitions against real checkpoints
+
+Stand-in models prove a definition is *reproduced*; they carry the definition's own
+module names, so they cannot show it fits a real model. `phase0/fetch_real_headers.py`
+reads, by HTTP range request, only the safetensors **headers** (names, dtypes,
+shapes; no weights; 4.1 MB in all) of a real, ungated source checkpoint and of the
+real DF11 release made from it, for 28 definitions. `tests/real_names.rs` runs
+discovery on the real source names, offline, and compares with the release: the
+same units; each unit's weight count against the release's `sign_mantissa` length
+and its tensor count against `split_positions`; and every uncompressed tensor in
+the same file. It does not check attribute *order* (the drift test against the
+official pattern_dicts does), and it cannot check values.
+
+Not covered (gated: needs a Hugging Face token): Gemma-3, SD3.5, FLUX.1-dev/Kontext/
+Krea diffusers, Llama. The Llama definition is covered through Mistral-Nemo, which
+shares it.
+
+## Result: 15 fit exactly, 13 diverge in four understood ways
+
+**Fit exactly (15):** qwen3-4b, qwen3-8b, llama-3.3-70b (via Mistral-Nemo), phi-4,
+bagel-7b-mot, chroma-diffusers, qwen-image-diffusers-single, acestep15, ernie-image,
+lens, longcat-image, lumina2, qwen-image21, sdxl, zimage (ComfyUI).
+
+**1. The source is not BF16 (5).** HiDream-I1 is F16; OmniGen2 (both parts) and
+Wan2.1 are F32; Krea-2 has five F32 tensors. The releases were converted to BF16
+first. Apart from dtype, all five fit exactly. **This exposed a real bug:**
+df11pack never checked dtype. An F32 source would have had each 4-byte float
+encoded as two "BF16" values — a well-formed DF11 file of wrong weights — and safe
+mode, comparing against the same raw bytes, would have passed it. **Fixed:** a
+tensor to be compressed that is not BF16 is now refused before anything is written,
+with a message saying to convert first (conversion stays out of scope). Proven by a
+mutation.
+
+**2. ComfyUI renames RMSNorm `.scale` to `.weight` (5).** Flux-schnell, Chroma,
+Chroma-Radiance, FLUX.2-klein, Ovis: every source tensor ending `.scale` appears in
+the Extended release as `.weight`, and nothing else differs. The releases are
+ComfyUI's in-memory `state_dict`, after its load-time key conversion.
+
+**3. ComfyUI strips the Cosmos `net.` prefix (2).** Cosmos-Predict2 and Anima
+checkpoints key everything under `net.`; the releases do not. Cosmos also drops four
+training counters (`accum_*`) and every `_extra_state`. With `net.` stripped, Anima
+fits exactly.
+
+**4. Tied `lm_head` compressed as its own unit (OmniGen2-mllm).** The source has
+tied embeddings and no `lm_head.weight`; the release has an `lm_head` unit exactly
+the size of `embed_tokens` — the official walk finds the tied Linear and compresses
+the shared weight twice.
+
+**Also:** `mingyi456/Chroma1-Base-DF11`, from which `chroma-base-diffusers-mingyi` was
+transcribed, has since been re-published as a single `model.safetensors`
+(format 0.5.0). The units still match; only the layout changed.
+
+Divergences 2–4 are decisions, not bugs: each means writing names or tensors the
+source does not have, which the design so far has never done.
