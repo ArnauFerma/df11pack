@@ -69,6 +69,7 @@ pub mod discover;
 pub mod huffman;
 pub mod io_sched;
 pub mod safetensors;
+pub mod sample;
 pub mod source;
 pub mod unit;
 pub mod verify;

@@ -320,3 +320,112 @@ fn unpack_gaps(packed: &[u8]) -> Vec<u32> {
     }
     out
 }
+
+/// The elements chunk `c` decodes to: `output_positions[c] .. output_positions[c+1]`.
+pub fn chunk_range(view: &UnitView, c: usize) -> Option<(usize, usize)> {
+    let a = *view.output_positions.get(c)? as usize;
+    let b = *view.output_positions.get(c + 1)? as usize;
+    (a <= b).then_some((a, b))
+}
+
+/// How many kernel chunks the unit has.
+pub fn chunk_count(view: &UnitView) -> usize {
+    view.output_positions.len().saturating_sub(1)
+}
+
+/// Decode one kernel chunk in isolation and compare it with the source.
+///
+/// This is the random access the GPU relies on: chunk `c` starts at bit
+/// `c x chunk_bits + gaps[first window of c]` and element `output_positions[c]`,
+/// and ends where the next chunk's first element begins. Nothing before the chunk
+/// is decoded, so a fault is attributed to the chunk that contains it rather than
+/// to everything after it.
+///
+/// `expected` is the source BF16 bytes for exactly [`chunk_range`].
+pub fn verify_chunk(view: &UnitView, c: usize, expected: &[u8]) -> Result<(), VerifyError> {
+    if view.luts.len() % 256 != 0 || view.luts.len() < 512 {
+        return Err(VerifyError::Malformed(
+            "luts is not whole 256-byte rows".into(),
+        ));
+    }
+    let tables = view.luts.len() / 256 - 1;
+    let lens = &view.luts[tables * 256..];
+    let window_bits = 8 * view.bytes_per_thread;
+    let chunk_bits = window_bits * view.threads_per_block;
+    let (a, b) = chunk_range(view, c)
+        .ok_or_else(|| VerifyError::Malformed(format!("chunk {c} has no valid range")))?;
+    if expected.len() != (b - a) * 2 {
+        return Err(VerifyError::Malformed(format!(
+            "chunk {c} covers {} weights but {} source bytes were given",
+            b - a,
+            expected.len()
+        )));
+    }
+    if b > view.sign_mantissa.len() {
+        return Err(VerifyError::OutputPositionMismatch {
+            chunk: c + 1,
+            stored: b as u32,
+            actual: view.sign_mantissa.len() as u32,
+        });
+    }
+    if a == b {
+        return Ok(());
+    }
+
+    let chunk_start = c * chunk_bits;
+    let chunk_end = chunk_start + chunk_bits;
+    let first_window = c * view.threads_per_block;
+    let gap = gap_at(view.gaps, first_window).ok_or_else(|| {
+        VerifyError::Malformed(format!("gaps has no entry for window {first_window}"))
+    })?;
+    let mut bit = chunk_start + gap as usize;
+
+    for i in a..b {
+        // Every element this chunk claims must START inside it.
+        if bit >= chunk_end {
+            return Err(VerifyError::OutputPositionMismatch {
+                chunk: c + 1,
+                stored: b as u32,
+                actual: i as u32,
+            });
+        }
+        let (symbol, len) = decode_at(view.luts, tables, lens, view.encoded_exponent, bit)?;
+        let sm = view.sign_mantissa[i];
+        let got = ((u16::from(sm & 0x80)) << 8) | (u16::from(symbol) << 7) | u16::from(sm & 0x7F);
+        let k = (i - a) * 2;
+        let want = u16::from_le_bytes([expected[k], expected[k + 1]]);
+        if got != want {
+            return Err(VerifyError::WeightMismatch {
+                index: i,
+                expected: want,
+                got,
+            });
+        }
+        bit += len as usize;
+    }
+    // And the element after the last must not also start inside this chunk --
+    // if it did, output_positions[c + 1] names the wrong element.
+    let last_chunk = c + 1 == chunk_count(view);
+    if !last_chunk && bit < chunk_end {
+        return Err(VerifyError::OutputPositionMismatch {
+            chunk: c + 1,
+            stored: b as u32,
+            actual: b as u32 + 1,
+        });
+    }
+    Ok(())
+}
+
+/// One 5-bit entry of the packed gap array.
+fn gap_at(packed: &[u8], window: usize) -> Option<u32> {
+    let start = window * 5;
+    if (start + 5).div_ceil(8) > packed.len() {
+        return None;
+    }
+    let mut v = 0u32;
+    for k in 0..5 {
+        let bit = start + k;
+        v = (v << 1) | u32::from((packed[bit / 8] >> (7 - bit % 8)) & 1);
+    }
+    Some(v)
+}
