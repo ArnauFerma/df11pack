@@ -55,7 +55,9 @@ oversight to be cleaned up later; it is the contract.
 
 Reproduces the official carry-forward exactly, including leakage across prefix
 table boundaries. Output is byte-identical to the official compressor for the
-same input and pattern. This is what you want unless you have a specific reason
+same input and pattern — as whole files, headers included (`tests/whole_file.rs`):
+the same per-file metadata, and tensors laid out in the `safetensors` library's
+order. This is what you want unless you have a specific reason
 otherwise, and it is what the golden tests grade against.
 
 ### `--luts=correct` — opt-in, and now verified

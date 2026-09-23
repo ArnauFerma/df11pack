@@ -27,7 +27,7 @@ fn verify_exits_0_on_a_good_output_and_1_on_a_corrupted_one() {
     };
     let set = fx.set("tier0-qwen3-trunc-layers-only").unwrap();
     let official = set.tensors()[0].file.parent().unwrap().to_path_buf();
-    let out: PathBuf = std::env::temp_dir().join(format!("df11pack_cli_{}", std::process::id()));
+    let out: PathBuf = df11_fixtures::scratch("cli");
     let _ = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out).unwrap();
     for e in std::fs::read_dir(&official).unwrap() {
@@ -84,7 +84,7 @@ fn a_hashed_output_catches_a_flipped_value_without_the_source() {
     };
     let set = fx.set("tier0-qwen3-trunc-layers-only").unwrap();
     let source = set.source_dir.join("model.safetensors");
-    let out: PathBuf = std::env::temp_dir().join(format!("df11pack_cli_h_{}", std::process::id()));
+    let out: PathBuf = df11_fixtures::scratch("cli_h");
     let _ = std::fs::remove_dir_all(&out);
     let (o, s) = (out.to_str().unwrap(), source.to_str().unwrap());
     let (code, stdout) = run(&["compress", s, "--arch", "qwen3-4b", "-o", o, "--hashes"]);

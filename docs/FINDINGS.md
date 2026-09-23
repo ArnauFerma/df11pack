@@ -1481,3 +1481,39 @@ A stand-in with standalone `lm_head` (Linear) and `model.embed_tokens` (Embeddin
 units, and a `save_pretrained` stand-in writing `model.safetensors`, run through
 the official tool: **byte-identical**, and it passes `verify --level full`. Every
 shipped definition now has a byte-identity test.
+
+---
+
+# Erratum: "byte-identical" held for tensors, not files
+
+Every byte-identity test compared **tensors**. Comparing whole files (new
+`tests/whole_file.rs`) showed every unit shard and the ComfyUI single file differed
+from the official ones, in the header only, two ways:
+
+1. **Metadata.** We wrote `{"format": "pt"}` into every file. Upstream writes unit
+   shards and the single file with a bare `save_file(state_dict)` — no metadata;
+   only the remainder, written by the library's `save_pretrained`, carries it.
+2. **Layout order.** The `safetensors` library's `serialize` sorts tensors by dtype
+   (descending, in its `Dtype` enum order) and then bytewise by name, and lays the
+   data out in that order. We wrote them in encoding order. The remainder matched
+   only because it was all BF16 in name order.
+
+Loaders read tensors by name, so no file we wrote loaded wrongly. But the claim was
+"byte-identical", and at the file level it was false until now. Fixed: headers match
+upstream per file kind, and every file is laid out in the library's order. The
+single file now streams in that order, which interleaves units (every I64
+`split_positions` first, then BF16, then each unit's U8 tensors): pass one keeps
+the small tensors, pass two encodes each unit once and checks its small tensors
+against pass one's.
+
+**Now tested as whole files:** the tier-0 transformers directory (all 5 files), the
+Flux and SDXL single files, and the Flux diffusers unit shards. Not the synthetic
+diffusers remainder, which comes from a stand-in `save_pretrained`.
+
+## Test output filled the disk
+
+Tests wrote their outputs to the temp directory and a failing or interrupted test
+never removed them; after the mutation runs this reached 29 GB and the disk filled
+mid-suite. All test output now goes through `df11_fixtures::scratch`, under
+`df11pack-tests/<pid>/`, and each run removes the directories of processes no
+longer running. After a full suite, 8 KB remains.

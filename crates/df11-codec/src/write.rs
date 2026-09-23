@@ -435,13 +435,17 @@ pub fn write_directory(
         .unwrap_or(1);
     let workers = worker_count(opts, largest, cores);
 
+    // Header metadata, as upstream writes it: unit shards and the single file come
+    // from a bare `save_file(state_dict)` and carry none; only the remainder, which
+    // upstream writes with the library's `save_pretrained`, has `format: pt`.
     let mut meta = BTreeMap::new();
-    meta.insert("format".to_string(), "pt".to_string());
     if opts.lut_mode == LutMode::Correct {
         // Never let a deliberately non-byte-identical file be mistaken for one
         // that is. See docs/COMPATIBILITY.md.
         meta.insert("df11pack_luts".to_string(), "correct".to_string());
     }
+    let mut remainder_meta = meta.clone();
+    remainder_meta.insert("format".to_string(), "pt".to_string());
 
     // On a spinning disk, overlapping readers make the head seek; one reader at
     // a time is much faster. Encoding still overlaps -- only the reads queue.
@@ -504,6 +508,13 @@ pub fn write_directory(
         // and stream straight to disk. The encoder is deterministic, and the
         // writer checks every tensor against its declared size, so a mismatch
         // is an error rather than a corrupt file.
+        //
+        // The library's layout order (dtype descending, then name) interleaves
+        // units: every I64 `split_positions` first, then the BF16 siblings and
+        // passthrough, then each unit's U8 tensors. So pass one keeps each unit's
+        // small tensors, and pass two encodes a unit once, when its first large
+        // tensor comes up; a unit's U8 tensors are contiguous in that order.
+        const KEEP: u64 = 1 << 20;
         let pass1 = run_units(&found.units, workers, &|u| {
             let b = build_unit(&src, u, threads, bpt, &read, false)?;
             // Hashed here, before the header: pass two must then write exactly
@@ -512,33 +523,116 @@ pub fn write_directory(
             if opts.hashes {
                 add_hashes(&mut h, &b.tensors);
             }
-            Ok((decls_of(&b.tensors), b.limited, h))
+            let small: Vec<(String, Vec<u8>)> = b
+                .tensors
+                .iter()
+                .filter_map(|t| match &t.data {
+                    Payload::Owned(v) if (v.len() as u64) <= KEEP => {
+                        Some((t.name.clone(), v.clone()))
+                    }
+                    _ => None,
+                })
+                .collect();
+            Ok((decls_of(&b.tensors), b.limited, h, small))
         })?;
         let mut decls = Vec::new();
         let mut meta = meta.clone();
-        for (d, limited, h) in &pass1 {
-            meta.extend(h.iter().map(|(k, v)| (k.clone(), v.clone())));
-            decls.extend(d.iter().cloned());
+        // Which unit made each tensor we must produce, and the small ones' bytes.
+        let mut owner: BTreeMap<String, usize> = BTreeMap::new();
+        let mut kept: BTreeMap<String, Vec<u8>> = BTreeMap::new();
+        for (ui, (d, limited, h, small)) in pass1.into_iter().enumerate() {
+            meta.extend(h);
+            for decl in &d {
+                owner.insert(decl.name.clone(), ui);
+            }
+            decls.extend(d);
+            kept.extend(small);
             if let Some(l) = limited {
-                limited_units.push(l.clone());
+                limited_units.push(l);
             }
         }
         let rem: Vec<OutTensor> = passthrough.iter().map(|n| borrowed(&src, n)).collect();
         decls.extend(decls_of(&rem));
+        // Everything copied from the source -- passthrough and every unit's
+        // siblings -- is written straight from it, never via its unit.
+        let siblings: Vec<OutTensor> = found
+            .units
+            .iter()
+            .flat_map(|u| u.siblings.iter().map(|n| borrowed(&src, n)))
+            .collect();
+        let rem_by_name: BTreeMap<&str, &OutTensor> = rem
+            .iter()
+            .chain(siblings.iter())
+            .map(|t| (t.name.as_str(), t))
+            .collect();
 
         let path = out_dir.join(&remainder);
         let mut w = StreamingWriter::begin(&path, decls, &meta)?;
-        for u in &found.units {
-            let b = build_unit(&src, u, threads, bpt, &read, opts.verify)?;
-            for t in &b.tensors {
+        let order: Vec<String> = w.order().iter().map(|d| d.name.clone()).collect();
+        let mut current: Option<(usize, BTreeMap<String, OutTensor>)> = None;
+        let mut encoded = vec![false; found.units.len()];
+        for name in &order {
+            if let Some(t) = rem_by_name.get(name.as_str()) {
                 w.put(t)?;
+                continue;
             }
-            if b.verified {
-                verified.push(u.name.clone());
+            let ui = owner[name];
+            if let Some(v) = kept.get(name) {
+                w.write(name, v)?;
+                continue;
             }
-        }
-        for t in &rem {
+            if current.as_ref().map(|(i, _)| *i) != Some(ui) {
+                // Only a large encoded tensor brings a unit in.
+                if encoded[ui] {
+                    return Err(WriteError::Io(std::io::Error::other(format!(
+                        "unit {} needed twice while streaming; its tensors are not contiguous",
+                        found.units[ui].name
+                    ))));
+                }
+                let b = build_unit(&src, &found.units[ui], threads, bpt, &read, opts.verify)?;
+                if b.verified {
+                    verified.push(found.units[ui].name.clone());
+                }
+                encoded[ui] = true;
+                // The small tensors already written came from pass one; the
+                // encoder is deterministic, and this makes sure of it.
+                for t in &b.tensors {
+                    if let (Payload::Owned(v), Some(k)) = (&t.data, kept.get(&t.name)) {
+                        if v != k {
+                            return Err(WriteError::Io(std::io::Error::other(format!(
+                                "{}: second encoding differs from the first",
+                                t.name
+                            ))));
+                        }
+                    }
+                }
+                current = Some((
+                    ui,
+                    b.tensors.into_iter().map(|t| (t.name.clone(), t)).collect(),
+                ));
+            }
+            let t = &current.as_ref().expect("just set").1[name];
             w.put(t)?;
+        }
+        // A unit whose every tensor was small was never re-encoded; safe mode
+        // must still check it.
+        if opts.verify {
+            for (ui, u) in found.units.iter().enumerate() {
+                if !encoded[ui] {
+                    let b = build_unit(&src, u, threads, bpt, &read, true)?;
+                    for t in &b.tensors {
+                        if let (Payload::Owned(v), Some(k)) = (&t.data, kept.get(&t.name)) {
+                            if v != k {
+                                return Err(WriteError::Io(std::io::Error::other(format!(
+                                    "{}: second encoding differs from the first",
+                                    t.name
+                                ))));
+                            }
+                        }
+                    }
+                    verified.push(u.name.clone());
+                }
+            }
         }
         w.finish()?;
         output_bytes += std::fs::metadata(&path)?.len();
@@ -563,7 +657,7 @@ pub fn write_directory(
         }
         let rem: Vec<OutTensor> = passthrough.iter().map(|n| borrowed(&src, n)).collect();
         let rpath = out_dir.join(&remainder);
-        write_file(&rpath, &rem, &meta)?;
+        write_file(&rpath, &rem, &remainder_meta)?;
         output_bytes += std::fs::metadata(&rpath)?.len();
     }
     limited_units.sort();

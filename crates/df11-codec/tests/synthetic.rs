@@ -25,7 +25,7 @@ fn check(set_name: &str, def_name: &str) {
     let def = ArchDef::from_toml(toml).expect("parses");
     let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
 
-    let out = std::env::temp_dir().join(format!("df11pack_syn_{}_{set_name}", std::process::id()));
+    let out = df11_fixtures::scratch(&format!("syn_{set_name}"));
     let _ = std::fs::remove_dir_all(&out);
     let report = write_directory(&src, &def, &out, &WriteOptions::default())
         .unwrap_or_else(|e| panic!("{set_name}: {e}"));

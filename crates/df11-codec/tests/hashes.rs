@@ -19,10 +19,7 @@ const FIELDS: [&str; 6] = [
 ];
 
 fn outdir(tag: &str) -> PathBuf {
-    let p = std::env::temp_dir().join(format!("df11pack_h_{}_{tag}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&p);
-    std::fs::create_dir_all(&p).unwrap();
-    p
+    df11_fixtures::scratch(&format!("h_{tag}"))
 }
 
 fn def(name: &str) -> ArchDef {
@@ -89,7 +86,7 @@ fn a_stored_hash_is_the_sha256_of_the_tensor_bytes() {
     let path = out.join("model_layers_2.safetensors");
     let f = SafeTensorsFile::open(&path).unwrap();
     let bytes = f.read("model.layers.2.gaps").unwrap();
-    let dump = std::env::temp_dir().join(format!("df11pack_h_{}_gaps.bin", std::process::id()));
+    let dump = df11_fixtures::scratch("h_gaps").join("gaps.bin");
     std::fs::write(&dump, &bytes).unwrap();
     let Ok(o) = std::process::Command::new("sha256sum").arg(&dump).output() else {
         eprintln!("SKIP: no sha256sum");

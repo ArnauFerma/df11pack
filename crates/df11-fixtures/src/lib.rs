@@ -501,3 +501,43 @@ pub fn architecture_defs() -> Option<Vec<(String, String)>> {
     out.sort_by(|a, b| a.0.cmp(&b.0));
     Some(out)
 }
+
+/// A fresh, empty directory for one test's output.
+///
+/// Everything goes under `temp_dir()/df11pack-tests/<pid>/`. The first call in a
+/// process removes the directories of test processes that are no longer running,
+/// so output left by a failed or interrupted run -- which a panicking test never
+/// cleans up -- lasts only until the next run. Before this, leaked test output
+/// filled the disk (29 GB, found in Phase 7).
+pub fn scratch(tag: &str) -> std::path::PathBuf {
+    static SWEEP: std::sync::Once = std::sync::Once::new();
+    let root = std::env::temp_dir().join("df11pack-tests");
+    SWEEP.call_once(|| {
+        let Ok(entries) = std::fs::read_dir(&root) else {
+            return;
+        };
+        for e in entries.flatten() {
+            let Some(pid) = e.file_name().to_str().and_then(|s| s.parse::<u32>().ok()) else {
+                continue;
+            };
+            if pid != std::process::id() && !process_alive(pid) {
+                let _ = std::fs::remove_dir_all(e.path());
+            }
+        }
+    });
+    let p = root.join(std::process::id().to_string()).join(tag);
+    let _ = std::fs::remove_dir_all(&p);
+    std::fs::create_dir_all(&p).expect("scratch dir");
+    p
+}
+
+/// Whether a process exists. Where that cannot be told, assume it does, so a
+/// live run's output is never removed.
+fn process_alive(pid: u32) -> bool {
+    let proc = std::path::Path::new("/proc");
+    if proc.is_dir() {
+        proc.join(pid.to_string()).exists()
+    } else {
+        true
+    }
+}

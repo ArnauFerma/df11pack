@@ -294,6 +294,62 @@ pub struct TensorDecl {
     pub len: u64,
 }
 
+/// A dtype's position in the `safetensors` library's `Dtype` enum (0.8.0), which
+/// its `serialize` uses to lay tensors out: **dtype descending, then name**. The
+/// official compressor writes every file through that library, so matching the
+/// order is part of byte identity. `None` for a dtype the library does not know.
+pub fn dtype_rank(dtype: &str) -> Option<u32> {
+    const ORDER: [&str; 22] = [
+        "BOOL",
+        "F4",
+        "F6_E2M3",
+        "F6_E3M2",
+        "U8",
+        "I8",
+        "F8_E5M2",
+        "F8_E4M3",
+        "F8_E8M0",
+        "F8_E4M3FNUZ",
+        "F8_E5M2FNUZ",
+        "I16",
+        "U16",
+        "F16",
+        "BF16",
+        "I32",
+        "U32",
+        "F32",
+        "C64",
+        "F64",
+        "I64",
+        "U64",
+    ];
+    ORDER.iter().position(|d| *d == dtype).map(|i| i as u32)
+}
+
+/// Sort into the library's layout order. Errors on a dtype it does not know,
+/// rather than guessing where that tensor would go.
+pub fn canonical_order<T>(
+    items: &mut [T],
+    key: impl Fn(&T) -> (&str, &str),
+) -> Result<(), StError> {
+    for it in items.iter() {
+        let (name, dtype) = key(it);
+        if dtype_rank(dtype).is_none() {
+            return Err(StError::Malformed(format!(
+                "tensor {name:?} has dtype {dtype:?}, which the safetensors library does not know"
+            )));
+        }
+    }
+    items.sort_by(|a, b| {
+        let (an, ad) = key(a);
+        let (bn, bd) = key(b);
+        dtype_rank(bd)
+            .cmp(&dtype_rank(ad))
+            .then(an.as_bytes().cmp(bn.as_bytes()))
+    });
+    Ok(())
+}
+
 /// The JSON header for `decls`, padded so the data section starts 8-byte aligned.
 fn header_bytes(
     decls: &[TensorDecl],
@@ -352,7 +408,9 @@ fn sync_dir(dest: &Path) {
 }
 
 /// Writes a safetensors file whose header is fixed up front and whose tensors
-/// then arrive one at a time, **in header order**.
+/// then arrive one at a time, **in header order** -- which is the library's
+/// canonical order ([`canonical_order`]), not the order declared: `begin` sorts,
+/// and [`StreamingWriter::order`] says what to write next.
 ///
 /// This is what lets a single-file output be written without holding every
 /// tensor in memory: the caller declares names, dtypes, shapes and lengths first,
@@ -380,6 +438,8 @@ impl StreamingWriter {
     ) -> Result<Self, StError> {
         let dest = dest.as_ref().to_path_buf();
         let tmp = tmp_path(&dest)?;
+        let mut decls = decls;
+        canonical_order(&mut decls, |d| (d.name.as_str(), d.dtype.0.as_str()))?;
         let json = header_bytes(&decls, metadata)?;
         let mut me = StreamingWriter {
             w: Some(BufWriter::new(File::create(&tmp)?)),
@@ -393,6 +453,11 @@ impl StreamingWriter {
         w.write_all(&(json.len() as u64).to_le_bytes())?;
         w.write_all(&json)?;
         Ok(me)
+    }
+
+    /// The declarations in the order their bytes must be written.
+    pub fn order(&self) -> &[TensorDecl] {
+        &self.decls
     }
 
     fn expect(&self, name: &str, len: u64) -> Result<(), StError> {
@@ -492,14 +557,17 @@ impl Drop for StreamingWriter {
 /// broken — the header parses, the tensors it names are simply short — so a
 /// half-written shard can be mistaken for a finished one.
 ///
-/// Tensors are laid out in the order given, contiguously, with no padding
-/// between them. The header lists them in the same order.
+/// Tensors are laid out contiguously, with no padding between them, in the
+/// safetensors library's order (dtype descending, then name), whatever order
+/// they are given in. The header lists them in the same order.
 pub fn write_file(
     path: impl AsRef<Path>,
     tensors: &[OutTensor],
     metadata: &BTreeMap<String, String>,
 ) -> Result<(), StError> {
-    let decls = tensors
+    let mut sorted: Vec<&OutTensor> = tensors.iter().collect();
+    canonical_order(&mut sorted, |t| (t.name.as_str(), t.dtype.0.as_str()))?;
+    let decls = sorted
         .iter()
         .map(|t| TensorDecl {
             name: t.name.clone(),
@@ -509,7 +577,7 @@ pub fn write_file(
         })
         .collect();
     let mut w = StreamingWriter::begin(path, decls, metadata)?;
-    for t in tensors {
+    for t in sorted {
         w.put(t)?;
     }
     w.finish()

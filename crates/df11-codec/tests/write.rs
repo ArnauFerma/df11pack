@@ -7,11 +7,7 @@ use df11_codec::write::{remainder_name, shard_name, write_directory, WriteOption
 use df11_fixtures::{architecture_defs, skip_if_missing, SourceModel};
 
 fn outdir(tag: &str) -> std::path::PathBuf {
-    let mut p = std::env::temp_dir();
-    p.push(format!("df11pack_w_{}_{}", std::process::id(), tag));
-    let _ = std::fs::remove_dir_all(&p);
-    std::fs::create_dir_all(&p).unwrap();
-    p
+    df11_fixtures::scratch(&format!("w_{tag}"))
 }
 
 #[test]

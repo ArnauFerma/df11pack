@@ -6,11 +6,7 @@ use df11_fixtures::skip_if_missing;
 use std::collections::BTreeMap;
 
 fn dir(tag: &str) -> std::path::PathBuf {
-    let mut p = std::env::temp_dir();
-    p.push(format!("df11pack_src_{}_{}", std::process::id(), tag));
-    let _ = std::fs::remove_dir_all(&p);
-    std::fs::create_dir_all(&p).unwrap();
-    p
+    df11_fixtures::scratch(&format!("src_{tag}"))
 }
 
 fn t(name: &str, byte: u8, n: usize) -> OutTensor {

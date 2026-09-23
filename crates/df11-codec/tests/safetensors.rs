@@ -8,11 +8,7 @@ use std::collections::BTreeMap;
 /// test -- or from an earlier run of this one -- can never be mistaken for
 /// output of the run under test.
 fn tmp(name: &str) -> std::path::PathBuf {
-    let mut d = std::env::temp_dir();
-    d.push(format!("df11pack_t{}_{}", std::process::id(), name));
-    let _ = std::fs::remove_dir_all(&d);
-    std::fs::create_dir_all(&d).expect("test dir");
-    d.join(name)
+    df11_fixtures::scratch(&format!("t_{name}")).join(name)
 }
 
 #[test]
@@ -49,10 +45,12 @@ fn round_trips_tensors_and_metadata() {
             .flat_map(|v| v.to_le_bytes())
             .collect::<Vec<u8>>()
     );
-    // Written order is preserved in the header, independent of sorted names.
+    // Laid out as the safetensors library lays it out -- dtype descending (I64
+    // before U8), then name -- not in the order given, because that is what the
+    // official files contain.
     assert_eq!(
         f.physical_order(),
-        &["b.second".to_string(), "a.first".to_string()]
+        &["a.first".to_string(), "b.second".to_string()]
     );
     assert_eq!(f.names().collect::<Vec<_>>(), vec!["a.first", "b.second"]);
     let _ = std::fs::remove_file(&path);
@@ -276,7 +274,7 @@ fn a_failed_write_leaves_no_file_at_the_destination() {
     let path = tmp("atomic_fail.safetensors");
     // Deliberately outside the destination directory, so it does not count as a
     // leftover there.
-    let src = std::env::temp_dir().join(format!("df11pack_short_{}.bin", std::process::id()));
+    let src = df11_fixtures::scratch("short_src").join("short.bin");
     std::fs::write(&src, [0u8; 16]).unwrap();
 
     let r = write_file(
@@ -430,4 +428,28 @@ mod streaming {
             "dropping an unfinished writer must remove its temporary"
         );
     }
+}
+
+/// The library's order across every dtype we emit or copy: descending by its
+/// `Dtype` enum, then bytewise by name (so `blocks.10` precedes `blocks.2`).
+#[test]
+fn layout_follows_the_safetensors_library_order() {
+    use df11_codec::safetensors::canonical_order;
+    let mut v = vec![
+        ("blocks.2.x", "U8"),
+        ("blocks.10.x", "U8"),
+        ("n", "BF16"),
+        ("f", "F32"),
+        ("s", "I64"),
+        ("h", "F16"),
+        ("q", "F8_E4M3"),
+    ];
+    canonical_order(&mut v, |t| (t.0, t.1)).unwrap();
+    let names: Vec<&str> = v.iter().map(|t| t.0).collect();
+    assert_eq!(
+        names,
+        ["s", "f", "n", "h", "q", "blocks.10.x", "blocks.2.x"]
+    );
+    let mut bad = vec![("z", "Q4_K")];
+    assert!(canonical_order(&mut bad, |t| (t.0, t.1)).is_err());
 }

@@ -20,9 +20,7 @@ fn env(tag: &str) -> Option<Env> {
     let fx = skip_if_missing(tag)?;
     let set = fx.set("tier0-qwen3-trunc-layers-only")?;
     let official = set.tensors()[0].file.parent()?.to_path_buf();
-    let out = std::env::temp_dir().join(format!("df11pack_chk_{}_{tag}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&out);
-    std::fs::create_dir_all(&out).ok()?;
+    let out = df11_fixtures::scratch(&format!("chk_{tag}"));
     for e in std::fs::read_dir(&official).ok()? {
         let p = e.ok()?.path();
         std::fs::copy(&p, out.join(p.file_name()?)).ok()?;

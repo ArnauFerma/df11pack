@@ -24,10 +24,7 @@ attrs = ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.
 "#;
 
 fn outdir(tag: &str) -> std::path::PathBuf {
-    let p = std::env::temp_dir().join(format!("df11pack_n_{}_{}", std::process::id(), tag));
-    let _ = std::fs::remove_dir_all(&p);
-    std::fs::create_dir_all(&p).unwrap();
-    p
+    df11_fixtures::scratch(&format!("n_{tag}"))
 }
 
 fn safetensors_in(dir: &std::path::Path) -> Vec<String> {
