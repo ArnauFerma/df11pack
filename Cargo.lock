@@ -168,7 +168,7 @@ dependencies = [
 
 [[package]]
 name = "df11-codec"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "df11-fixtures",
  "rayon",
@@ -181,7 +181,7 @@ dependencies = [
 
 [[package]]
 name = "df11-fixtures"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "hex",
  "serde",
@@ -191,7 +191,7 @@ dependencies = [
 
 [[package]]
 name = "df11pack"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "clap",
  "df11-codec",

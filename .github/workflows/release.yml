@@ -1,0 +1,85 @@
+name: Release
+
+# Push a tag like v0.1.0 and this builds df11pack for every platform, packs each
+# binary with the README and licence, writes SHA256SUMS, and publishes a GitHub
+# Release whose notes are that version's section of CHANGELOG.md.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Fully static: runs on any Linux distribution.
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, archive: tar.gz }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, archive: tar.gz }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, archive: zip }
+          - { os: macos-latest, target: aarch64-apple-darwin, archive: tar.gz }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --locked -p df11pack --target ${{ matrix.target }}
+      - name: Smoke test
+        shell: bash
+        run: |
+          bin=target/${{ matrix.target }}/release/df11pack
+          [ -f "$bin.exe" ] && bin="$bin.exe"
+          # Definitions are built in: this must work from anywhere.
+          (cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/$bin" architectures | head -3)
+      - name: Package
+        shell: bash
+        run: |
+          name=df11pack-${GITHUB_REF_NAME}-${{ matrix.target }}
+          mkdir "$name"
+          cp README.md LICENSE CHANGELOG.md "$name/"
+          if [ "${{ matrix.archive }}" = zip ]; then
+            cp target/${{ matrix.target }}/release/df11pack.exe "$name/"
+            7z a -bd "$name.zip" "$name" > /dev/null
+          else
+            cp target/${{ matrix.target }}/release/df11pack "$name/"
+            tar czf "$name.tar.gz" "$name"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: df11pack-*.${{ matrix.archive }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum df11pack-* > SHA256SUMS && cat SHA256SUMS
+      - name: Notes from CHANGELOG.md
+        run: |
+          v=${GITHUB_REF_NAME#v}
+          awk -v v="$v" '
+            /^## \[/ { p = index($0, "[" v "]") > 0; next }
+            p' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "CHANGELOG.md has no section for $v"; exit 1; }
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "df11pack $GITHUB_REF_NAME" --notes-file notes.md \
+            $([[ "$GITHUB_REF_NAME" == v0.* ]] && echo --prerelease)

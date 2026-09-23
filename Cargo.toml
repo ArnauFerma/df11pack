@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/df11-codec", "crates/df11pack", "crates/df11-fixtures"]
 
 [workspace.package]
-version = "0.0.0"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT"

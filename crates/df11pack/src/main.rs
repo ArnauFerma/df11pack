@@ -13,6 +13,7 @@ use df11_codec::write::{write_directory, WriteOptions};
 #[derive(Parser)]
 #[command(
     name = "df11pack",
+    version,
     about = "Compress BF16 model weights into DFloat11 format"
 )]
 struct Cli {
