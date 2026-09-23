@@ -1,0 +1,4 @@
+compressed 38 unit(s) from 5 shard(s)
+  15622.6 MiB -> 10639.7 MiB  (0.681)
+  reads: device type unknown; defaulting to concurrent
+  wrote 39 -> /workspace/out/df11pack

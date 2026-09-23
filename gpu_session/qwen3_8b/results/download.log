@@ -1,0 +1,5 @@
+[90mHint: The `hf-cli` skill is not installed. Run `hf skills add -g --claude` to teach your AI agents how to use the `hf` CLI.[0m
+Fetching 15 files:   0%|          | 0/15 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 15 files:   7%|▋         | 1/15 [00:00<00:03,  4.59it/s]Fetching 15 files:  13%|█▎        | 2/15 [00:00<00:02,  5.83it/s]Fetching 15 files:  40%|████      | 6/15 [00:00<00:00, 14.34it/s]Fetching 15 files:  53%|█████▎    | 8/15 [00:00<00:00, 11.70it/s]Fetching 15 files:  67%|██████▋   | 10/15 [00:07<00:05,  1.18s/it]Fetching 15 files:  73%|███████▎  | 11/15 [00:11<00:07,  1.78s/it]Fetching 15 files:  80%|████████  | 12/15 [00:18<00:08,  2.90s/it]Fetching 15 files:  87%|████████▋ | 13/15 [00:18<00:04,  2.28s/it]Fetching 15 files:  93%|█████████▎| 14/15 [00:19<00:01,  1.84s/it]Fetching 15 files: 100%|██████████| 15/15 [00:21<00:00,  1.81s/it]Fetching 15 files: 100%|██████████| 15/15 [00:21<00:00,  1.41s/it]
+[32m✓ Downloaded[0m
+  path: /workspace/src

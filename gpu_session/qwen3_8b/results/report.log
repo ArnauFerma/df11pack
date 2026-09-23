@@ -1,0 +1,149 @@
+{
+ "steps": {
+  "build": {
+   "wall": "0:10.91",
+   "peak_rss_mib": 358.49609375,
+   "exit": "0"
+  },
+  "download": {
+   "wall": "0:22.04",
+   "peak_rss_mib": 4588.79296875,
+   "exit": "0"
+  },
+  "df11pack": {
+   "wall": "0:39.63",
+   "peak_rss_mib": 6727.1953125,
+   "exit": "0"
+  },
+  "df11pack_verify": {
+   "wall": "1:22.12",
+   "peak_rss_mib": 12328.55078125,
+   "exit": "0"
+  },
+  "idx8": {
+   "wall": "0:38.93",
+   "peak_rss_mib": 8736.43359375,
+   "exit": "0"
+  },
+  "official": {
+   "wall": "37:02.80",
+   "peak_rss_mib": 28005.65625,
+   "exit": "0"
+  },
+  "report": {
+   "wall": null,
+   "peak_rss_mib": null,
+   "exit": null
+  }
+ },
+ "totals_bytes": {
+  "df11pack": 11156564065,
+  "official": 11156564065,
+  "idx8": 11083193141
+ },
+ "df11pack_vs_official": {
+  "same_file_set": true,
+  "identical": [
+   "lm_head.safetensors",
+   "model.safetensors",
+   "model_embed_tokens.safetensors",
+   "model_layers_0.safetensors",
+   "model_layers_1.safetensors",
+   "model_layers_10.safetensors",
+   "model_layers_11.safetensors",
+   "model_layers_12.safetensors",
+   "model_layers_13.safetensors",
+   "model_layers_14.safetensors",
+   "model_layers_15.safetensors",
+   "model_layers_16.safetensors",
+   "model_layers_17.safetensors",
+   "model_layers_18.safetensors",
+   "model_layers_19.safetensors",
+   "model_layers_2.safetensors",
+   "model_layers_20.safetensors",
+   "model_layers_21.safetensors",
+   "model_layers_22.safetensors",
+   "model_layers_23.safetensors",
+   "model_layers_24.safetensors",
+   "model_layers_25.safetensors",
+   "model_layers_26.safetensors",
+   "model_layers_27.safetensors",
+   "model_layers_28.safetensors",
+   "model_layers_29.safetensors",
+   "model_layers_3.safetensors",
+   "model_layers_30.safetensors",
+   "model_layers_31.safetensors",
+   "model_layers_32.safetensors",
+   "model_layers_33.safetensors",
+   "model_layers_34.safetensors",
+   "model_layers_35.safetensors",
+   "model_layers_4.safetensors",
+   "model_layers_5.safetensors",
+   "model_layers_6.safetensors",
+   "model_layers_7.safetensors",
+   "model_layers_8.safetensors",
+   "model_layers_9.safetensors"
+  ],
+  "different": [],
+  "only_df11pack": [],
+  "only_official": []
+ },
+ "df11pack_vs_release": {
+  "identical": [
+   "lm_head.safetensors",
+   "model.safetensors",
+   "model_embed_tokens.safetensors",
+   "model_layers_0.safetensors",
+   "model_layers_1.safetensors",
+   "model_layers_10.safetensors",
+   "model_layers_11.safetensors",
+   "model_layers_12.safetensors",
+   "model_layers_13.safetensors",
+   "model_layers_14.safetensors",
+   "model_layers_15.safetensors",
+   "model_layers_16.safetensors",
+   "model_layers_17.safetensors",
+   "model_layers_18.safetensors",
+   "model_layers_19.safetensors",
+   "model_layers_2.safetensors",
+   "model_layers_20.safetensors",
+   "model_layers_21.safetensors",
+   "model_layers_22.safetensors",
+   "model_layers_23.safetensors",
+   "model_layers_24.safetensors",
+   "model_layers_25.safetensors",
+   "model_layers_26.safetensors",
+   "model_layers_27.safetensors",
+   "model_layers_28.safetensors",
+   "model_layers_29.safetensors",
+   "model_layers_3.safetensors",
+   "model_layers_30.safetensors",
+   "model_layers_31.safetensors",
+   "model_layers_32.safetensors",
+   "model_layers_33.safetensors",
+   "model_layers_34.safetensors",
+   "model_layers_35.safetensors",
+   "model_layers_4.safetensors",
+   "model_layers_5.safetensors",
+   "model_layers_6.safetensors",
+   "model_layers_7.safetensors",
+   "model_layers_8.safetensors",
+   "model_layers_9.safetensors"
+  ],
+  "different": [],
+  "not_in_release": []
+ },
+ "official_vs_release": {
+  "identical": [
+   "lm_head.safetensors",
+   "model.safetensors",
+   "model_embed_tokens.safetensors",
+   "model_layers_0.safetensors",
+   "model_layers_1.safetensors",
+   "model_layers_10.safetensors",
+   "model_layers_11.safetensors",
+   "model_layers_12.safetensors",
+   "model_layers_13.safetensors",
+   "model_layers_14.safetensors",
+   "model_layers_15.safetensors",
+   "model_layers_16.s

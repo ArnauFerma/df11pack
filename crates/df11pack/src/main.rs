@@ -139,55 +139,57 @@ impl From<LutModeArg> for LutMode {
     }
 }
 
-/// Where the shipped definitions live.
-fn arch_dir() -> PathBuf {
-    if let Ok(d) = std::env::var("DF11PACK_ARCH_DIR") {
-        return PathBuf::from(d);
-    }
-    // Next to the binary, then the working directory, so both an installed
-    // layout and a cargo-run from the repo work.
-    if let Ok(exe) = std::env::current_exe() {
-        for up in [1usize, 2, 3, 4] {
-            let mut p = exe.clone();
-            for _ in 0..up {
-                p.pop();
-            }
-            let c = p.join("data/architectures");
-            if c.is_dir() {
-                return c;
+mod embedded {
+    include!(concat!(env!("OUT_DIR"), "/embedded_defs.rs"));
+}
+
+/// Every available definition as `(name, toml, origin)`: the embedded set, with
+/// any in `DF11PACK_ARCH_DIR` added or overriding by name.
+fn all_defs() -> Result<Vec<(String, String, String)>, String> {
+    let mut defs: std::collections::BTreeMap<String, (String, String)> = embedded::EMBEDDED
+        .iter()
+        .map(|(n, t)| (n.to_string(), (t.to_string(), "built-in".to_string())))
+        .collect();
+    if let Ok(dir) = std::env::var("DF11PACK_ARCH_DIR") {
+        let rd = std::fs::read_dir(&dir).map_err(|e| format!("DF11PACK_ARCH_DIR={dir}: {e}"))?;
+        for e in rd.filter_map(|e| e.ok()) {
+            let p = e.path();
+            if p.extension().is_some_and(|x| x == "toml") {
+                let name = p
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned();
+                let text =
+                    std::fs::read_to_string(&p).map_err(|e| format!("{}: {e}", p.display()))?;
+                defs.insert(name, (text, p.display().to_string()));
             }
         }
     }
-    PathBuf::from("data/architectures")
+    Ok(defs.into_iter().map(|(n, (t, o))| (n, t, o)).collect())
 }
 
+/// A definition by name, or from a `.toml` path.
 fn load_arch(spec: &str) -> Result<ArchDef, String> {
-    let path = if spec.ends_with(".toml") {
-        PathBuf::from(spec)
-    } else {
-        arch_dir().join(format!("{spec}.toml"))
-    };
-    let text = std::fs::read_to_string(&path).map_err(|e| {
+    if spec.ends_with(".toml") {
+        let text = std::fs::read_to_string(spec)
+            .map_err(|e| format!("could not read architecture file {spec}: {e}"))?;
+        return ArchDef::from_toml(&text).map_err(|e| format!("{spec}: {e}"));
+    }
+    let defs = all_defs()?;
+    let (_, text, origin) = defs.iter().find(|(n, _, _)| n == spec).ok_or_else(|| {
         format!(
-            "could not read architecture {spec:?} at {}: {e}\n\
-             Run `df11pack architectures` to see the available names.",
-            path.display()
+            "no architecture named {spec:?}. Run `df11pack architectures` to see the \
+             available names, or pass a path to a .toml definition."
         )
     })?;
-    ArchDef::from_toml(&text).map_err(|e| format!("{}: {e}", path.display()))
+    ArchDef::from_toml(text).map_err(|e| format!("{spec} ({origin}): {e}"))
 }
 
 fn list_architectures() -> Result<(), String> {
-    let dir = arch_dir();
-    let mut entries: Vec<PathBuf> = std::fs::read_dir(&dir)
-        .map_err(|e| format!("could not list {}: {e}", dir.display()))?
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|x| x == "toml"))
-        .collect();
-    entries.sort();
+    let entries = all_defs()?;
     if entries.is_empty() {
-        return Err(format!("no definitions found in {}", dir.display()));
+        return Err("no definitions available".to_string());
     }
     // Written through a locked handle so a closed pipe -- `df11pack
     // architectures | head` -- ends the command quietly instead of panicking,
@@ -209,10 +211,7 @@ fn list_architectures() -> Result<(), String> {
     ))? {
         return Ok(());
     }
-    for p in entries {
-        let Ok(text) = std::fs::read_to_string(&p) else {
-            continue;
-        };
+    for (name, text, origin) in entries {
         let line = match ArchDef::from_toml(&text) {
             Ok(d) => format!(
                 "{:<30} {:<16} {:>5}  {}",
@@ -221,7 +220,7 @@ fn list_architectures() -> Result<(), String> {
                 d.units.len(),
                 d.source
             ),
-            Err(e) => format!("{:<30} INVALID: {e}", p.display()),
+            Err(e) => format!("{name:<30} INVALID ({origin}): {e}"),
         };
         if !quiet(writeln!(w, "{line}"))? {
             return Ok(());

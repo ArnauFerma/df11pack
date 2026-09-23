@@ -1,0 +1,23 @@
+	Command being timed: "/workspace/df11pack/target/release/df11pack compress /workspace/src --arch qwen3-8b -o /workspace/out/idx8 --index idx8 --idx8-block 64 --safe"
+	User time (seconds): 164.33
+	System time (seconds): 46.25
+	Percent of CPU this job got: 540%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:38.93
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 8946108
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 19496799
+	Voluntary context switches: 57791
+	Involuntary context switches: 43538
+	Swaps: 0
+	File system inputs: 13303816
+	File system outputs: 21647040
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

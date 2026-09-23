@@ -1,0 +1,16 @@
+[18:28:49] machine: 8 cpus, 124 GB RAM, 120G free
+[18:29:33] START build
+[18:29:44] END   build rc=0
+[18:29:44] START download
+[18:30:06] END   download rc=0
+[18:30:06] START df11pack
+[18:30:46] END   df11pack rc=0
+[18:30:46] START df11pack_verify
+[18:32:08] END   df11pack_verify rc=0
+[18:32:08] START idx8
+[18:32:47] END   idx8 rc=0
+[18:32:47] START official
+[19:09:50] END   official rc=0
+[19:09:50] START report
+[19:10:25] END   report rc=0
+[19:10:25] ALL DONE

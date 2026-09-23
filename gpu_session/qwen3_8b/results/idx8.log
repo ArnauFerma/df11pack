@@ -1,0 +1,9 @@
+warning: --index=idx8 output is NOT DFloat11. No DF11 loader or the official
+kernel can read it; it needs an idx8 decoder. It is stamped
+df11pack_index="idx8" and carries no dfloat11_config.
+See docs/INDEX_SCHEMES.md.
+compressed 38 unit(s) from 5 shard(s)
+  15622.6 MiB -> 10569.8 MiB  (0.677)
+  verified 38 unit(s) against the source before writing
+  reads: device type unknown; defaulting to concurrent
+  wrote 39 -> /workspace/out/idx8
