@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or idea
+    url: https://github.com/ArnauFerma/df11pack/discussions
+    about: Ask and discuss in Discussions.
+  - name: Security vulnerability
+    url: https://github.com/ArnauFerma/df11pack/security/advisories/new
+    about: Report privately, not as an issue.

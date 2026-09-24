@@ -1,4 +1,14 @@
-# df11pack — Design document (v0.2, draft)
+# df11pack — Design document
+
+> **Status: historical.** This is the design df11pack was built from, kept as the
+> record of why it is shaped this way. Where it differs from the code, the code and
+> [COMPATIBILITY.md](COMPATIBILITY.md) win. Main departures: checkpoints, journal and
+> resume (§6) were dropped for atomic output (a failed run leaves no partial files;
+> PLAN Phase 4); post-hoc verification's integrity level checks structure, or
+> opt-in `--hashes`, instead of journal hashes (§7.3); and added since: a
+> `diffusers-single` layout, per-definition key rules, the tied `lm_head` unit,
+> `--hashes`, and the experimental `idx8` index. Measurements: [FINDINGS.md](FINDINGS.md).
+
 
 An independent DFloat11 compressor: streaming, with crash recovery.
 Guiding principle: **anyone must be able to compress models**, including on old

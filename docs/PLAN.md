@@ -1,5 +1,10 @@
 # df11pack — Implementation plan
 
+> **Status: complete** through Phase 7 (v0.1.0). Kept as the record of how
+> df11pack was built and what each phase's exit gate required. What remains open is
+> listed in [CHANGELOG.md](../CHANGELOG.md) under "Known limits".
+
+
 Ordered plan derived from [`DESIGN.md`](DESIGN.md). Phase 0 and Phase 1 are
 specified step by step; Phases 2–7 are outlined, to be expanded when their
 predecessor's exit gate is met.

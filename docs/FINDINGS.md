@@ -1,4 +1,10 @@
-# Phase 0 — Findings
+# Findings
+
+> Every measurement behind df11pack, in the order it was made, Phase 0 onwards:
+> method, raw numbers, verdict, and what it changed. Earlier sections are not edited
+> when later ones supersede them; errata say so explicitly. Search for a topic
+> rather than reading it in order.
+
 
 One section per hypothesis or step: method, raw numbers, verdict, and the
 consequence for [`DESIGN.md`](DESIGN.md) or [`PLAN.md`](PLAN.md).

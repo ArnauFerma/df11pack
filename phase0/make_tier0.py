@@ -25,14 +25,17 @@ def main():
     ap.add_argument("--layers", type=int, default=4)
     ap.add_argument("--vocab", type=int, default=4096)
     ap.add_argument("--out", type=Path, default=Path("phase0/corpus/tier0/qwen3-trunc"))
+    ap.add_argument("--src", type=Path, default=SRC,
+                    help="a Qwen3-0.6B directory (config.json + model.safetensors)")
     a = ap.parse_args()
+    src = a.src
 
     a.out.mkdir(parents=True, exist_ok=True)
-    cfg = json.loads((SRC / "config.json").read_text())
+    cfg = json.loads((src / "config.json").read_text())
     keep_layers = set(range(a.layers))
 
     out = {}
-    with safe_open(SRC / "model.safetensors", framework="pt") as f:
+    with safe_open(src / "model.safetensors", framework="pt") as f:
         names = list(f.keys())
         for n in names:
             if n.startswith("model.layers."):

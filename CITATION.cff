@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: "If you use df11pack, please cite it as below, and cite DFloat11 for the format."
+title: "df11pack: a fast, byte-identical DFloat11 compressor"
+type: software
+authors:
+  - family-names: "Ferrerons Manich"
+    given-names: "Arnau"
+    orcid: "https://orcid.org/0009-0002-7245-7221"
+repository-code: "https://github.com/ArnauFerma/df11pack"
+version: 0.1.0
+date-released: 2026-09-23
+abstract: >-
+  An independent compressor for the DFloat11 lossless BF16 weight format that
+  produces files byte-identical to the official compressor, in seconds and with
+  a fraction of the memory, from a single binary with no GPU and no Python.
+keywords:
+  - lossless compression
+  - bfloat16
+  - DFloat11
+  - Huffman
+  - LLM weights
+  - diffusion models
+license: MIT
+references:
+  # As the DFloat11 authors ask to be cited (their README).
+  - type: conference-paper
+    title: "70% Size, 100% Accuracy: Lossless LLM Compression for Efficient GPU Inference via Dynamic-Length Float (DFloat11)"
+    authors:
+      - family-names: "Zhang"
+        given-names: "Tianyi"
+      - family-names: "Hariri"
+        given-names: "Mohsen"
+      - family-names: "Zhong"
+        given-names: "Shaochen"
+      - family-names: "Chaudhary"
+        given-names: "Vipin"
+      - family-names: "Sui"
+        given-names: "Yang"
+      - family-names: "Hu"
+        given-names: "Xia"
+      - family-names: "Shrivastava"
+        given-names: "Anshumali"
+    collection-title: "The Thirty-ninth Annual Conference on Neural Information Processing Systems"
+    year: 2025
+    url: "https://openreview.net/forum?id=xdNAVP7TGy"

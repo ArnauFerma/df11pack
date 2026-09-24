@@ -4,6 +4,19 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 versions follow [Semantic Versioning](https://semver.org/) — before 1.0, minor
 versions may change the command line.
 
+## [Unreleased]
+
+### Added
+
+- Contributor documentation: CONTRIBUTING, Code of Conduct (Contributor Covenant
+  2.1), SECURITY, issue and pull request templates, CITATION.cff, and
+  [docs/DEFINITIONS.md](docs/DEFINITIONS.md) for the model definition format.
+- `phase0/make_tier0.py --src`, and fixture regeneration steps in `phase0/README.md`.
+
+### Changed
+
+- CI uses current GitHub actions (Node 24) and pins Ubuntu 24.04.
+
 ## [0.1.0] - 2026-09-23
 
 First release.

@@ -1,0 +1,31 @@
+name: Model request
+description: Ask for a model that df11pack does not support yet.
+labels: [model]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: Name and a link to the source checkpoint.
+    validations:
+      required: true
+  - type: dropdown
+    id: layout
+    attributes:
+      label: Output layout
+      options:
+        - ComfyUI (single file)
+        - diffusers
+        - transformers (LLM)
+        - not sure
+    validations:
+      required: true
+  - type: textarea
+    id: pattern
+    attributes:
+      label: Existing DF11 release or pattern_dict
+      description: A published DF11 version of this model, or its `pattern_dict`, if one exists. This is what makes a definition exact rather than guessed.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else

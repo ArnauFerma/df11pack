@@ -1,0 +1,44 @@
+name: Bug report
+description: df11pack failed, or its output does not work.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: df11pack version
+      description: Output of `df11pack --version`.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Ubuntu 24.04 / Windows 11 / macOS 15
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and output
+      description: The full command and everything it printed.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: Name and link of the source model, and the `--arch` used.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: If the output fails to load, say where (ComfyUI, `DFloat11Model`, ...) and include that error.
+  - type: textarea
+    id: verify
+    attributes:
+      label: "`df11pack verify` result"
+      description: If you have the output, the result of `df11pack verify <out> --source <model> --arch <arch>`.
+      render: text

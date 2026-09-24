@@ -28,7 +28,7 @@ takes ~13 s against the official 13 min. Details and every other measurement:
 
 ## Install
 
-Download the archive for your platform from the **Releases** page, unpack, and run
+Download the archive for your platform from [**Releases**](https://github.com/ArnauFerma/df11pack/releases), unpack, and run
 `df11pack`. One static binary; nothing else to install. Linux (x86_64, aarch64),
 Windows (x86_64) and macOS (Apple Silicon).
 
@@ -88,7 +88,7 @@ df11pack verify out/ --source model/ --arch qwen3-8b --level full
   Anima, ERNIE-Image, LongCat, Ovis, Krea-2, Lens, SDXL, ACE-Step 1.5.
 
 A new model is a small TOML file; pass its path to `--arch`, or put it in a folder
-named by `DF11PACK_ARCH_DIR`.
+named by `DF11PACK_ARCH_DIR`. Format and how to add one: [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
 
 ## What is checked, and what is not
 
@@ -113,10 +113,19 @@ Beyond the official format, all opt-in and clearly marked:
 
 ## Documents
 
-- [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) — what the output promises.
-- [`docs/FINDINGS.md`](docs/FINDINGS.md) — every measurement, and what each changed.
-- [`docs/DESIGN.md`](docs/DESIGN.md), [`docs/PLAN.md`](docs/PLAN.md) — design and how it was built.
-- [`CHANGELOG.md`](CHANGELOG.md).
+- [docs/DEFINITIONS.md](docs/DEFINITIONS.md): the model definition format.
+- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): what the output promises.
+- [docs/FINDINGS.md](docs/FINDINGS.md): every measurement, and what each changed.
+- [docs/DESIGN.md](docs/DESIGN.md), [docs/PLAN.md](docs/PLAN.md): the original design and build plan.
+- [CHANGELOG.md](CHANGELOG.md).
+
+## Contributing
+
+Testing a model on a GPU and reporting how it went helps most right now. See
+[CONTRIBUTING.md](CONTRIBUTING.md); questions go to
+[Discussions](https://github.com/ArnauFerma/df11pack/discussions), vulnerabilities to
+[SECURITY.md](SECURITY.md). Everyone taking part follows the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Licence
 

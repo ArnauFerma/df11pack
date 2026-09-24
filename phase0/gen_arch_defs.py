@@ -119,6 +119,11 @@ def main():
             LAYOUT[key] = d["layout"]
         if d.get("used_by"):
             DESC[key] = "Official DF11 layout of: " + ", ".join(d["used_by"]) + "."
+        # A contributed entry names its own description; layout is required.
+        if key not in DESC:
+            DESC[key] = d.get("description", key)
+        if key not in LAYOUT:
+            LAYOUT[key] = d["layout"]
         ver = d.get("version") or "0.5.0"
         lines = ["# Generated from verified official output by phase0/gen_arch_defs.py -- do not hand-edit.",
                  f"# {DESC[key]}", "",
