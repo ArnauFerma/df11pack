@@ -103,7 +103,7 @@ def only_unit_prefix(header):
 # kernel launch geometry (shared by cupy and driver-API paths)
 # ---------------------------------------------------------------------------
 def launch_geometry(luts_bytes, encoded_bytes, output_positions_bytes):
-    """Returns (n_luts, n_bytes, n_elements, grid, block, shared_mem_size)
+    """Returns (n_luts, n_bytes, grid, block, shared_mem_size)
     using the exact formulas dfloat11.py uses at inference and at
     check_correctness time."""
     n_luts = len(luts_bytes) // 256

@@ -236,6 +236,6 @@ selection rule and is provably safe.
    official code (`curr_val` read-before-assignment) that crashes on
    certain small-alphabet/degenerate histograms; it does not affect any
    realistic model-shaped histogram we tested. Our implementation resolves
-   it with a documented default (`curr_val = 0` at row start) rather than
+   it with a documented default (`curr_val = 0` once, before the first row) rather than
    attempting to replicate a Python crash; every case where the original
    *doesn't* crash, our output matches it exactly (661/661).

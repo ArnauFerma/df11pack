@@ -19,7 +19,7 @@ file = "model.safetensors"           # optional: single-file name, if not the la
 strip_prefix = ["net."]              # removed where present
 drop = ['^accum_']                   # regexes; matching tensors are left out
 
-[[keys.rename]]                      # applied in order, first match only
+[[keys.rename]]                      # every rule, in order; each replaces its first match
 pattern = '\.scale$'
 replacement = ".weight"
 

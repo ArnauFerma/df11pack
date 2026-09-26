@@ -65,9 +65,9 @@ source/release pair at a time, deleted before fetching the next.
 |---|---|---|---|---|
 | Truncated Qwen3-0.6B + synthetic cases | 0 | <100 MB each | 0.2, and all of Phase 1 | Generated locally from the model below |
 | **Qwen3-0.6B (BF16) — already on disk** | 1 | 1.5 GB | 0.2, 0.2c, 0.12 | `../bf16-exponent-compression/real_model/model.safetensors`, already used by the sibling project. **No download needed.** |
-| **Official pre-compressed DF11 releases** | ~11–17 GB each | **0.2b, 0.7, 0.8, 0.9, 0.12** | `DFloat11/Chroma-DF11`, `DFloat11/FLUX.1-dev-DF11`, `DFloat11/FLUX.1-schnell-DF11` (diffusers layout) and `mingyi456/Chroma1-Base-DF11` (ComfyUI-native). These **are** the official compressor's output — downloading them replaces running it. See 0.2b. |
-| `lodestones/Chroma1-HD` | ~18 GB | 0.7, 0.9 (as the *source* side of the comparison) | single-file, ComfyUI-native layout |
-| `imnotednamode/Chroma-v36-dc-diffusers` (`subfolder="transformer"`) | ~18 GB | 0.8 (H10), 0.9, 1.8 | diffusers layout; also settles the §1.7 "still to verify" item |
+| **Official pre-compressed DF11 releases** | 2 | ~11–17 GB each | **0.2b, 0.7, 0.8, 0.9, 0.12** | `DFloat11/Chroma-DF11`, `DFloat11/FLUX.1-dev-DF11`, `DFloat11/FLUX.1-schnell-DF11` (diffusers layout) and `mingyi456/Chroma1-Base-DF11` (ComfyUI-native). These **are** the official compressor's output — downloading them replaces running it. See 0.2b. |
+| `lodestones/Chroma1-HD` | 2 | ~18 GB | 0.7, 0.9 (as the *source* side of the comparison) | single-file, ComfyUI-native layout |
+| `imnotednamode/Chroma-v36-dc-diffusers` (`subfolder="transformer"`) | 2 | ~18 GB | 0.8 (H10), 0.9, 1.8 | diffusers layout; also settles the §1.7 "still to verify" item |
 | Flux BF16 (both layouts) | 2 | ~24 GB each | 0.7, 0.12 | Source side for the Flux comparisons. **Does not fit alongside its DF11 release** in 39 GB — fetch, compare, delete, one at a time, or defer to Phase 2. |
 
 Tier 0 is the only corpus most steps need, and it is generated, not downloaded.
@@ -401,7 +401,7 @@ Rough effort: 12–16 days.
 The original scope — append-only journal, source fingerprint, in-order committer
 with spill, truncate-to-last-good-entry on resume, and a gate of 100 random kills
 — was designed for a compressor that takes 1–2 hours on Flux. It does not. The
-full Qwen3-0.6B compresses in **10.7 s on the 2-core target machine** (1.12 s on a
+full Qwen3-0.6B compresses in **10.9 s on the 2-core target machine** (1.12 s on a
 128-thread server), and Flux extrapolates to **~5 minutes on the target machine**
 against the official tool's ~6 hours there. Resume protects against losing work that now costs
 less than the machinery protecting it, and a journal is state that can itself go

@@ -96,7 +96,7 @@ its indexed start and requires it to end exactly where the index says. The final
 partial block does not set the range (the kernel never reads its length).
 
 **Measured on real Qwen3-0.6B layers, plain idx8 is usually not representable.**
-At block 64, block lengths spread 237–543 bits across layers (range must be
+At block 64, the range of block lengths is 237–543 bits across layers (it must be
 ≤ 255): 0 to 130 of 245,760 blocks overflow per layer — at most 0.05%, where rare
 exponents with 20–25-bit codes cluster. Only layer 1 of those sampled fits. The
 sibling project's 130–273 came from a slice without those outliers.
@@ -107,8 +107,8 @@ indices) and `idx8_escape_lengths` (u32). The warp prefix sum is unchanged; a la
 whose code is 255 does one lookup. Every unit is now representable (up to u32 bit
 offsets). **The sibling project's kernel must learn the same branch** before it can
 read these files. On the real tier-0 layer 0: 14 escapes, index 276.6 KB against
-DF11's 414.1 KB (`gaps` + `output_positions`) — 0.07 bits/weight, 0.64% of the
-unit, within the predicted 0.6–1.3%.
+DF11's 414.1 KB (`gaps` + `output_positions`) — a saving of 0.07 bits/weight, 0.64%
+of the unit, within the predicted 0.6–1.3%.
 
 **Credit and source.** This is the design from the sibling project
 `bf16-exponent-compression` (`kernel_idx8.py`), where it was implemented,

@@ -281,7 +281,8 @@ pub fn peek8(bytes: &[u8], bit: usize) -> u8 {
 ///
 /// Public so the jump boundary can be tested directly: real units here use four
 /// tables, whose jump values are 253..=255, so no fixture exercises the value
-/// **240** — which is what a unit with the maximum sixteen tables would use.
+/// **240** — which only a unit with the maximum seventeen tables (table 0 plus
+/// jump targets 1..=16, see [`crate::MAX_PREFIX_TABLES`]) would use.
 pub fn decode_at(
     luts: &[u8],
     tables: usize,

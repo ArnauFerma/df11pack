@@ -170,6 +170,8 @@ for i in "${!ITEM_NAMES[@]}"; do
   log ""
   log "=== [$((i+1))/4] $name ($script) ==="
   t0=$(date +%s)
+  # A result left by an earlier run must not be reported as this run's.
+  rm -f "$out_json"
   "$PY" "$HERE/$script" --out "$out_json"
   rc=$?
   t1=$(date +%s)

@@ -22,7 +22,7 @@ WHAT model.save_pretrained() ACTUALLY DOES (confirmed from dfloat11.py
 lines 606-620): it does not "add a few keys" to the source config. It hands
 the fully-parsed transformers Qwen3Config object to that library's own
 serializer, which re-normalizes the ENTIRE config to the schema of whatever
-transformers version is installed at compress time. Three renames/expansions
+transformers version is installed at compress time. Five changes
 were observed between 4.51.0 and 5.17.0 (both arbitrary versions -- nothing
 pins them, and a different pair of versions could show different deltas):
 

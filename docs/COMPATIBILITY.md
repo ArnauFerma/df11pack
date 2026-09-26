@@ -161,7 +161,7 @@ That ambiguity is not academic. Measured across 2,513 probes (FINDINGS 0.5):
 How close is this? Real units measured here run 24–27 bits against the limit of
 32: tier-1's worst is 26, and a published `Qwen3-4B` shard reaches 27. Code length
 grows with unit size, so a 622M-weight embedding unit — the standalone-unit case
-that every published DF11 LLM at 8B and above uses — plausibly approaches it. The
+that the published DF11 LLMs at 8B and above use (Gemma-3 12B/27B excepted) — plausibly approaches it. The
 limiter is reachable, not theoretical.
 
 **df11pack's rule.** The choice is not always ambiguous, and where it is forced we

@@ -53,6 +53,9 @@ def group_units_merged(manifest):
 
 
 def main(argv):
+    if len(argv) != 1:
+        print("usage: verify_repack_merged_invariants.py REPACKED_DIR", file=sys.stderr)
+        return 2
     repacked_dir = argv[0]
     checker = os.path.join(os.path.dirname(os.path.abspath(__file__)), "check_invariants.py")
     python = sys.executable
@@ -85,7 +88,7 @@ def main(argv):
 
     print(f"\n{n_ok}/{len(units)} logical units passed check_invariants.py "
           f"after cross-file reassembly by name.")
-    return 0 if n_fail == 0 else 1
+    return 0 if n_fail == 0 and units else 1
 
 
 if __name__ == "__main__":

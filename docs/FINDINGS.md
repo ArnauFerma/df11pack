@@ -47,7 +47,7 @@ order: `self_attn.q_proj`, `self_attn.k_proj`, `self_attn.v_proj`,
 Everything from 8B up also compresses `lm_head` and `model.embed_tokens` as
 **standalone units with an empty `attr_names` list**. `Qwen3-8B-DF11`'s shard
 listing confirms they are emitted as their own files, `lm_head.safetensors` and
-`model_embed_tokens.safetensors`, alongside 37 `model_layers_N.safetensors`.
+`model_embed_tokens.safetensors`, alongside 36 `model_layers_N.safetensors`.
 
 The 4B release is the odd one out. Nothing in the published artefacts explains
 why; it is recorded as an observation, not a rule.
@@ -405,7 +405,7 @@ units, directory mode, `check_correctness=False`.
 | RSS after model load | 360.7 MiB | **951.1 MiB** |
 | RSS after compression | 657.0 MiB | **1840.7 MiB** |
 | **Peak RSS** | 956.4 MiB | **2287.6 MiB** |
-| Size | 142.6 → 94.2 MiB (0.660) | **1433.7 → 869.5 MiB (0.607)** |
+| Size | 136.0 → 89.8 MiB (0.660) | **1433.7 → 869.5 MiB (0.607)** |
 
 Every unit passes `check_invariants.py`.
 
@@ -414,7 +414,7 @@ Every unit passes `check_invariants.py`.
 0.2c predicted that tier 1 would complete here, and it did — that call was right,
 and it is what mattered for planning. The refined prediction recorded under 0.2,
 however, was **peak RSS in the 1.0–1.6 GiB range**. Measured: **2.29 GiB**. The
-prediction is wrong, by about 50% at the upper bound, and is left standing above
+prediction is wrong, by about 40% at the upper bound, and is left standing above
 as written.
 
 The error is instructive. We inferred from tier 0 that the model stays mmapped and
@@ -425,7 +425,7 @@ generalised from a measurement taken in the regime where the effect we were
 measuring could not show up.
 
 The practical consequence is that the margin was far thinner than believed. Peak
-touched 2.29 GiB on a machine with 3.6 GiB total and roughly 2.0 GiB nominally
+touched 2.29 GiB on a machine with 3.5 GiB total and roughly 2.0 GiB nominally
 available; it completed only because page cache was evicted under pressure. The
 0.2c conclusion should be read as "tier 1 fits, with little room to spare",
 not "tier 1 fits comfortably".
@@ -480,8 +480,8 @@ Measured directly from two real official units (tier-0 layer 0 and tier-1 layer
 | `split_positions` | 48 | 0.000% | 0.0000 |
 | **total** | 21,377,645 | | **10.873** |
 
-The second unit agrees to three decimals, so this is the shape of a DF11 unit in
-general, not a quirk of one layer.
+The second unit agrees to within 0.02 bits/weight (10.856), so this is the shape of
+a DF11 unit in general, not a quirk of one layer.
 
 **Three consequences.**
 
@@ -509,15 +509,18 @@ general, not a quirk of one layer.
    single-pass decode with a warp prefix-sum on the input side, at 0.6–1.3% less
    output. Which is faster is unmeasured.
 
-3. **The remaining headroom over the entropy bound is ~2.7%.** The sibling
-   project measured this exact model family's field entropies as H(exp) = 2.645
-   and H(mant) = 6.973 bits, joint 10.578 bits/weight. DF11 here achieves
-   **10.873** — within **0.295 bits/weight**, or 2.7%, of that bound. Nearly all
-   of the remainder is the untouched 8.000 bits/weight of `sign_mantissa`, which
-   the same project showed to be near-incompressible.
+3. **The remaining headroom over the entropy bound is ~2.8%.** The sibling
+   project measured this model's field entropies (over all its weights, not this
+   one layer) as H(sign) = 1.000, H(exp) = 2.645 and H(mant) = 6.973 bits, joint
+   H(sign, exp, mant) = 10.578 bits/weight. DF11 here achieves **10.873** —
+   within **0.295 bits/weight**, or 2.8%, of that bound. Most of the remainder
+   is the index: `gaps` alone is 0.208. The 8.000 bits of `sign_mantissa` sit only
+   ~0.03 above H(sign) + H(mant), the exponent stream ~0.02 above H(exp), and the
+   last ~0.04 is the dependence between fields, which coding them separately
+   cannot use.
 
-So DF11's format is close to the measured floor for this approach, and the
-distance left is concentrated in the field that is hardest to move. Any future
+So DF11's format is close to the measured floor for this approach, and most of
+the distance left is the index, which is what idx8 (consequence 1) targets. Any future
 format work should be justified against these numbers rather than against
 intuition about index overhead.
 
@@ -877,7 +880,7 @@ now in the runbook:
 
 1. **`pip install torch` unpinned pulls a cu128 wheel** that refuses a CUDA 12.4 driver ("driver is too old, found version 12040"). Install from the index matching the card: `--index-url https://download.pytorch.org/whl/cu124`.
 2. **`dfloat11` 0.5.0 imports `pkg_resources`**, which setuptools ≥81 removes. Needs `setuptools<81`.
-3. **`dfloat11` 0.5.0 needs transformers 4.x.** transformers 5.x removed `no_init_weights` from `transformers.modeling_utils`, and the import fails. `transformers==4.51.0` works — the version the source model's own config records.
+3. **`dfloat11` 0.5.0's loader needs transformers 4.x.** transformers 5.x removed `no_init_weights` from `transformers.modeling_utils`; `DFloat11Model.from_pretrained` and the session's skeleton builder import it, and the import fails (compression alone runs on 5.17.0, as in 0.1). `transformers==4.51.0` works — the version the source model's own config records.
 
 The script's fail-fast design earned its keep on all three: each surfaced as a
 clear message naming the cause rather than as a confusing downstream failure, and
@@ -988,7 +991,7 @@ Phase 2's remaining work.
 # Phase 3, first half: the chunked encoder and inter-unit parallelism
 
 Developed and verified on the local machine — an **i3-2365M, 2 physical cores at
-1.4 GHz, 3.6 GB RAM**. Scaling beyond 2 cores has not been measured and is not
+1.4 GHz, 3.5 GiB RAM**. Scaling beyond 2 cores has not been measured and is not
 claimed.
 
 ## Correctness first
@@ -1129,21 +1132,21 @@ Two causes, and only one of them is a limit of the machine:
 **Best observed: 1.12 s for a full 1.4 GiB model** on a 128-thread EPYC. *(Errata: an
 earlier version called this 705× faster than the official 788.9 s. That compared
 two different machines — the official run was on the 2-core i3. The same-machine
-figure is 788.9 s → 10.7 s, about 74×.)*
+figure is 788.9 s → 10.9 s, about 72×.)*
 
 ## H5: settled, and the answer is "it depends on the disk"
 
 At 394.5 Mweights/s the encoder consumes source at **789 MB/s**. So:
 
 - On a **spinning disk** (~100–200 MB/s) *paired with this EPYC*, the encoder outruns the disk: disk-bound.
-- *(Errata)* On the machine the project actually targets — the 2-core i3 — best throughput is ~41 Mweights/s, i.e. **~82 MB/s of source**, which is *below* a typical HDD. **Old CPU + old disk is still CPU-bound.** The earlier conclusion that H5 holds "for the machines the guiding principle targets" paired a fast CPU with a slow disk and was wrong.
+- *(Errata)* On the machine the project actually targets — the 2-core i3 — best throughput is ~40 Mweights/s, i.e. **~81 MB/s of source**, which is *below* a typical HDD. **Old CPU + old disk is still CPU-bound.** The earlier conclusion that H5 holds "for the machines the guiding principle targets" paired a fast CPU with a slow disk and was wrong.
 - On this box's page cache, measured at 10.3 GB/s, the encoder is still 13× short: **CPU-bound, H5 does not hold.**
 - On a typical NVMe (2–7 GB/s), still CPU-bound.
 
 So H5 as originally stated holds only when the CPU is much faster than the disk
 (fast CPU + HDD). It fails on NVMe, and — correcting an earlier version of this
-paragraph — it also fails on an old CPU with an old disk, which is the target case. That is not a dodge: the project exists to serve old machines with
-slow disks, and on those it is now disk-bound. On fast hardware there is more CPU
+paragraph — it also fails on an old CPU with an old disk, which is the target case:
+there the CPU is still the limit. On both old and fast hardware there is more CPU
 work to reclaim, and intra-unit parallelism is where it is.
 
 ## H12 remains unmeasured
@@ -1202,8 +1205,8 @@ that no amount of chunking touches. Amdahl's law does the rest.
 
 Both are per-chunk reductions and could be parallelised the same way the encoder
 was. That is a real and available optimisation, and it is **not being taken now**:
-the encoder is already 683× the official compressor and, per H5, disk-bound on the
-machines this project targets. Phases 4 through 7 are correctness features the
+the encoder is already ~72× the official compressor on the same machine (an earlier
+"683×" here compared two machines; see the errata below). Phases 4 through 7 are correctness features the
 project actually promises — journal, resume, verification — and they are worth more
 than throughput nobody is waiting on.
 
@@ -1217,7 +1220,7 @@ Recorded so the next person does not have to rediscover where the ceiling is.
 |---|---|
 | Output identical to the single-threaded encoder | **yes** — byte-identical at every worker count, chunk size and I/O mode; 282/282 tensors against the official compressor |
 | Bounded RAM measured, including the 512 MiB case | **yes** — and a 1 MiB budget still compresses, single-threaded, rather than refusing |
-| H5 settled | **yes** — disk-bound on spinning disks, CPU-bound on NVMe; see above |
+| H5 settled | **yes** — disk-bound only when a fast CPU reads a spinning disk; CPU-bound on NVMe, and on the 2-core i3 even with an HDD; see above |
 
 **I/O scheduling** rounds out the phase. `--io auto` resolves the backing device
 through `/sys/dev/block/<major>:<minor>` and `queue/rotational`; on a spinning
@@ -1260,13 +1263,13 @@ Everything below was re-checked against code and data rather than memory.
 ## Claims that were wrong
 
 1. **"705×" / "683× faster" compared two machines.** The official compressor ran on the
-   2-core i3; the 1.12 s run was on a 128-thread EPYC. Same-machine: 788.9 s → 10.7 s,
-   **~74×**. Corrected above.
-2. **H5's verdict for target machines was wrong.** On the i3, df11pack consumes ~82 MB/s of
+   2-core i3; the 1.12 s run was on a 128-thread EPYC. Same-machine: 788.9 s → 10.9 s,
+   **~72×**. Corrected above.
+2. **H5's verdict for target machines was wrong.** On the i3, df11pack consumes ~81 MB/s of
    source, below a typical HDD, so an old machine with an old disk is still **CPU-bound**.
    Corrected above.
 3. **The Phase 4 rationale quoted a fast-machine number.** "Flux in ~30 s" is the EPYC. On the
-   i3, Flux's 11.8B weights at ~41 Mweights/s is **~5 minutes** (the official tool: ~6 h on the
+   i3, Flux's 11.8B weights at ~40 Mweights/s is **~5 minutes** (the official tool: ~6 h on the
    same machine). The decision to drop resume still holds; the number did not.
 4. **Phase 1's exit gate was declared met with one case missing.** PLAN names corpus cases 1, 2
    and 4. Case 2 — a reduced synthetic Flux in both layouts — was never built. **No Flux or
@@ -1275,7 +1278,7 @@ Everything below was re-checked against code and data rather than memory.
 5. **`MAX_PREFIX_TABLES = 17` was labelled "corrected by measurement". It was derived**, from
    `get_luts` and the 240 jump convention. `decode.ptx` is consistent with it — LUTs are read
    from global memory and the decode unrolls three jump levels, so table *count* is not bounded
-   by the kernel — but no real unit has more than four tables, so 17 is unexercised.
+   by the kernel — but no real unit has more than five tables, so 17 is unexercised.
 
 ## Gaps in the code, not yet fixed
 

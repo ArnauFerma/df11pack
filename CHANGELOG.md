@@ -25,8 +25,8 @@ First release.
 
 - DFloat11 output byte-identical to the official compressor (pip `dfloat11`
   0.5.0), as whole files: on real Qwen3-8B, all 39 files match the official output
-  and the published `DFloat11/Qwen3-8B-DF11` release, in 40 s and 6.6 GB of RAM
-  against 37 min and 27.3 GB.
+  and the published `DFloat11/Qwen3-8B-DF11` release, in 40 s and 6.6 GiB of RAM
+  against 37 min and 27.3 GiB.
 - Four layouts: transformers, diffusers, diffusers single-file, ComfyUI single-file.
 - 35 built-in model definitions: every official DFloat11 release with a
   `dfloat11_config`, and every model in ComfyUI-DFloat11-Extended. Custom

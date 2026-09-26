@@ -560,6 +560,74 @@ fn safe_mode_verifies_every_unit_before_writing_it() {
     let _ = std::fs::remove_dir_all(&out2);
 }
 
+/// `lut_mode: Correct` must reach the LUTs that are written, not only the stamp.
+/// Tier-0 `model.layers.0` has a leaked run at row 3, columns 0..128 (see
+/// `codebook.rs`); correct mode zero-fills it and changes nothing else, and safe
+/// mode still accepts the unit because the kernel never reads those cells.
+#[test]
+fn correct_lut_mode_reaches_the_written_luts() {
+    use df11_codec::huffman::LutMode;
+    let Some(fx) = skip_if_missing("correct_lut_mode_reaches_the_written_luts") else {
+        return;
+    };
+    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let defs = architecture_defs().expect("definitions");
+    let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
+    let def = ArchDef::from_toml(toml).expect("parses");
+    let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
+
+    let compat_dir = outdir("luts_compat");
+    let correct_dir = outdir("luts_correct");
+    write_directory(&src, &def, &compat_dir, &WriteOptions::default()).expect("compat");
+    write_directory(
+        &src,
+        &def,
+        &correct_dir,
+        &WriteOptions {
+            lut_mode: LutMode::Correct,
+            verify: true,
+            ..Default::default()
+        },
+    )
+    .expect("correct mode, verified");
+
+    let shard = "model_layers_0.safetensors";
+    let compat = SafeTensorsFile::open(compat_dir.join(shard)).unwrap();
+    let correct = SafeTensorsFile::open(correct_dir.join(shard)).unwrap();
+    assert_eq!(
+        correct.metadata().get("df11pack_luts").map(String::as_str),
+        Some("correct")
+    );
+    let a = compat.read("model.layers.0.luts").unwrap();
+    let b = correct.read("model.layers.0.luts").unwrap();
+    assert_eq!(a.len(), b.len());
+    let leaked = 3 * 256..3 * 256 + 128;
+    assert!(
+        a[leaked.clone()].iter().all(|&v| v != 0),
+        "compat keeps the leak"
+    );
+    assert!(
+        b[leaked.clone()].iter().all(|&v| v == 0),
+        "correct zero-fills it"
+    );
+    for (i, (x, y)) in a.iter().zip(&b).enumerate() {
+        if !leaked.contains(&i) {
+            assert_eq!(x, y, "luts byte {i} changed outside the leaked run");
+        }
+    }
+    for n in [
+        "encoded_exponent",
+        "sign_mantissa",
+        "output_positions",
+        "gaps",
+    ] {
+        let t = format!("model.layers.0.{n}");
+        assert_eq!(compat.read(&t).unwrap(), correct.read(&t).unwrap(), "{t}");
+    }
+    let _ = std::fs::remove_dir_all(&compat_dir);
+    let _ = std::fs::remove_dir_all(&correct_dir);
+}
+
 /// generation_config.json: carried over when the source ships one, never invented.
 ///
 /// The official output's copy is synthesised by transformers from config.json

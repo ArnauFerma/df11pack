@@ -507,7 +507,6 @@ def main():
             ok = run_case(freqs, label, res)
         except Exception as e:
             ok = False
-            res.total += 1
             fail_labels.append((label, f"EXCEPTION: {e!r}"))
             continue
         if not ok:
@@ -558,4 +557,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    res, fails = main()
+    # The UnboundLocalError cases are the known crash of the original
+    # get_luts (H4_RESULTS.md); anything else is a real mismatch.
+    bad = (res.table_mismatches or res.codec32_mismatches
+           or any(m[1] != "REF_UNBOUND_LOCAL_ERROR" for m in res.lut_mismatches)
+           or any(why != "MISMATCH" for _, why in fails))
+    sys.exit(1 if bad else 0)

@@ -25,12 +25,16 @@ def collect_manifest(dir_or_files):
         for name in sorted(os.listdir(dir_or_files)):
             if name.endswith(".safetensors"):
                 files.append(os.path.join(dir_or_files, name))
+    elif isinstance(dir_or_files, str):
+        files = [dir_or_files]
     else:
         files = dir_or_files
     for path in files:
         header, data_start = read_header(path)
         for key, info in header.items():
             s, e = info["data_offsets"]
+            if key in manifest:
+                raise ValueError(f"duplicate tensor key {key!r} in {path} and {manifest[key]['path']}")
             manifest[key] = {
                 "dtype": info["dtype"], "shape": info["shape"],
                 "path": path, "start": data_start + s, "end": data_start + e,
@@ -55,6 +59,9 @@ def bytes_equal(m1, m2):
 
 
 def main(argv):
+    if len(argv) != 2:
+        print("usage: verify_repack.py ORIG_DIR_OR_FILE REPACKED_DIR_OR_FILE", file=sys.stderr)
+        return 2
     orig_dir, repacked_dir = argv[0], argv[1]
     orig = collect_manifest(orig_dir)
     repacked = collect_manifest(repacked_dir)
@@ -86,7 +93,7 @@ def main(argv):
 
     print(f"{n_checked} tensors compared, {n_mismatch} mismatches, "
           f"{len(missing)} missing, {len(extra)} extra")
-    ok = ok and (n_mismatch == 0)
+    ok = ok and n_mismatch == 0 and n_checked > 0
     print("RESULT:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 

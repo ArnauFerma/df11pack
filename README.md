@@ -16,7 +16,7 @@ Qwen3-8B, compressed on the same 8-vCPU machine:
 | | official compressor | **df11pack** |
 |---|---|---|
 | time | 37 min | **40 s** |
-| peak RAM | 27.3 GB | **6.6 GB** |
+| peak RAM | 27.3 GiB | **6.6 GiB** |
 | output | 39 files, 11.16 GB | **the same 39 files, byte-identical** |
 
 All 39 files are also byte-identical to the published
@@ -62,7 +62,8 @@ df11pack compress Qwen3-8B/ --arch qwen3-8b -o Qwen3-8B-DF11/
 Useful options:
 
 - `--safe` decodes every unit and checks it against the source **before** writing it;
-- `--ram 4G` caps memory (by default it sizes itself to what is free);
+- `--ram 4G` sizes the worker count to fit a memory budget (by default, what is
+  free on Linux; elsewhere one worker per core);
 - `--io sequential` for spinning hard drives (auto-detected on Linux).
 
 **Check any output**, including ones you did not make:
@@ -94,10 +95,12 @@ named by `DF11PACK_ARCH_DIR`. Format and how to add one: [docs/DEFINITIONS.md](d
 
 - Byte-identity with the official compressor is tested per architecture, on small
   models run through the official tool, and on real Qwen3 models (0.6B, 8B).
-- Every definition was checked against the **tensor names of real checkpoints and
-  real published DF11 files**; 23 of 28 match exactly, and the other 5 have
-  sources in F32/F16, which df11pack refuses (convert to BF16 first). Gated
-  repositories (Gemma-3, SD3.5, FLUX.1-dev diffusers, Llama) were not checked.
+- 28 of the 35 definitions were checked against the **tensor names of real
+  checkpoints and real published DF11 files**; 23 of 28 match exactly, and the
+  other 5 have sources in F32/F16, which df11pack refuses (convert to BF16 first).
+  The Llama definition was checked through Mistral-Nemo, which shares it. Not
+  checked: Gemma-3, SD3.5 and FLUX.1-dev/Kontext diffusers (gated repositories),
+  and the ComfyUI `flux`, `flux2-alt` and `zimage-pixel-space` definitions.
 - Not yet done: loading df11pack's output in ComfyUI on a GPU for the image models.
   Since the files are byte-identical to what those loaders already read, it is
   expected to work; reports welcome.

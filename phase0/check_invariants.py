@@ -14,8 +14,8 @@ Ground truth for the exact formulas below was cross-checked against:
     (encode, encode_weights, get_luts -- the official encoder)
   - a real downloaded shard (DFloat11/Qwen3-4B-DF11, model_layers_0.safetensors)
 
-Two invariants in the task's own prompt paraphrase turned out to disagree
-with the actual official encoder (see phase0/INVARIANTS_RESULTS.md for the
+Two invariants as first paraphrased, before measurement, turned out to
+disagree with the actual official encoder (see phase0/INVARIANTS_RESULTS.md for the
 full writeup):
   - `split_positions`' last value is NOT the total weight count. The
     encoder computes `cumsum(sizes)[:-1]`, i.e. only the *interior* split
@@ -35,7 +35,8 @@ that the encoder that produced it silently violated its own convention).
 Usage:
     check_invariants.py FILE_OR_DIR [FILE_OR_DIR ...]
 
-Exit code is 0 iff every unit in every file passes every invariant.
+Exit code is 0 iff at least one unit was found and every unit in every
+file passes every invariant.
 """
 import json
 import math
@@ -234,8 +235,8 @@ def check_unit(path, data_start, unit_name, tensors, failures):
                     )
 
         # --- INV-GAPS-MAXLEN: max Huffman code length <= 32 bits, via the
-        # trailing "lens" row of luts (see module docstring for why this is
-        # checked here rather than by decoding a literal gap value: a gaps
+        # trailing "lens" row of luts (checked here rather than by decoding
+        # a literal gap value: a gaps
         # window is packed as a fixed 5-bit field, so it can only ever
         # decode to 0..31 -- it is structurally incapable of representing a
         # violation. The *cause* the format cares about -- max code length
@@ -300,9 +301,18 @@ def check_unit(path, data_start, unit_name, tensors, failures):
         # 4096-byte chunk (the last chunk: whatever bytes remain) holds
         # `chunk_bytes * 8` bits, and every code is between min_code_len and
         # max_code_len bits, so the number of codes that BEGIN in that chunk
-        # is bounded on both sides:
+        # is bounded on both sides. The first code that begins in a chunk may
+        # start up to max_code_len-1 bits into it (the previous code spills
+        # over), the last one may run past its end, and the last chunk also
+        # holds up to 7 bits of end padding, so with g = max_code_len - 1:
         #
-        #   ceil(chunk_bits / max_code_len) <= delta <= floor(chunk_bits / min_code_len)
+        #   ceil((chunk_bits - g [- 7 if last]) / max_code_len) <= delta
+        #   delta <= floor((chunk_bits - 1) / min_code_len) + 1
+        #
+        # (The tighter ceil(bits/max) .. floor(bits/min) band rejects valid
+        # units: e.g. all 3-bit codes aligned at bit 0 put 10923 codes in a
+        # 32768-bit chunk, and a last chunk that holds only the tail of the
+        # previous chunk's final code plus padding has delta 0.)
         #
         # A delta that is non-decreasing but far outside this band (e.g. 0,
         # from two adjacent chunks made to alias) still passes MONO but
@@ -319,8 +329,10 @@ def check_unit(path, data_start, unit_name, tensors, failures):
             chunk_bytes_arr[-1] = last_bytes
             valid = chunk_bytes_arr > 0
             bits_arr = chunk_bytes_arr * 8
-            lo_arr = -(-bits_arr // max_code_len)  # ceil division
-            hi_arr = bits_arr // min_code_len
+            covered = bits_arr - (max_code_len - 1)
+            covered[-1] -= 7
+            lo_arr = np.maximum(-(-covered // max_code_len), 0)  # ceil division
+            hi_arr = (bits_arr - 1) // min_code_len + 1
             bad = valid & ((diffs < lo_arr) | (diffs > hi_arr))
             if bad.any():
                 bad_idx = np.nonzero(bad)[0]
@@ -330,7 +342,7 @@ def check_unit(path, data_start, unit_name, tensors, failures):
                     f"{len(bad_idx)} chunk(s) violate the code-length bound; first at chunk {i} "
                     f"(bytes={int(chunk_bytes_arr[i])}, bits={int(bits_arr[i])}): output_positions "
                     f"delta {int(diffs[i])} is outside [{int(lo_arr[i])}, {int(hi_arr[i])}] = "
-                    f"[ceil(bits/max_code_len={max_code_len}), floor(bits/min_code_len={min_code_len})] "
+                    f"(max_code_len={max_code_len}, min_code_len={min_code_len}) "
                     f"-- output_positions[{i}]={int(op_u32[i])}, output_positions[{i + 1}]={int(op_u32[i + 1])}",
                 )
 

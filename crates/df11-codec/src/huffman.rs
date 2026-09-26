@@ -167,20 +167,11 @@ fn bits_string(code: &Code) -> String {
     format!("{:0width$b}", code.value, width = code.bits as usize)
 }
 
-/// Build the hierarchical byte LUTs: `(n_prefixes + 1, 256)`, the final row
-/// holding per-symbol code lengths.
-///
-/// Reproduces the official forward-fill, **including its carry-over across
-/// rows**. Within a row the fill is deliberate: a code shorter than the byte
-/// boundary sets one entry and the fill replicates it across every byte value
-/// sharing that prefix. Across rows it is accidental — the accumulator is never
-/// reset — and a row whose first key is not 0 therefore begins with the previous
-/// row's trailing value. Byte-identity requires both. See `docs/COMPATIBILITY.md`.
 /// Which LUT semantics to emit.
 ///
-/// The default reproduces the official encoder exactly, bug included. See
-/// `docs/COMPATIBILITY.md`; the opt-out is gated and unreleased until the Phase 5
-/// kernel test proves the leaked positions are unreachable.
+/// The default reproduces the official encoder exactly, bug included. The
+/// opt-out passed its kernel gate (the leaked positions are never read); see
+/// `docs/COMPATIBILITY.md`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LutMode {
     /// Byte-identical to the official compressor, carry-over across rows and all.
@@ -196,7 +187,16 @@ pub fn build_luts(cb: &Codebook) -> Result<Vec<[u8; 256]>, EncodeError> {
     build_luts_with(cb, LutMode::Compat)
 }
 
-/// Build the LUTs in an explicit mode.
+/// Build the hierarchical byte LUTs: `(n_prefixes + 1, 256)`, the final row
+/// holding per-symbol code lengths.
+///
+/// Compat mode reproduces the official forward-fill, **including its carry-over
+/// across rows**. Within a row the fill is deliberate: a code shorter than the
+/// byte boundary sets one entry and the fill replicates it across every byte
+/// value sharing that prefix. Across rows it is accidental — the accumulator is
+/// never reset — and a row whose first key is not 0 therefore begins with the
+/// previous row's trailing value. Byte-identity requires both. Correct mode
+/// resets the accumulator at each row. See `docs/COMPATIBILITY.md`.
 pub fn build_luts_with(cb: &Codebook, mode: LutMode) -> Result<Vec<[u8; 256]>, EncodeError> {
     let mut prefixes: Vec<String> = vec![String::new()];
     for (s, c) in cb.entries() {

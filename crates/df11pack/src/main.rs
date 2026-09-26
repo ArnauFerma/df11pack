@@ -241,8 +241,9 @@ fn parse_size(s: &str) -> Result<u64, String> {
     };
     num.trim()
         .parse::<u64>()
-        .map(|v| v * mult)
-        .map_err(|_| format!("could not parse size {s:?}; try 512M or 4G"))
+        .ok()
+        .and_then(|v| v.checked_mul(mult))
+        .ok_or_else(|| format!("could not parse size {s:?}; try 512M or 4G"))
 }
 
 /// Everything `compress` needs, so the signature stays readable as flags accrue.

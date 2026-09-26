@@ -1,5 +1,4 @@
 //! Writing a DF11 model directory.
-#![allow(unused_imports)]
 
 use crate::arch::{ArchDef, Layout};
 use crate::config::{build_config, ConfigMode};
@@ -9,8 +8,8 @@ use crate::io_sched::{plan, IoMode, IoPlan};
 use crate::safetensors::{
     write_bytes_atomic, write_file, Dtype, OutTensor, Payload, StError, StreamingWriter, TensorDecl,
 };
-use crate::source::{ModelSource, View, COMFYUI_PREFIX};
-use crate::unit::encode_unit_streaming_with;
+use crate::source::{ModelSource, View};
+use crate::unit::encode_unit_streaming_mode;
 use crate::EncodeError;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -23,8 +22,9 @@ pub struct WriteOptions {
     /// the output; see `docs/COMPATIBILITY.md`.
     pub lut_mode: LutMode,
     /// Upper bound on resident memory, in bytes. Workers are limited so that
-    /// roughly `1.35 x N_max` bytes per worker fits inside it (DESIGN 5.2).
-    /// `None` means "use every core", which is only safe when memory is ample.
+    /// [`bytes_per_weight`] `x N_max` bytes per worker fits inside it, with at
+    /// least one worker. `None` uses [`DEFAULT_MEMORY_FRACTION`] of available
+    /// memory, or every core when that cannot be read ([`worker_count_with`]).
     pub ram_budget: Option<u64>,
     /// Force a worker count, overriding the budget calculation.
     pub workers: Option<usize>,
@@ -47,14 +47,6 @@ pub struct WriteOptions {
     pub idx8_block: Option<usize>,
 }
 
-/// How many units to encode at once, given the budget and the largest unit.
-///
-/// A worker holds the exponent stream (N bytes), `sign_mantissa` (N) and the
-/// encoded output (~0.34 N): about **2.34 N**. DESIGN §5.2's 1.35 N assumes the
-/// exponents are re-derived on a second pass rather than kept, which is not done
-/// yet — the constant here is what is actually held, measured, not the target.
-/// Always at least one: a budget too small for a single unit still has to make
-/// progress rather than refuse.
 /// Bytes a worker holds per weight of the largest unit, in fast mode.
 ///
 /// **Measured, and machine-dependent.** Qwen3-0.6B's largest unit is 15,728,640
@@ -271,7 +263,9 @@ struct Built {
 
 type Reader<'r> = dyn Fn(&str) -> Result<Vec<u8>, StError> + Sync + 'r;
 
-/// Encode one unit and, in safe mode, check it against its source.
+/// Encode one unit and, in safe mode, check it against its source. `verify`
+/// is passed separately from `opts` because pass one of the single-file writer
+/// never verifies.
 ///
 /// Produces the tensors but writes nothing, so the directory and single-file
 /// layouts can share it. The chunked encoder inside uses rayon's global pool, so
@@ -281,7 +275,7 @@ fn build_unit(
     u: &crate::discover::DiscoveredUnit,
     threads: usize,
     bpt: usize,
-    idx8_block: Option<usize>,
+    opts: &WriteOptions,
     read: &Reader,
     verify: bool,
 ) -> Result<Built, WriteError> {
@@ -291,13 +285,14 @@ fn build_unit(
         .iter()
         .map(|n| src.info(n).map(|i| i.nbytes() / 2).unwrap_or(0))
         .collect();
-    let enc = encode_unit_streaming_with(
+    let enc = encode_unit_streaming_mode(
         &u.name,
         &counts,
         |i| read(&u.tensors[i]),
         threads,
         bpt,
-        idx8_block,
+        opts.idx8_block,
+        opts.lut_mode,
     )
     .map_err(|e| WriteError::Encode {
         unit: u.name.clone(),
@@ -615,7 +610,7 @@ pub fn write_directory(
         // tensor comes up; a unit's U8 tensors are contiguous in that order.
         const KEEP: u64 = 1 << 20;
         let pass1 = run_units(&found.units, workers, &|u| {
-            let b = build_unit(&src, u, threads, bpt, opts.idx8_block, &read, false)?;
+            let b = build_unit(&src, u, threads, bpt, opts, &read, false)?;
             // Hashed here, before the header: pass two must then write exactly
             // these bytes, which `verify` will confirm.
             let mut h = BTreeMap::new();
@@ -693,7 +688,7 @@ pub fn write_directory(
                     &found.units[ui],
                     threads,
                     bpt,
-                    opts.idx8_block,
+                    opts,
                     &read,
                     opts.verify,
                 )?;
@@ -726,7 +721,7 @@ pub fn write_directory(
         if opts.verify {
             for (ui, u) in found.units.iter().enumerate() {
                 if !encoded[ui] {
-                    let b = build_unit(&src, u, threads, bpt, opts.idx8_block, &read, true)?;
+                    let b = build_unit(&src, u, threads, bpt, opts, &read, true)?;
                     for t in &b.tensors {
                         if let (Payload::Owned(v), Some(k)) = (&t.data, kept.get(&t.name)) {
                             if v != k {
@@ -745,7 +740,7 @@ pub fn write_directory(
         output_bytes += std::fs::metadata(&path)?.len();
     } else {
         let written = run_units(&found.units, workers, &|u| {
-            let b = build_unit(&src, u, threads, bpt, opts.idx8_block, &read, opts.verify)?;
+            let b = build_unit(&src, u, threads, bpt, opts, &read, opts.verify)?;
             let fname = shard_name(&u.name);
             let path = out_dir.join(&fname);
             let mut meta = meta.clone();

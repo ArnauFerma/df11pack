@@ -211,7 +211,8 @@ pod running after you're done — see "Stop the instance" above.
 ## Environment pins learned from the first run
 
 The first session hit three install problems in a row. All three are now known;
-`run_all.sh` has the first baked in, and the other two are one-liners.
+`run_all.sh` does not apply them (it still installs torch unpinned, step 2 above),
+so install these by hand in its venv before re-running it.
 
 1. **torch must come from the index matching the card's driver.** Unpinned,
    `pip install torch` pulls a cu128 wheel that refuses a CUDA 12.4 driver with
@@ -221,7 +222,8 @@ The first session hit three install problems in a row. All three are now known;
 2. **`setuptools<81`.** `dfloat11` 0.5.0 imports `pkg_resources`, which newer
    setuptools removes: `ModuleNotFoundError: No module named 'pkg_resources'`.
 3. **`transformers==4.51.0`.** transformers 5.x removed `no_init_weights` from
-   `transformers.modeling_utils`, so `dfloat11` fails to import. 4.51.0 is the
+   `transformers.modeling_utils`, which `DFloat11Model.from_pretrained` and the
+   test scripts' skeleton builder import, so H6 and H11 fail. 4.51.0 is the
    version the tier-0 model's own `config.json` records.
 
 None of these are df11pack's problem at runtime — they are the *reference*

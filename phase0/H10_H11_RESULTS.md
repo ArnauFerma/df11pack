@@ -34,7 +34,7 @@ by model size / vocab size), which is why one table covers both.
 | `pad_token_id` | — | `null` | **added** | `save_pretrained` (base `PretrainedConfig` always tracks it) |
 | `transformers_version` | `"4.51.0"` | `"5.17.0"` | **changed** | `save_pretrained` — the *installed* library's version, unrelated to the source value |
 | `dfloat11_config` | — | `{version, threads_per_block, bytes_per_thread, pattern_dict}` | **added** | dfloat11 injection (`dfloat11.py` line 615, `model.config.dfloat11_config = {...}` set *before* `save_pretrained`) |
-| all other 21 keys | as source | unchanged | — | passthrough |
+| all other 22 keys | as source | unchanged | — | passthrough |
 
 Every other key (`architectures`, `attention_bias`, `attention_dropout`,
 `bos_token_id`, `eos_token_id`, `head_dim`, `hidden_act`, `hidden_size`,
@@ -212,7 +212,7 @@ indent level):
 other diffusers `ModelMixin` config field.** Both consist of exactly
 `dfloat11_config` plus one extra, semantically odd key (`"model_type":
 "llama"` on a diffusion transformer). Confirmed via the HF API's file listing
-for `Chroat-DF11` that there is no `transformer/config.json` subfolder either
+for `Chroma-DF11` that there is no `transformer/config.json` subfolder either
 — this two-key file **is** the repo's only config.json.
 
 This matches the *code path* `dfloat11.py` actually has for exactly this
@@ -414,7 +414,7 @@ Stated precisely:
 testing** to the extent achievable without a GPU. The remaining gap is a
 real GPU load-and-infer comparison, explicitly out of reach on this
 3 GB/no-GPU machine, and should be the first thing scheduled once a rented
-GPU session is available (DESIGN.md §1.5 already recommends batching GPU
+GPU session is available (FINDINGS.md 0.1 already recommends batching GPU
 work into a single rented session rather than spreading it across steps —
 this is a candidate for that batch, alongside H7).
 

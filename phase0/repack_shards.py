@@ -102,8 +102,8 @@ def plan_single(manifest):
 
 
 def plan_interleaved(manifest, n_files=4):
-    """Variant (b): N files, round-robin over ALL keys (so layer N's seven
-    attribute tensors + its six DF11 suffix tensors end up split across
+    """Variant (b): N files, round-robin over ALL keys (so layer N's
+    uncompressed norm tensors + its six DF11 suffix tensors end up split across
     different files from each other, and from other tensors of the SAME
     unit), with file names that match no unit name and no tensor name."""
     keys = sorted(manifest.keys())

@@ -2,7 +2,7 @@
 
 For each definition: the safetensors **headers** (names, dtypes, shapes -- no
 weights; a few KB each, by HTTP range request) of a real source checkpoint, and of
-the real DF11 release made from it. `tests/real_names.rs` then runs discovery on
+the real DF11 release made from it. `crates/df11-codec/tests/real_names.rs` then runs discovery on
 the source names and compares with the release, offline.
 
 Ungated repositories only. Pinned to the commit read.

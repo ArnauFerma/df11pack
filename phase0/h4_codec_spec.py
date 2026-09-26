@@ -126,13 +126,12 @@ boundary at this LUT level, the code sets exactly ONE dict entry (the
 code's bits followed by zero-padding) and relies on the forward-fill to
 replicate that entry across every subsequent byte value that shares the
 same prefix, up to the next explicit entry. We initialise `curr_val = 0`
-before the first row as a defensive default; empirically (see
-H4_RESULTS.md) index 0 of every row is always explicitly populated before
-it is ever read, for every histogram tested, so this default is never
-actually exercised -- it is a completeness guard, not a divergence from
-the original semantics. If that invariant is ever violated the original
-Python would raise UnboundLocalError; we do not attempt to replicate a
-crash, we just document that this is the fallback behaviour.
+before the first row as a defensive default. It is read only when index 0
+of the first row has no real-symbol owner, which happens when EOF's code
+value is exactly 0 (21 of the 682 histograms in test_h4.py, none of them
+shaped like a real exponent histogram; see H4_RESULTS.md). The original Python raises
+UnboundLocalError there; we do not replicate the crash, and map that slot
+to symbol 0 instead.
 """
 
 from copy import copy
@@ -193,10 +192,8 @@ def build_huffman_table(frequencies: dict, eof=EOF) -> dict:
     if eof not in frequencies:
         heap.append((1, [(eof, (0, 0))]))
 
-    # Plain O(n^2) selection-based build (n <= ~257 for df11 exponents,
-    # trivial cost) so we don't need to reproduce heapq's C internals --
-    # we only need the same COMPARISON KEY and the same pop-two-smallest
-    # merge order, which is what heapq itself guarantees.
+    # Same heapq calls and item tuples as dahuffman, so the comparison key
+    # and the pop-two-smallest merge order are the ones described above.
     import heapq as _heapq
 
     _heapq.heapify(heap)
@@ -304,10 +301,8 @@ def get_luts(table: dict) -> np.ndarray:
     prefixes.sort(key=len)
 
     luts = np.zeros((len(prefixes), 256), dtype=np.uint8)
-    curr_val = 0  # see module docstring: defensive default, never
-    # actually read in practice -- index 0 of every row is always
-    # populated before this default would be needed (verified in
-    # test_h4.py / H4_RESULTS.md).
+    curr_val = 0  # see module docstring: read only when EOF's code value
+    # is 0, where the original raises UnboundLocalError (H4_RESULTS.md).
 
     for pi, p in enumerate(prefixes):
         bytes_dict = {}

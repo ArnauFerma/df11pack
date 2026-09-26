@@ -3,7 +3,7 @@
 use crate::arch::ArchDef;
 use crate::bitstream::Encoded;
 use crate::chunked::{encode_chunked, DEFAULT_CHUNK};
-use crate::huffman::{build_limited, build_luts};
+use crate::huffman::{build_limited, build_luts_with, LutMode};
 use crate::{check_unit_limits, split_fields_into, EncodeError, Histogram};
 
 /// The six tensors DF11 stores for one unit, with the official name suffixes.
@@ -139,14 +139,38 @@ where
 }
 
 /// [`encode_unit_streaming`], optionally also building the idx8 index with
-/// blocks of `idx8_block` symbols.
+/// blocks of `idx8_block` symbols. LUTs are built in compat mode.
 pub fn encode_unit_streaming_with<E>(
+    name: &str,
+    counts: &[u64],
+    fetch: impl FnMut(usize) -> Result<Vec<u8>, E>,
+    threads_per_block: usize,
+    bytes_per_thread: usize,
+    idx8_block: Option<usize>,
+) -> Result<UnitOutput, EncodeError>
+where
+    EncodeError: From<E>,
+{
+    encode_unit_streaming_mode(
+        name,
+        counts,
+        fetch,
+        threads_per_block,
+        bytes_per_thread,
+        idx8_block,
+        LutMode::Compat,
+    )
+}
+
+/// [`encode_unit_streaming_with`], with the LUT semantics chosen explicitly.
+pub fn encode_unit_streaming_mode<E>(
     name: &str,
     counts: &[u64],
     mut fetch: impl FnMut(usize) -> Result<Vec<u8>, E>,
     threads_per_block: usize,
     bytes_per_thread: usize,
     idx8_block: Option<usize>,
+    lut_mode: LutMode,
 ) -> Result<UnitOutput, EncodeError>
 where
     EncodeError: From<E>,
@@ -169,7 +193,7 @@ where
     // output exists, not after.
     let hist = Histogram::build(&exponents)?;
     let built = build_limited(&hist.frequencies())?;
-    let luts = build_luts(&built.codebook)?;
+    let luts = build_luts_with(&built.codebook, lut_mode)?;
 
     let Encoded {
         bytes,

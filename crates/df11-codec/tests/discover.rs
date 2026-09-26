@@ -361,3 +361,16 @@ fn only_a_genuine_trailing_digit_class_is_translated() {
         assert!(matches!(e, DiscoverError::BadPattern { .. }), "{p}: {e}");
     }
 }
+
+/// Two patterns that match the same module and claim the same tensor would make
+/// that module two units, writing its tensors twice. It must be refused.
+#[test]
+fn two_patterns_claiming_one_module_are_refused() {
+    let d = def_of(
+        "[[unit]]\npattern = 'blk\\.\\d+'\nattrs = [\"a\"]\n\
+         [[unit]]\npattern = 'blk\\.[0-9]+'\nattrs = [\"a\"]\n",
+    );
+    let e = discover(&d, &names(&["blk.0.a.weight"]))
+        .expect_err("one tensor claimed by two patterns must be refused");
+    assert!(matches!(e, DiscoverError::Contested { .. }), "{e}");
+}

@@ -119,7 +119,8 @@ pub fn discover(def: &ArchDef, tensor_names: &[String]) -> Result<Discovery, Dis
 
     // (pattern index, module) -> attr index -> tensor name
     let mut found: BTreeMap<(usize, String), BTreeMap<usize, String>> = BTreeMap::new();
-    let mut claims: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    // tensor -> every (pattern index, module) that claims it
+    let mut claims: BTreeMap<String, Vec<(usize, String)>> = BTreeMap::new();
 
     for (pi, u) in def.units.iter().enumerate() {
         let suffixes: Vec<(usize, String)> = if u.is_standalone() {
@@ -146,21 +147,23 @@ pub fn discover(def: &ArchDef, tensor_names: &[String]) -> Result<Discovery, Dis
                 claims
                     .entry(name.clone())
                     .or_default()
-                    .push(module.to_string());
+                    .push((pi, module.to_string()));
             }
         }
     }
 
-    if let Some((tensor, units)) = claims.iter().find(|(_, u)| u.len() > 1) {
-        let mut units = units.clone();
-        units.sort();
-        units.dedup();
-        if units.len() > 1 {
-            return Err(DiscoverError::Contested {
-                tensor: tensor.clone(),
-                units,
-            });
-        }
+    // A tensor claimed twice is always a conflict -- including by two patterns
+    // naming the same module, which would otherwise become two units of that
+    // name, each writing its tensors.
+    if let Some((tensor, claimants)) = claims.iter().find(|(_, c)| c.len() > 1) {
+        let units: Vec<String> = claimants
+            .iter()
+            .map(|(pi, m)| format!("{m} (pattern {:?})", def.units[*pi].pattern))
+            .collect();
+        return Err(DiscoverError::Contested {
+            tensor: tensor.clone(),
+            units,
+        });
     }
 
     if found.is_empty() {
