@@ -119,6 +119,13 @@ Beyond the official format, all opt-in and clearly marked:
 - [docs/DESIGN.md](docs/DESIGN.md), [docs/PLAN.md](docs/PLAN.md): the original design and build plan.
 - [CHANGELOG.md](CHANGELOG.md).
 
+## How this was made
+
+Written with Claude Code (Anthropic), under the author's direction. Claude Code
+wrote most of the code and documentation and ran the tests and measurements; the author chose
+what to build and measure, and decided what to publish. Every commit carries a
+`Co-Authored-By` trailer, so who did what can be checked in the git history.
+
 ## Contributing
 
 Testing a model on a GPU and reporting how it went helps most right now. See
