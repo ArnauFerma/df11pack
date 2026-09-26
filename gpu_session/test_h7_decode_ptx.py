@@ -15,7 +15,14 @@ Method (pre-registered in gpu_session/EXPECTED.md, read that first):
      cuModuleLoadData(decode.ptx), cuModuleGetFunction, cuMemAlloc/
      cuMemcpyHtoD, cuLaunchKernel, cuMemcpyDtoH. No CuPy, no torch, no
      compiler.
-  4. Compare the two raw output byte buffers bit-for-bit.
+  4. Compare the two raw output byte buffers bit-for-bit, and each with the
+     unit's source BF16 weights (--source; the tensors concatenated in the
+     order the unit's pattern_dict lists them). Without the source, a launch
+     broken the same way on both paths would still look like a pass.
+     ERROR iff the CuPy control does not decode to the source weights.
+     CONFIRMED iff the driver-API output does too; REFUTED iff it differs.
+     If --source does not exist, the two decodes are compared only with each
+     other, and the result says so.
 
 Kernel signature (read directly from decode.ptx's own .visible .entry
 declaration, not guessed):
@@ -28,11 +35,12 @@ all taken verbatim from dfloat11.py's own launch code (get_hook and
 compress_model's check_correctness branch), not re-derived.
 
 Usage:
-    test_h7_decode_ptx.py [--unit-file PATH] [--out PATH]
+    test_h7_decode_ptx.py [--unit-file PATH] [--source PATH] [--out PATH]
 
 Default --unit-file is the uploaded tier0 shard
 phase0/out/official/qwen3-trunc-layers-only-dir/model_layers_0.safetensors
-resolved relative to the repo root two levels up from this file.
+resolved relative to the repo root two levels up from this file; default
+--source is its source, phase0/corpus/tier0/qwen3-trunc/model.safetensors.
 """
 import argparse
 import ctypes
@@ -53,6 +61,10 @@ def default_unit_file():
         repo_root(), "phase0", "out", "official",
         "qwen3-trunc-layers-only-dir", "model_layers_0.safetensors",
     )
+
+
+def default_source():
+    return os.path.join(repo_root(), "phase0", "corpus", "tier0", "qwen3-trunc", "model.safetensors")
 
 
 # ---------------------------------------------------------------------------
@@ -132,6 +144,11 @@ def setup_prototypes(cuda):
     ]
     cuda.cuLaunchKernel.restype = CUresult
 
+    ctx_destroy = getattr(cuda, "cuCtxDestroy_v2", None) or cuda.cuCtxDestroy
+    ctx_destroy.argtypes = [CUcontext]
+    ctx_destroy.restype = CUresult
+    cuda._ctx_destroy = ctx_destroy
+
     cuda.cuCtxSynchronize.argtypes = []
     cuda.cuCtxSynchronize.restype = CUresult
 
@@ -159,7 +176,15 @@ def decode_with_driver_api(unit_bytes, n_elements):
     cu_check(cuda, cuda.cuDeviceGet(ctypes.byref(dev), 0), "cuDeviceGet")
     ctx = CUcontext()
     cu_check(cuda, cuda._ctx_create(ctypes.byref(ctx), 0, dev), "cuCtxCreate")
+    try:
+        return _decode_in_context(cuda, unit_bytes, n_elements)
+    finally:
+        # Destroying the context also unloads the module and frees anything
+        # left allocated in it.
+        cuda._ctx_destroy(ctx)
 
+
+def _decode_in_context(cuda, unit_bytes, n_elements):
     ptx_path = common.find_ptx_path()
     with open(ptx_path, "rb") as f:
         ptx_bytes = f.read()
@@ -177,6 +202,7 @@ def decode_with_driver_api(unit_bytes, n_elements):
     out_nbytes = n_elements * 2
 
     device_ptrs = {}
+    out_dptr = None
     order = ("luts", "encoded_exponent", "sign_mantissa", "output_positions", "gaps")
     try:
         for name in order:
@@ -218,7 +244,7 @@ def decode_with_driver_api(unit_bytes, n_elements):
         cu_check(cuda, cuda._d2h(out_buf_vp, out_dptr, out_nbytes), "cuMemcpyDtoH(out)")
         return out_buf.raw
     finally:
-        for dptr in list(device_ptrs.values()):
+        for dptr in list(device_ptrs.values()) + ([out_dptr] if out_dptr is not None else []):
             try:
                 cuda._mem_free(dptr)
             except Exception:
@@ -228,10 +254,12 @@ def decode_with_driver_api(unit_bytes, n_elements):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--unit-file", default=default_unit_file())
+    ap.add_argument("--source", default=default_source(),
+                    help="the unit's source BF16 weights (.safetensors file or directory)")
     ap.add_argument("--out", default=common.default_out_path("h7_decode_ptx"))
     args = ap.parse_args()
 
-    detail = {"unit_file": args.unit_file, "gpu": common.gpu_info()}
+    detail = {"unit_file": args.unit_file, "source": args.source, "gpu": common.gpu_info()}
 
     with common.Timer() as t:
         try:
@@ -251,6 +279,14 @@ def main():
             detail["n_bytes_encoded_exponent"] = len(unit_bytes["encoded_exponent"])
             detail["n_luts"] = len(unit_bytes["luts"]) // 256
 
+            truth = common.source_weights_bytes(
+                args.unit_file, prefix, unit_bytes,
+                common.read_tensor_bytes(args.unit_file, data_start, tensor_infos["split_positions"]),
+                args.source,
+            )
+            detail["ground_truth"] = "source weights" if truth is not None else (
+                f"none: {args.source} not found, so the two decodes are compared only with each other")
+
             print(f"[H7] decoding unit {prefix!r} ({n_elements} elements) via CuPy (control)...")
             cupy_out = decode_with_cupy(unit_bytes, n_elements)
             detail["cupy_output_sha256"] = common.sha256_hex(cupy_out)
@@ -263,13 +299,24 @@ def main():
 
             identical = common.bytes_equal(cupy_out, driver_out)
             detail["bit_for_bit_identical"] = identical
+            if truth is not None:
+                detail["cupy_matches_source"] = common.bytes_equal(cupy_out, truth)
+                detail["driver_api_matches_source"] = common.bytes_equal(driver_out, truth)
 
-            if identical:
+            if truth is not None and not detail["cupy_matches_source"]:
+                status = "ERROR"
+                summary = (
+                    "The CuPy control did not decode the unit to its source weights, so the "
+                    "launch itself is wrong; nothing can be concluded about the driver-API path."
+                )
+            elif identical:
                 status = "CONFIRMED"
+                also = (" and to the unit's source weights" if truth is not None
+                        else " (not checked against the source weights)")
                 summary = (
                     f"decode.ptx loaded and executed via raw CUDA driver API (ctypes, no CuPy) "
-                    f"produced output bit-for-bit identical to CuPy's decode of the same unit "
-                    f"({n_elements} elements, sha256 {detail['cupy_output_sha256'][:16]}...)."
+                    f"produced output bit-for-bit identical to CuPy's decode of the same unit"
+                    f"{also} ({n_elements} elements, sha256 {detail['cupy_output_sha256'][:16]}...)."
                 )
             else:
                 status = "REFUTED"

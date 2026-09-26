@@ -17,13 +17,13 @@ Qwen3-8B, compressed on the same 8-vCPU machine:
 |---|---|---|
 | time | 37 min | **40 s** |
 | peak RAM | 27.3 GiB | **6.6 GiB** |
-| output | 39 files, 11.16 GB | **the same 39 files, byte-identical** |
+| output | 39 `.safetensors` files, 11.16 GB | **the same 39 files, byte-identical** |
 
 All 39 files are also byte-identical to the published
 [`DFloat11/Qwen3-8B-DF11`](https://huggingface.co/DFloat11/Qwen3-8B-DF11) release
 (SHA-256 compared file by file). On an old dual-core laptop with no GPU, Qwen3-0.6B
-takes ~13 s against the official 13 min. Details and every other measurement:
-[`docs/FINDINGS.md`](docs/FINDINGS.md), raw run data in
+(layers only) takes 11 s against the official 13 min. Details and every other
+measurement: [`docs/FINDINGS.md`](docs/FINDINGS.md), raw run data in
 [`gpu_session/qwen3_8b/results/`](gpu_session/qwen3_8b/results/).
 
 ## Install
@@ -89,7 +89,8 @@ df11pack verify out/ --source model/ --arch qwen3-8b --level full
   Anima, ERNIE-Image, LongCat, Ovis, Krea-2, Lens, SDXL, ACE-Step 1.5.
 
 A new model is a small TOML file; pass its path to `--arch`, or put it in a folder
-named by `DF11PACK_ARCH_DIR`. Format and how to add one: [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
+named by `DF11PACK_ARCH_DIR` (the file name without `.toml` is then the name
+`--arch` takes). Format and how to add one: [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
 
 ## What is checked, and what is not
 
@@ -108,7 +109,8 @@ named by `DF11PACK_ARCH_DIR`. Format and how to add one: [docs/DEFINITIONS.md](d
 Beyond the official format, all opt-in and clearly marked:
 
 - `--luts=correct` — zero-fills LUT entries the official encoder leaves as leftovers;
-  verified unreachable by the kernel ([`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md)).
+  unreachable by construction, and measured so with the official kernel on the one
+  real leak ([`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md)).
 - `--hashes` — per-tensor SHA-256 in the header, so `verify` catches corruption
   without the source; tensor bytes unchanged.
 - `--index idx8` — an experimental 8-bit block index, 0.66% smaller. **Not
@@ -129,6 +131,9 @@ wrote most of the code and documentation and ran the tests and measurements; the
 what to build and measure, and decided what to publish. Every commit carries a
 `Co-Authored-By` trailer, so who did what can be checked in the git history.
 
+The rules the work follows (evidence, wording, logs, tests, publishing) are in
+[NORMS.md](NORMS.md), shared by all the repos of this project.
+
 ## Contributing
 
 Testing a model on a GPU and reporting how it went helps most right now. See
@@ -145,5 +150,6 @@ copyright notice.
 df11pack reimplements the DFloat11 file format and its codebook construction from
 the official implementation (Apache-2.0, <https://github.com/LeanModels/DFloat11>,
 by the DFloat11 authors) and reads model definitions derived from
-ComfyUI-DFloat11-Extended (by mingyi456). It contains no code from either and does
-not redistribute `decode.ptx`. All credit for the format goes to them.
+ComfyUI-DFloat11-Extended (by mingyi456; its repository has no licence file). It
+contains no code from either and does not redistribute `decode.ptx`. All credit
+for the format goes to them.

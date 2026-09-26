@@ -1,10 +1,15 @@
-"""Corpus case 2: small synthetic FLUX and Chroma models, compressed by the
-OFFICIAL compressor, so the diffusers and ComfyUI-native paths have real
-fixtures to be graded against.
+"""Corpus case 2: small synthetic models, one per architecture definition,
+compressed by the OFFICIAL compressor, so every definition df11pack ships has
+real fixtures to be graded against.
 
-The review found that no Flux or Chroma unit had ever been encoded: every
-byte-identity result was Qwen3, and the eight architecture definitions were
-checked only as pattern_dict transcriptions. This closes that.
+It began with FLUX and Chroma: no Flux or Chroma unit had ever been encoded,
+every byte-identity result was Qwen3, and the first eight architecture
+definitions were checked only as pattern_dict transcriptions. It now covers
+every definition in data/architectures except qwen3-4b, which the real Qwen3
+corpus (phase0/corpus/tier0, tier1) covers.
+
+Usage: make_synthetic.py [NAME ...]. With no names it regenerates every set
+except the four frozen ORIGINAL ones (see ORIGINAL below).
 
 Models are built as plain nn.Module trees whose module names are exactly those
 the architecture definitions name. The official `compress_model` walks
@@ -56,8 +61,14 @@ def lin(i, o):
     return nn.Linear(i, o, bias=True)
 
 
-# Shapes chosen so every attribute in a unit has a distinct size, which makes
-# split_positions sensitive to the concatenation order.
+# Shapes for the four ORIGINAL sets only. They were meant to give every attribute
+# in a unit a distinct size, so that split_positions is sensitive to the
+# concatenation order, but they do not quite: shape_for matches suffixes in dict
+# order, so "proj" also catches add_q/k/v_proj, ff.net.0.proj,
+# ff_context.net.0.proj, in_proj and out_proj, and the flux-dev-diffusers and
+# chroma-diffusers transformer_blocks units have five (H, H) attributes. The
+# ORIGINAL outputs are frozen by SHA-256, so this is left as is; every other set
+# uses generic_shape, whose sizes are distinct, and covers order sensitivity.
 SHAPE = {
     "qkv": (H, 3 * H), "proj": (H, H), "mlp.0": (H, 4 * H), "mlp.2": (4 * H, H),
     "mod.lin": (H, 6 * H), "linear1": (H, 7 * H), "linear2": (5 * H, H),
@@ -180,11 +191,11 @@ def build(name):
 
 
 def main():
-    # Default: every definition not yet covered. The originals are regenerated
+    # Default: every synthetic set except the originals, which are regenerated
     # only when named explicitly, since they cannot be reproduced bit-exactly.
+    # qwen3-4b has no synthetic set (the real Qwen3 corpus covers it).
     names = sys.argv[1:] or sorted(
-        n for n in PATTERNS
-        if (n.endswith("-comfyui") or n == "chroma-base-diffusers-mingyi") and n not in ORIGINAL)
+        n for n in PATTERNS if n not in ORIGINAL and n != "qwen3-4b")
     manifest = ROOT / "out/official/synthetic_manifest.json"
     out = json.loads(manifest.read_text()) if manifest.exists() else {}
     for name in names:

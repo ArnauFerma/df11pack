@@ -5,8 +5,20 @@ randomly. Two skeletons built independently differ, so any comparison must first
 establish that loading the SAME directory twice gives identical logits. Without
 that baseline a difference proves nothing -- which is exactly what a first run
 without it appeared to show.
+
+Usage:
+    test_phase2_gate.py OFFICIAL_DIR DF11PACK_DIR
+
+Exit 0 identical logits, 1 different, 2 baseline failed (inconclusive) or bad
+arguments.
 """
-import json, sys, torch
+import json, sys
+
+if len(sys.argv) != 3:
+    print("usage: test_phase2_gate.py OFFICIAL_DIR DF11PACK_DIR", file=sys.stderr)
+    sys.exit(2)
+
+import torch  # noqa: E402  (after the argument check, so usage needs no torch)
 from transformers import AutoConfig, AutoModelForCausalLM
 from dfloat11 import DFloat11Model
 

@@ -8,6 +8,14 @@ alternative scheme already designed and measured elsewhere.
 Nothing here changes the default. `df11` is the only scheme that produces files
 the official kernel can read, and it is what df11pack emits unless told otherwise.
 
+**Status.** Most of this document is the design written on 2026-09-22, before any
+index code existed. idx8 has since been implemented (2026-09-23), with an escape
+table; the paragraphs from "Implemented" through "Decided: an escape table" below
+describe what the code does, and where the older text differs, they are right.
+In particular, idx8 no longer refuses a unit whose block lengths spread too far,
+the 130–273-bit range is from an unrepresentative slice, and `IndexBuilder` is a
+concept, not a type in the code (idx8 is in `crates/df11-codec/src/idx8.rs`).
+
 ---
 
 ## Why a seam at all
@@ -168,14 +176,3 @@ kernel, so it is a different format sharing an encoder, and it needs:
 The encoder machinery — field split, histogram, codebook, LUTs, bit writer,
 chunked parallel encode — is shared and needs no change. That is the whole point
 of the seam.
-
----
-
-## Phase 1 obligations
-
-Step 1.7 must:
-
-1. define the `IndexBuilder` interface above;
-2. implement `df11` behind it, with the single-threaded reference encoder producing byte-identical `gaps` and `output_positions` through the interface rather than inline;
-3. add a test that the interface is actually load-bearing — a stub builder returning `Unrepresentable` must cause a clean typed failure, not a panic or a silent fallback;
-4. **not** implement `idx8`. It is specified, not scheduled.

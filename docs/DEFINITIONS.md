@@ -61,7 +61,8 @@ df11pack verify out/ --source model/ --arch my-model.toml --level full
 ```
 
 Or put TOML files in a folder and set `DF11PACK_ARCH_DIR`: they add to the built-in
-set, and replace a built-in one of the same name.
+set, and replace a built-in one of the same name. A file's name without `.toml`
+(not its `name` field) is the name `--arch` takes, so keep the two the same.
 
 `--safe` proves the output decodes back to the source. It cannot prove the output
 matches what the official tool would write for that model. For that, compare

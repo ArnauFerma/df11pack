@@ -69,11 +69,13 @@ Corrected invariant, as implemented (`INV-OUTPOS-TOTAL`, `INV-OUTPOS-COUNT`):
 - `len(output_positions) == ceil(len(encoded_exponent) / 4096) + 1`
 - `output_positions[-1] == len(sign_mantissa)` (total weight count)
 
-`docs/DESIGN.md` §1.3 itself is accurate on both points ("index of the first
-element beginning in each 4096-byte chunk, plus `len(data)` at the end" and
-"cumulative sums of the sizes of the concatenated tensors (empty for a bare
-`nn.Linear`)") — it was the task brief's paraphrase of these two bullets
-that was wrong. The checker implements the source-accurate version and both
+`docs/DESIGN.md` §1.3 as first written (before commit 3b6611d) was ambiguous
+rather than wrong on both points: "plus `len(data)` at the end" is right in the
+encoder's own terms, where `data` is the exponent-symbol list, and "cumulative
+sums of the sizes of the concatenated tensors (empty for a bare `nn.Linear`)"
+only fits n−1 entries, though it did not say the total is dropped. It was the
+task brief's paraphrase of these two bullets that was wrong. §1.3 has since
+been reworded to state both explicitly (see `docs/FINDINGS.md` 0.2). The checker implements the source-accurate version and both
 real files pass it; neither file passes the brief's original (uncorrected)
 phrasing, which is expected and correct.
 
@@ -85,7 +87,7 @@ All invariants from DESIGN.md §1.3 that are checkable from the file alone
 | Tag | Invariant |
 |---|---|
 | `INV-NAMES-COMPLETE` / `-DTYPE` / `-SHAPE` | the six per-unit tensor names, dtypes (`luts`/`encoded_exponent`/`sign_mantissa`/`output_positions`/`gaps` = U8, `split_positions` = I64), and shapes are present and consistent |
-| `INV-LUTS-SHAPE` | `luts` is `(n_prefixes+1, 256)`, `1 <= n_prefixes <= 16` |
+| `INV-LUTS-SHAPE` | `luts` is `(n_prefixes+1, 256)`, `1 <= n_prefixes <= 17` (table 0 plus jump targets 1..16, since a jump value `v` in 240..255 means table `256-v`; this row first said 16, corrected in Phase 5, see `docs/FINDINGS.md` errata item 5) |
 | `INV-LUTS-JUMP` | every `>=240` cell in a real (non-`lens`) `luts` row has a valid jump target `256-v` among the existing prefix tables |
 | `INV-GAPS-MAXLEN` | max Huffman code length (the `luts` `lens` row) `<= 32` bits |
 | `INV-GAPS-SHAPE` | `gaps` byte length matches `ceil(512*ceil(n_bytes/4096) * 5 / 8)` (5 bits/window, padded to a multiple of 512 windows) |
@@ -97,7 +99,7 @@ All invariants from DESIGN.md §1.3 that are checkable from the file alone
 | `INV-OUTPOS-DELTA` | each chunk's element count (`output_positions[i+1]-output_positions[i]`) is bounded by the codebook's min/max code length — added after an adversarial review found `INV-OUTPOS-MONO` alone was too weak; see "A corruption that got through" below |
 | `INV-SPLIT-MONO` | `split_positions` strictly increasing, first value `> 0` |
 | `INV-SPLIT-BOUND` | last value `< total weight count` — corrected, see above |
-| `INV-SM-LENGTH` | `sign_mantissa` length cross-checked against `output_positions`' independently-encoded total (non-circular: two different tensors must agree) |
+| `INV-SM-LENGTH` | `sign_mantissa` length against `output_positions`' trailing total. This is the same comparison as `INV-OUTPOS-TOTAL`, so the two always fail together; the checker keeps it as an alias so the tag lists below stay valid |
 | `INV-LIMIT-WEIGHTS` / `-BYTES` | weight count and bitstream byte count both `<= 2**31 - 1` |
 
 ## Result on real files
@@ -169,22 +171,33 @@ entries are symbols that never occur in this unit's codebook and are not
 real codeword lengths). For a chunk covering `chunk_bytes` bitstream bytes
 (4096 for every chunk except the last, which covers whatever bytes remain:
 `n_bytes - (n_chunks-1)*4096`), the number of elements that begin in it is
-bounded on both sides:
+bounded on both sides. With `chunk_bits = chunk_bytes * 8`, `g = max_code_len - 1`
+and `delta = output_positions[i+1] - output_positions[i]`:
 
 ```
-ceil(chunk_bytes * 8 / max_code_len)  <=  output_positions[i+1] - output_positions[i]  <=  floor(chunk_bytes * 8 / min_code_len)
+ceil((chunk_bits - g [- 7 if last]) / max_code_len)  <=  delta
+delta  <=  floor((chunk_bits - 1) / min_code_len) + 1
 ```
+
+The first code that begins in a chunk may start up to `g` bits into it (the
+previous code spills over), the last may run past its end, and the last chunk
+also holds up to 7 bits of end padding. *(Corrected in the 2026-09-26 review.
+The first version, `ceil(chunk_bits / max_code_len) <= delta <=
+floor(chunk_bits / min_code_len)`, rejected valid units: a chunk of aligned
+3-bit codes holds 10,923 starts, one above its old upper bound, and a last chunk
+holding only the tail of the previous code plus padding has delta 0.)*
 
 Implemented in `check_unit` (`phase0/check_invariants.py`), vectorized over
 all chunks with numpy rather than a Python loop per chunk (matters for units
 with hundreds of thousands of chunks, e.g. a 300M+-weight UC).
 
 **Re-verification.**
-- On the coordinator's exact corruption: the checker now reports
+- On the coordinator's exact corruption: the checker now reports (message as
+  printed after the 2026-09-26 bound correction; the band was [1311, 16384] before)
   ```
   [INV-OUTPOS-DELTA] unit='model.layers.0': 2 chunk(s) violate the code-length bound; first at chunk 599
-  (bytes=4096, bits=32768): output_positions delta 0 is outside [1311, 16384] =
-  [ceil(bits/max_code_len=25), floor(bits/min_code_len=2)] -- output_positions[599]=7290465, output_positions[600]=7290465
+  (bytes=4096, bits=32768): output_positions delta 0 is outside [1310, 16384] =
+  (max_code_len=25, min_code_len=2) -- output_positions[599]=7290465, output_positions[600]=7290465
   ```
   (two chunks flag, not one: chunk 599's delta collapsed to 0, and chunk
   600's absorbed the missing 11,980 elements, pushing it above its own
@@ -232,10 +245,9 @@ regression going forward.
 
 All 11/11 corruptions were caught, all with the expected invariant tag
 present in the failure output (some also trip a second, legitimately
-related invariant — e.g. corrupting the weight count trips both the
-specific check and the cross-tensor `INV-SM-LENGTH` consistency check,
-which is correct: they are two independent detectors of the same
-underlying inconsistency, not a single test miscounted; likewise #1 and #3
+related invariant — e.g. corrupting the weight count trips both
+`INV-OUTPOS-TOTAL` and `INV-SM-LENGTH`, which are the same comparison under
+two tags, not two independent detectors; likewise #1 and #3
 now also trip the new `INV-OUTPOS-DELTA`, since both of those corruptions
 also happen to produce an out-of-band delta). Exit code was verified
 non-zero (1) for a representative corrupted file via the CLI directly, and
@@ -304,7 +316,7 @@ in-file signal to cross-check an individual gap value against.
 
 **`INV-OUTPOS-COUNT` / `-MONO` / `-TOTAL` / `-DELTA`.** After adding
 `INV-OUTPOS-DELTA`, every corruption that pushes ANY single delta outside
-`[ceil(bits/max_code_len), floor(bits/min_code_len)]` is caught. This is
+the band above is caught. This is
 *not* a closed category, though, and it is worth being precise about the
 remaining gap rather than implying `INV-OUTPOS-DELTA` fully fixes it: two
 (or more) real, individually-valid deltas can be **reordered** — e.g. swap

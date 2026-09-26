@@ -1,0 +1,25 @@
+{
+  "model": "../bf16-exponent-compression/real_model",
+  "pattern": "layers-only",
+  "pattern_dict": {
+    "model\\.layers\\.\\d+": [
+      "self_attn.q_proj",
+      "self_attn.k_proj",
+      "self_attn.v_proj",
+      "self_attn.o_proj",
+      "mlp.gate_proj",
+      "mlp.up_proj",
+      "mlp.down_proj"
+    ]
+  },
+  "wall_seconds": 788.93,
+  "peak_rss_mib": 2287.6,
+  "rss_at": {
+    "start": 328.1,
+    "model loaded": 951.1,
+    "compressed": 1840.7
+  },
+  "source_bytes": 1503300328,
+  "output_bytes": 911773037,
+  "ratio": 0.6065
+}

@@ -100,6 +100,67 @@ def only_unit_prefix(header):
 
 
 # ---------------------------------------------------------------------------
+# ground truth: the unit's source BF16 weights, concatenated in pattern order
+# ---------------------------------------------------------------------------
+def source_weights_bytes(unit_file, prefix, unit_bytes, split_positions_bytes, source):
+    """Return the raw BF16 bytes the unit must decode to: the source tensors,
+    flattened and concatenated in the order the unit's pattern_dict lists them
+    (the order dfloat11's compress_model uses), read from `source` (a
+    .safetensors file or a directory of them). The pattern_dict is read from
+    the config.json next to `unit_file`.
+
+    Returns None when `source` does not exist, so a caller can still run
+    without it. Raises when the source exists but does not match the unit
+    (sizes, split_positions or sign/mantissa bytes differ): that means the
+    wrong source, not a decode result."""
+    import re
+
+    if not os.path.exists(source):
+        return None
+    with open(os.path.join(os.path.dirname(os.path.abspath(unit_file)), "config.json")) as f:
+        pattern_dict = json.load(f)["dfloat11_config"]["pattern_dict"]
+    matches = [p for p in pattern_dict if re.fullmatch(p, prefix)]
+    if len(matches) != 1:
+        raise ValueError(f"unit {prefix!r} matches {len(matches)} patterns in config.json: {matches}")
+    attrs = pattern_dict[matches[0]]
+    keys = [f"{prefix}.{a}.weight" for a in attrs] if attrs else [f"{prefix}.weight"]
+
+    files = ([source] if os.path.isfile(source) else
+             sorted(os.path.join(source, n) for n in os.listdir(source) if n.endswith(".safetensors")))
+    where = {}
+    for path in files:
+        header, data_start = read_header(path)
+        for k in keys:
+            if k in header:
+                where[k] = (path, data_start, header[k])
+    missing = [k for k in keys if k not in where]
+    if missing:
+        raise KeyError(f"source {source} lacks {missing}")
+
+    parts = []
+    for k in keys:
+        path, data_start, info = where[k]
+        if info["dtype"] != "BF16":
+            raise ValueError(f"source tensor {k} is {info['dtype']}, not BF16")
+        parts.append(read_tensor_bytes(path, data_start, info))
+    truth = b"".join(parts)
+
+    n_elements = len(unit_bytes["sign_mantissa"])
+    if len(truth) != 2 * n_elements:
+        raise ValueError(f"source tensors hold {len(truth) // 2} weights, the unit {n_elements}")
+    sizes = np.array([len(b) // 2 for b in parts], dtype=np.int64)
+    split = np.frombuffer(split_positions_bytes, dtype="<i8")
+    if not np.array_equal(np.cumsum(sizes)[:-1], split):
+        raise ValueError(f"source tensor sizes {sizes.tolist()} do not give the unit's "
+                         f"split_positions {split.tolist()} (wrong order or wrong tensors)")
+    w = np.frombuffer(truth, dtype="<u2")
+    sign_mantissa = (((w >> 8) & 0x80) | (w & 0x7F)).astype(np.uint8)
+    if sign_mantissa.tobytes() != unit_bytes["sign_mantissa"]:
+        raise ValueError("source weights' sign/mantissa bytes differ from the unit's sign_mantissa")
+    return truth
+
+
+# ---------------------------------------------------------------------------
 # kernel launch geometry (shared by cupy and driver-API paths)
 # ---------------------------------------------------------------------------
 def launch_geometry(luts_bytes, encoded_bytes, output_positions_bytes):

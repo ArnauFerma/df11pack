@@ -79,7 +79,7 @@ hf download Qwen/Qwen3-0.6B --local-dir phase0/models/qwen3-0.6b  # ~1.5 GB
 $PY phase0/make_tier0.py --src phase0/models/qwen3-0.6b          # 4-layer tier 0
 $PY phase0/run_official.py --model phase0/corpus/tier0/qwen3-trunc \
     --out phase0/out/official/qwen3-trunc-layers-only-dir         # ~2 min
-$PY phase0/make_synthetic.py                                     # stand-ins, ~7 min
+$PY phase0/make_synthetic.py                                     # all 30 stand-in sets (~7 min was for 18)
 $PY phase0/freeze_fixtures.py                                    # rewrite MANIFEST.json
 ```
 

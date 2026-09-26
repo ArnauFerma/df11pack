@@ -32,15 +32,30 @@ log "checking prerequisites..."
 command -v nvidia-smi >/dev/null 2>&1 || fail \
   "nvidia-smi not found. This must run on a GPU instance with the NVIDIA driver installed. Did you rent a GPU pod? See RUNBOOK.md."
 
-nvidia-smi >/tmp/df11pack_nvidia_smi.$$ 2>&1 || fail \
+SMI_OUT="$(nvidia-smi 2>&1)" || fail \
   "nvidia-smi is present but failed to run (driver not loaded / no GPU visible). Output:
-$(cat /tmp/df11pack_nvidia_smi.$$)"
+$SMI_OUT"
 
-CUDA_SMI_VERSION="$(grep -oP 'CUDA Version:\s*\K[0-9]+\.[0-9]+' /tmp/df11pack_nvidia_smi.$$ | head -1)"
+CUDA_SMI_VERSION="$(printf '%s\n' "$SMI_OUT" | grep -oP 'CUDA Version:\s*\K[0-9]+\.[0-9]+' | head -1)"
 [ -n "$CUDA_SMI_VERSION" ] || fail "could not parse a CUDA version out of nvidia-smi's output; cannot pick a matching cupy/torch build. Raw output:
-$(cat /tmp/df11pack_nvidia_smi.$$)"
+$SMI_OUT"
 CUDA_MAJOR="${CUDA_SMI_VERSION%%.*}"
+CUDA_MINOR="${CUDA_SMI_VERSION#*.}"
 log "GPU driver reports CUDA $CUDA_SMI_VERSION (major $CUDA_MAJOR)"
+
+# torch must come from the PyTorch index for a CUDA version the driver
+# supports: unpinned, pip pulls a cu128 wheel that refuses a CUDA 12.4 driver
+# (RUNBOOK.md, "Environment pins", pin 1). Pick the newest index not newer
+# than the driver. Set TORCH_INDEX_URL to override.
+DRIVER_CU=$(( CUDA_MAJOR * 100 + CUDA_MINOR ))
+TORCH_CU=""
+for cu in 130 129 128 126 124 121 118; do
+  if [ $(( (cu / 10) * 100 + cu % 10 )) -le "$DRIVER_CU" ]; then TORCH_CU="cu$cu"; break; fi
+done
+if [ -z "${TORCH_INDEX_URL:-}" ]; then
+  [ -n "$TORCH_CU" ] || fail "driver reports CUDA $CUDA_SMI_VERSION, older than any PyTorch CUDA index this script knows (cu118 and up). Set TORCH_INDEX_URL by hand and re-run."
+  TORCH_INDEX_URL="https://download.pytorch.org/whl/$TORCH_CU"
+fi
 log "$(nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader 2>/dev/null || true)"
 
 command -v python3 >/dev/null 2>&1 || fail "python3 not found on this instance."
@@ -70,6 +85,7 @@ REQUIRED_PATHS=(
   "$REPO_ROOT/phase0/out/official/qwen3-trunc-layers-only-dir/model_layers_2.safetensors"
   "$REPO_ROOT/phase0/out/official/qwen3-trunc-layers-only-dir/model_layers_3.safetensors"
   "$REPO_ROOT/phase0/out/h6/model_layers_0.reordered.safetensors"
+  "$REPO_ROOT/phase0/corpus/tier0/qwen3-trunc/model.safetensors"
   "$REPO_ROOT/phase0/repack_shards.py"
   "$REPO_ROOT/phase0/verify_repack.py"
   "$HERE/common.py"
@@ -89,9 +105,19 @@ if [ "${#MISSING[@]}" -gt 0 ]; then
 fi
 log "all required files present (${#REQUIRED_PATHS[@]} checked)"
 
+# Optional: the source weights of the tier-0 unit (136 MiB). With it, H7 and the
+# --luts=correct gate also compare their decodes with the source weights;
+# without it they compare the two decodes only with each other.
+SOURCE_WEIGHTS="$REPO_ROOT/phase0/corpus/tier0/qwen3-trunc/model.safetensors"
+if [ -e "$SOURCE_WEIGHTS" ]; then
+  log "source weights present: H7 and the LUT gate will check decodes against them"
+else
+  log "WARNING: $SOURCE_WEIGHTS not uploaded; H7 and the LUT gate will not check decodes against the source weights"
+fi
+
 # ---------------------------------------------------------------------------
-# 2. Install exactly what's needed -- pin nothing that would fight the
-#    instance's CUDA version, record what actually resolved.
+# 2. Install exactly what's needed -- torch from the index matching the
+#    driver's CUDA version, nothing else pinned; record what actually resolved.
 # ---------------------------------------------------------------------------
 if [ ! -x "$VENV_DIR/bin/python3" ]; then
   log "creating venv at $VENV_DIR ..."
@@ -102,8 +128,8 @@ fi
 PY="$VENV_DIR/bin/python3"
 "$PY" -m pip install --upgrade pip -q || fail "pip upgrade failed"
 
-log "installing torch (CUDA-enabled wheel, unpinned)..."
-"$PY" -m pip install -q torch || fail \
+log "installing torch (CUDA-enabled wheel from $TORCH_INDEX_URL)..."
+"$PY" -m pip install -q torch --index-url "$TORCH_INDEX_URL" || fail \
   "torch install failed. If this instance has an unusual CUDA/driver combo, install torch manually per https://pytorch.org/get-started/locally/ and re-run this script (it will skip already-satisfied installs)."
 
 "$PY" -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)" || fail \
@@ -161,7 +187,6 @@ log "resolved versions: $RESOLVED_VERSIONS"
 declare -a ITEM_NAMES=(h7_decode_ptx h6_reorder_inference h11_repack_inference luts_correct_kernel)
 declare -a ITEM_SCRIPTS=(test_h7_decode_ptx.py test_h6_reorder_inference.py test_h11_repack_inference.py test_luts_correct_kernel.py)
 declare -a ITEM_ELAPSED=()
-declare -a ITEM_RC=()
 
 for i in "${!ITEM_NAMES[@]}"; do
   name="${ITEM_NAMES[$i]}"
@@ -177,7 +202,6 @@ for i in "${!ITEM_NAMES[@]}"; do
   t1=$(date +%s)
   elapsed=$((t1 - t0))
   ITEM_ELAPSED+=("$elapsed")
-  ITEM_RC+=("$rc")
   if [ "$rc" -eq 0 ]; then
     log "$name finished in ${elapsed}s (see $out_json)"
   else

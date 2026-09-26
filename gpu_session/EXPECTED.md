@@ -35,6 +35,12 @@ read off `decode.ptx`'s own `.visible .entry decode(...)` declaration (6×
 kernel at all while CuPy succeeds on the same PTX, or (b) runs but
 produces output that differs from CuPy's, even in one byte.
 
+*Added 2026-09-26, after the first session: the script now also compares both
+decodes with the source weights (`phase0/corpus/tier0/qwen3-trunc/model.safetensors`).
+Two paths returning the same wrong output would have passed the criterion above;
+from now on both must also match the source. The first session's result was
+recorded without this check.*
+
 **Consequence if CONFIRMED:** df11pack's GPU verification path (whatever
 compares its own decoder's output against the real kernel) can be
 implemented as direct FFI from the Rust binary to `libcuda.so` — no
@@ -156,6 +162,12 @@ official kernel over a `--luts=correct` file and compared the decoded
 tensor bit-for-bit against the source."
 
 **REFUTES the mode:** the two decodes differ in any byte.
+
+*Added 2026-09-26, after the first session: the script now also compares both
+decodes with the source weights (`phase0/corpus/tier0/qwen3-trunc/model.safetensors`).
+Two paths returning the same wrong output would have passed the criterion above;
+from now on both must also match the source. The first session's result was
+recorded without this check.*
 
 **Consequence if CONFIRMED:** `--luts=correct` stays exactly as specified
 in COMPATIBILITY.md and PLAN.md step 1.6 — off by default, printing its

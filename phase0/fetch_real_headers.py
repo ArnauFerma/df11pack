@@ -25,6 +25,8 @@ CASES = {
                  ("DFloat11/Qwen3-4B-DF11", None)),
     "qwen3-8b": (("Qwen/Qwen3-8B", "index:model.safetensors.index.json"),
                  ("DFloat11/Qwen3-8B-DF11", None)),
+    # Not a typo: Llama is gated, and the llama-3.3-70b pattern_dict is also
+    # used by Mistral-Nemo (official_pattern_dicts.json, used_by).
     "llama-3.3-70b": (("mistralai/Mistral-Nemo-Instruct-2407", "index:model.safetensors.index.json"),
                       ("DFloat11/Mistral-Nemo-Instruct-2407-DF11", None)),
     "phi-4": (("microsoft/Phi-4-reasoning-plus", "index:model.safetensors.index.json"),

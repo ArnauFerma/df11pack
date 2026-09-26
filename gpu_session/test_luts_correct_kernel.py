@@ -33,13 +33,23 @@ Method:
      untouched).
   4. Decode BOTH (leaked original, zeroed copy) with the real, unmodified
      CUDA kernel via CuPy (the production decode path).
-  5. Compare the two full decoded weight streams bit-for-bit.
-     CONFIRMED (safe to ship the mode) iff identical.
+  5. Compare both decoded weight streams bit-for-bit with the unit's
+     source BF16 weights (--source; the tensors concatenated in the order
+     the unit's pattern_dict lists them). Without this, a launch broken the
+     same way for both files would still look like a pass.
+     ERROR iff the ORIGINAL file does not decode to the source weights (the
+     launch, not the mode, is wrong).
+     CONFIRMED iff the zeroed copy also decodes to the source weights.
      REFUTED (remove the mode, per COMPATIBILITY.md's own stated
-     consequence) iff they differ anywhere.
+     consequence) iff it differs anywhere.
+     If --source does not exist, step 5 falls back to comparing the two
+     decodes with each other, and the result says so.
+
+This measures one leaked run in one unit. It supports the argument that
+leaked positions are unreachable; it does not prove it for every unit.
 
 Usage:
-    test_luts_correct_kernel.py [--unit-file PATH] [--out PATH]
+    test_luts_correct_kernel.py [--unit-file PATH] [--source PATH] [--out PATH]
 """
 import argparse
 import os
@@ -59,6 +69,10 @@ def default_unit_file():
         repo_root(), "phase0", "out", "official",
         "qwen3-trunc-layers-only-dir", "model_layers_0.safetensors",
     )
+
+
+def default_source():
+    return os.path.join(repo_root(), "phase0", "corpus", "tier0", "qwen3-trunc", "model.safetensors")
 
 
 def find_leaked_run(luts_bytes, n_luts):
@@ -103,6 +117,8 @@ def build_zeroed_copy(src_path, dst_path, luts_info, row, start_col, end_col, n_
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--unit-file", default=default_unit_file())
+    ap.add_argument("--source", default=default_source(),
+                    help="the unit's source BF16 weights (.safetensors file or directory)")
     ap.add_argument("--out", default=common.default_out_path("luts_correct_kernel"))
     ap.add_argument(
         "--expect-row", type=int, default=3,
@@ -112,7 +128,7 @@ def main():
     ap.add_argument("--expect-end-col", type=int, default=128)
     args = ap.parse_args()
 
-    detail = {"unit_file": args.unit_file, "gpu": common.gpu_info()}
+    detail = {"unit_file": args.unit_file, "source": args.source, "gpu": common.gpu_info()}
 
     with common.Timer() as t:
         work_copy = None
@@ -187,6 +203,14 @@ def main():
                 raise RuntimeError("patched positions are not all zero")
             detail["patch_verified_surgical"] = True
 
+            truth = common.source_weights_bytes(
+                args.unit_file, prefix, unit_bytes,
+                common.read_tensor_bytes(args.unit_file, data_start, tensor_infos["split_positions"]),
+                args.source,
+            )
+            detail["ground_truth"] = "source weights" if truth is not None else (
+                f"none: {args.source} not found, so the two decodes are compared only with each other")
+
             print(f"[luts=correct] decoding ORIGINAL (leaked) unit via CuPy...")
             out_leaked = common.decode_with_cupy(unit_bytes, n_elements)
             print(f"[luts=correct] decoding ZEROED-leak copy via CuPy...")
@@ -196,16 +220,27 @@ def main():
             detail["decoded_zeroed_sha256"] = common.sha256_hex(out_zeroed)
             identical = common.bytes_equal(out_leaked, out_zeroed)
             detail["bit_for_bit_identical"] = identical
+            if truth is not None:
+                detail["leaked_matches_source"] = common.bytes_equal(out_leaked, truth)
+                detail["zeroed_matches_source"] = common.bytes_equal(out_zeroed, truth)
+            reference = ("the unit's source weights" if truth is not None
+                         else "decoding the original leaked file (not checked against the source weights)")
 
-            if identical:
+            if truth is not None and not detail["leaked_matches_source"]:
+                status = "ERROR"
+                summary = (
+                    "The ORIGINAL leaked file did not decode to the unit's source weights, so "
+                    "the launch itself is wrong; nothing can be concluded about --luts=correct."
+                )
+            elif identical:
                 status = "CONFIRMED"
                 summary = (
                     f"Zeroing the leaked LUT run (row {row}, cols [{start_col},{end_col}), "
                     f"originally {leaked_value}) and decoding with the real, unmodified CUDA "
-                    f"kernel produced output BIT-FOR-BIT IDENTICAL to decoding the original "
-                    f"leaked file, across all {n_elements} weights. The leaked positions are "
-                    f"confirmed unreachable during decode. --luts=correct is safe to ship as "
-                    f"specified in COMPATIBILITY.md."
+                    f"kernel produced output bit-for-bit identical to {reference}, across all "
+                    f"{n_elements} weights of this unit. On this unit the leaked positions "
+                    f"were not read during decode, which supports --luts=correct; it is one "
+                    f"leaked run in one unit, not a proof for every unit."
                 )
             else:
                 status = "REFUTED"

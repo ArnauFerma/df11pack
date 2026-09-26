@@ -11,6 +11,12 @@ This is a correctness session, not a benchmark. Every test here runs one
 CUDA kernel launch over one small tensor (the largest is 15.7M weights).
 Nothing is timed for speed and nothing needs multiple GPUs.
 
+**Scope.** This runbook covers the first GPU session (FINDINGS, "GPU
+session"). Later rented sessions are not scripted by `run_all.sh`: the
+Phase 2 exit gate used `test_phase2_gate.py` (see "Other scripts" below); the
+two CPU scaling sweeps (`out/scaling_sweep*.json`) have no committed script;
+the Qwen3-8B run is `qwen3_8b/run.sh`, whose header says how to run it.
+
 ---
 
 ## What instance to rent
@@ -48,7 +54,7 @@ Requirements on the template:
 
 ## What to upload — minimal, itemised
 
-Total: **~110 MiB**, not the 959 MiB fixture set and not a full model.
+Total: **~250 MiB**, not the 959 MiB fixture set and not a full model.
 This works because H6's inference test, H11's repack test, the H7 kernel
 test, and the `--luts=correct` gate test all only need **one small
 already-compressed shard directory** that Phase 0 already produced —
@@ -65,7 +71,12 @@ at the repo root:
 | `phase0/out/h6/model_layers_0.reordered.safetensors` | 20.4 MiB | The pre-built H6 fixture: same tensor names/dtypes/shapes/bytes as `model_layers_0.safetensors` above, physically reordered. Used only by the H6 test. |
 | `phase0/repack_shards.py` | <15 KiB | Regenerates the H11 repacked variants **on the box** from the uploaded directory above — this is the "regenerate rather than upload the ~870 MB repacks" step the brief asked for, just against the 90 MiB tier-0 directory instead of the full 870 MiB tier-1 one (see the docstring of `test_h11_repack_inference.py` for why that's a faithful substitute: the loader dispatches purely by tensor name, with no layer-count dependence). |
 | `phase0/verify_repack.py` | <5 KiB | Structural byte-identity gate the H11 script runs before trusting the inference comparison. |
-| `gpu_session/` (this whole directory: `run_all.sh`, `common.py`, the four `test_*.py` scripts, this file, `EXPECTED.md`) | <100 KiB | The session itself. |
+| `gpu_session/` (this whole directory: `run_all.sh`, `common.py`, the five `test_*.py` scripts, this file, `EXPECTED.md`) | <100 KiB | The session itself; `run_all.sh` runs four of the scripts. |
+
+Also required, 136 MiB: `phase0/corpus/tier0/qwen3-trunc/model.safetensors`,
+the tier-0 source weights. H7 and the LUT gate compare their decodes with it, not
+only with each other (the first session ran without this check). `run_all.sh`
+refuses to start without it.
 
 Nothing else. No `phase0/env/`, no fixtures `MANIFEST.json`, no full
 Qwen3-0.6B, no HF token.
@@ -78,6 +89,7 @@ mkdir -p /tmp/df11pack_gpu_upload
 rsync -a --relative \
   phase0/out/official/qwen3-trunc-layers-only-dir \
   phase0/out/h6/model_layers_0.reordered.safetensors \
+  phase0/corpus/tier0/qwen3-trunc/model.safetensors \
   phase0/repack_shards.py \
   phase0/verify_repack.py \
   gpu_session \
@@ -106,11 +118,14 @@ That's the entire session. It:
    naming whatever is missing, rather than failing confusingly partway
    through.
 2. Creates `gpu_session/venv/` (skipped if it already exists — safe to
-   re-run) and installs torch (unpinned, CUDA-enabled), `dfloat11[cuda11]`
-   or `dfloat11[cuda12]` (auto-selected from the driver's reported CUDA
-   version, which also pulls cupy, transformers, safetensors, accelerate,
+   re-run) and installs torch from the PyTorch index for the newest CUDA
+   version the driver supports (`https://download.pytorch.org/whl/cu124` for
+   a CUDA 12.4 driver; set `TORCH_INDEX_URL` to override), then
+   `dfloat11[cuda11]` or `dfloat11[cuda12]` (auto-selected from the driver's
+   CUDA version; also pulls cupy, transformers, safetensors, accelerate,
    huggingface_hub, tqdm, dahuffman), plus explicit transformers/
-   safetensors/numpy. It prints and records exactly what resolved.
+   safetensors/numpy. It prints and records exactly what resolved. It does
+   not apply pins 2 and 3 below; install them first.
 3. Runs the four tests in priority order (H7, H6, H11, `--luts=correct`),
    each independently — one failing does not stop the others — printing
    elapsed time per item as it goes.
@@ -130,17 +145,17 @@ wheel downloads, not the tests themselves.
 
 ## What to bring back
 
-Two files, from `gpu_session/out/` on the pod:
+Everything in `gpu_session/out/` on the pod:
 
 - `results.json` — the full machine-readable record (also embeds each
   item's own detail: hashes, exact logit diffs, tracebacks on error).
 - `SUMMARY.txt` — the same thing, human-readable, one item per block.
-
-`scp` or `rsync` both back to your local machine, e.g.:
+- `<item>.json` — each test's own record. Keep these too: if you re-run
+  single tests by hand, only these are updated (in the first session, the
+  confirming H6 and H11 runs exist only here).
 
 ```bash
-scp pod:~/df11pack/gpu_session/out/results.json  gpu_session/out/
-scp pod:~/df11pack/gpu_session/out/SUMMARY.txt    gpu_session/out/
+scp 'pod:~/df11pack/gpu_session/out/*' gpu_session/out/
 ```
 
 (Everything else on the pod — the venv, the installed CUDA wheels, the
@@ -176,13 +191,11 @@ no `jq` required.
 
 ## Stop the instance
 
-**Before you close the terminal:** confirm you've copied `results.json`
-and `SUMMARY.txt` off the pod, then **terminate/stop the pod from the
-RunPod dashboard (or `runpodctl stop pod <id>` / `remove pod <id>`).**
-Community Cloud bills by the second while the pod exists, running or not
-if it's not actually terminated — there is nothing left to do on it once
-those two files are copied out, so there is no reason to leave it up.
-This is the last step. Do it now, not "in a minute."
+**Before you close the terminal:** confirm you've copied `gpu_session/out/`
+off the pod, then **terminate the pod from the RunPod
+dashboard (or `runpodctl remove pod <id>`).** A running pod bills for GPU
+time by the second; a stopped pod still bills for its storage until it is
+removed. There is nothing left to do on it once those files are copied out. This is the last step. Do it now, not "in a minute."
 
 ---
 
@@ -191,7 +204,7 @@ This is the last step. Do it now, not "in a minute."
 | Phase | Estimate | Why |
 |---|---|---|
 | Pod boot + SSH ready | 1–3 min | Instance-dependent, not scripted. |
-| Upload ~110 MiB | 1–4 min | Depends on your local upload bandwidth, not the pod's. |
+| Upload ~250 MiB | 1–5 min | Depends on your local upload bandwidth, not the pod's. |
 | `run_all.sh` prereq checks | <10 s | Local checks only. |
 | venv + pip installs (torch, cupy, transformers, deps) | 3–7 min | The dominant scripted cost — CUDA wheels are large (torch ~2 GB, cupy ~100–200 MB) even though the tests themselves are tiny. Datacenter-to-datacenter bandwidth on RunPod is usually fast; budget the high end if the mirror is slow. |
 | H7 (decode.ptx via driver API vs CuPy) | 15–40 s | Dominated by CUDA context init and first-kernel JIT/compile overhead, not the decode itself (15.7M elements is small). |
@@ -210,15 +223,20 @@ pod running after you're done — see "Stop the instance" above.
 
 ## Environment pins learned from the first run
 
-The first session hit three install problems in a row. All three are now known;
-`run_all.sh` does not apply them (it still installs torch unpinned, step 2 above),
-so install these by hand in its venv before re-running it.
+The first session hit three install problems in a row. `run_all.sh` now
+applies the first (step 2 above). Install the other two by hand before running
+it, in the venv it will reuse:
+
+```bash
+python3 -m venv gpu_session/venv
+gpu_session/venv/bin/pip install 'setuptools<81' 'transformers==4.51.0'
+```
 
 1. **torch must come from the index matching the card's driver.** Unpinned,
    `pip install torch` pulls a cu128 wheel that refuses a CUDA 12.4 driver with
-   *"The NVIDIA driver on your system is too old (found version 12040)"*. Use
-   `--index-url https://download.pytorch.org/whl/cu124` (or the cu-version the
-   driver reports).
+   *"The NVIDIA driver on your system is too old (found version 12040)"*.
+   Applied by `run_all.sh`: `--index-url https://download.pytorch.org/whl/cu124`,
+   or the index for the CUDA version the driver reports.
 2. **`setuptools<81`.** `dfloat11` 0.5.0 imports `pkg_resources`, which newer
    setuptools removes: `ModuleNotFoundError: No module named 'pkg_resources'`.
 3. **`transformers==4.51.0`.** transformers 5.x removed `no_init_weights` from
@@ -232,3 +250,14 @@ implementation's dependency constraints, needed only to run the oracle.
 **Actual first-run cost:** RTX A4000 at $0.170/hr, 32 minutes wall including
 three failed install attempts and a re-run of two tests, so **about $0.09**. A
 clean run with the pins above should be nearer 15 minutes.
+
+---
+
+## Other scripts
+
+- `test_phase2_gate.py OFFICIAL_DIR DF11PACK_DIR` — the Phase 2 exit gate
+  (second session, RTX 3070). Loads the official output twice as a
+  determinism baseline, then df11pack's output, through `DFloat11Model`, and
+  compares logits. Needs the same venv and pins as above. Exit 0 identical,
+  1 different, 2 baseline failed or bad arguments. It only prints; save its
+  output yourself (`| tee gate.txt`).

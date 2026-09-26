@@ -71,6 +71,7 @@ for k in ["df11pack", "official"]:
             "identical": sorted(n for n in t if rel.get(n) == t[n]["sha256"]),
             "different": sorted(n for n in t if n in rel and rel[n] != t[n]["sha256"]),
             "not_in_release": sorted(n for n in t if n not in rel),
+            "only_in_release": sorted(n for n in rel if n not in t),
         }
 
 if "idx8" in trees:

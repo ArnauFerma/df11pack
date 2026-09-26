@@ -49,7 +49,7 @@ oversight to be cleaned up later; it is the contract.
 | Mode | Flag | Byte-identical to official | Status |
 |---|---|---|---|
 | **Compat** (default) | `--luts=compat` | **Yes** | Supported |
-| **Correct** | `--luts=correct` | **No, by design** | **Gate passed — releasable** |
+| **Correct** | `--luts=correct` | **No, by design** | Supported, opt-in |
 
 ### `--luts=compat` — the default
 
@@ -60,7 +60,7 @@ the same per-file metadata, and tensors laid out in the `safetensors` library's
 order. This is what you want unless you have a specific reason
 otherwise, and it is what the golden tests grade against.
 
-### `--luts=correct` — opt-in, and now verified
+### `--luts=correct` — opt-in
 
 Fills the positions the official code leaves to leaked state with a deterministic
 `0x00` instead, so a LUT row describes only its own table.
@@ -71,27 +71,25 @@ continuations of the prefix that selected it, and positions before a table's
 first key are not valid continuations. If that holds, the leaked bytes are never
 read and replacing them changes nothing observable.
 
-**That argument has now been measured, not merely made.** In the GPU session
+**The argument is also measured, on the one real leak.** In the GPU session
 (FINDINGS, "GPU session"), the leaked run of a real unit — row 3, columns
 [0, 128), holding 105 carried over from row 2 — was zeroed, and both files were
 decoded with the real, unmodified CUDA kernel. The output was **bit-for-bit
 identical across all 15,728,640 weights**. The leaked positions are unreachable
-during decode.
+by construction, and the one real leak confirms it by measurement.
 
-The mode may therefore ship. The gating below stays, because "safe" is not the
-same as "the default", and a file that is deliberately not byte-identical must
-never be mistaken for one that is:
+The mode is gated all the same, because "safe" is not the same as "the default",
+and a file that is deliberately not byte-identical must never be mistaken for
+one that is:
 
 - it is **off by default** and cannot be reached implicitly;
 - using it prints a warning naming this document;
 - files it produces are stamped (see below) so they can never be mistaken for compat output;
-- the verification commands know not to expect byte-identity from them;
-- it was not permitted in any released artefact until the kernel test passed. **It has passed**, so this condition is met.
+- the verification commands know not to expect byte-identity from them.
 
-The rule that governed this, recorded before the test ran: had it failed — had
-the leaked bytes turned out to be reachable — `--luts=correct` would not have been
-"more correct", it would simply have been wrong, and it would have been removed
-rather than documented around. It passed, so it stays.
+Had the kernel test shown the leaked bytes to be reachable, `--luts=correct`
+would have been removed rather than documented around: it would not have been
+"more correct", only wrong.
 
 ---
 

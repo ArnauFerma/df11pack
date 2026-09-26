@@ -1,8 +1,9 @@
 # df11pack — Implementation plan
 
-> **Status: complete** through Phase 7 (v0.1.0). Kept as the record of how
-> df11pack was built and what each phase's exit gate required. What remains open is
-> listed in [CHANGELOG.md](../CHANGELOG.md) under "Known limits".
+> **Status: complete** through Phase 7 (v0.1.0), except Phase 5, which is partly
+> met: safe mode was delivered, but H12 and the GPU path were not. Kept as the
+> record of how df11pack was built and what each phase's exit gate required. What
+> remains open is listed in [CHANGELOG.md](../CHANGELOG.md) under "Known limits".
 
 
 Ordered plan derived from [`DESIGN.md`](DESIGN.md). Phase 0 and Phase 1 are
@@ -23,7 +24,8 @@ rough. They exclude model download time and waiting on rented hardware.
 ### The development machine is the binding constraint
 
 Measured, not assumed: **3 GB of total RAM** (~2 GB available) and **39 GB free
-disk**. Every sizing decision below follows from those two numbers, and they are
+disk**. *(Correction: `/proc/meminfo` gives MemTotal 3,697,908 kB, i.e. 3.5 GiB.
+"3 GB" here and elsewhere in these docs means this same machine.)* Every sizing decision below follows from those two numbers, and they are
 tighter than anything in DESIGN.md contemplates.
 
 This is not a handicap to work around — it is the target environment. The guiding
@@ -40,7 +42,7 @@ comfortably in ~1 GB.
 
 | Resource | Needed by | Note |
 |---|---|---|
-| **This machine (3 GB RAM, 39 GB disk)** | **All of Phase 1, and Phase 0 tiers 0 and 2** | Sufficient for the whole development spine. df11pack's own budget is ~1.35 × N per worker; on tier 0 that is single-digit MB. |
+| **This machine (3 GB RAM, 39 GB disk)** | **All of Phase 1, and Phase 0 tiers 0 and 2** | Sufficient for the whole development spine. df11pack's own budget is ~~about 1.35 × N per worker~~ *(set later to 6.0 bytes/weight from measurement; FINDINGS, Phase 3 and errata)*; on tier 0 that is ~~single-digit MB~~ *about 94 MB per 15.7M-weight unit*. |
 | **~64 GB RAM — optional, one step** | Step 0.4 only, and only to confirm H1 *at full scale* | This is the RAM the **official** compressor needs (~48 GB peak on 12B Flux), not anything df11pack needs. H1 is the hypothesis that this peak is unnecessary — it motivates the project but constrains no design decision. Without such a machine, measure the scaling curve on the models that do fit and cite the official README's figure for the endpoint. |
 | **NVIDIA GPU** | Steps 0.10 (H7), 0.11 (`check_correctness` path), and Phase 5 | Verification only. There is no local GPU, so these steps need rented hardware; the sibling repo `../bf16-exponent-compression/RENT_A_GPU.md` already documents a working rental and setup procedure. |
 | A machine with **4–8 GB** | Tier 1 only: running the *official* compressor on full Qwen3-0.6B | Needed only if step 0.2c finds that the LLM `pattern_dict` puts the 155.6M-weight embedding in a single UC — see 0.2c. Rentable by the hour; not on the critical path. |
@@ -176,7 +178,7 @@ on the official compressor's own runtime.
 
 - **Goal:** turn DESIGN §1.3's invariants into executable checks, so later phases can assert rather than assume.
 - **Inputs:** 0.2, official outputs.
-- **Actions:** write a checker that, given an official DF11 file, validates every invariant in §1.3 (bit order, EOF and padding, `gaps` width and padding to 512 windows, `output_positions` layout and trailing `len(data)`, LUT ≥240 jump convention and ≤16 tables, `split_positions` as cumulative sums in `attr_names` order, the 2³¹ limits). H3 itself needs no measurement — it is confirmed in source — but it is recorded here with its evidence.
+- **Actions:** write a checker that, given an official DF11 file, validates every invariant in §1.3 (bit order, EOF and padding, `gaps` width and padding to 512 windows, `output_positions` layout and trailing ~~`len(data)`~~ *weight count (DESIGN §1.3 now says so)*, LUT ≥240 jump convention and ~~≤16~~ *≤17* tables *(corrected in Phase 5, FINDINGS errata item 5)*, `split_positions` as cumulative sums in `attr_names` order, the 2³¹ limits). H3 itself needs no measurement — it is confirmed in source — but it is recorded here with its evidence.
 - **Produces:** `phase0/check_invariants.py`, run over every official output produced in this phase.
 - **Verification:** it passes on every official file and fails on deliberately corrupted copies.
 - **Depends on:** 0.2.
@@ -310,7 +312,7 @@ the thing under test here — correctness is.
 ### 1.4 — Exponent histogram and validation gates
 
 - **Goal:** the 256-bin histogram, plus the cheap checks that must never be skipped.
-- **Actions:** histogram; then the gates from DESIGN §7.1 — abort with a clear, actionable error on any exponent in 240–255, on a UC exceeding 2³¹−1 weights or bytes, on more than 16 prefix tables, and on a maximum code length above 32 bits that the limiter fails to fix.
+- **Actions:** histogram; then the gates from DESIGN §7.1 — abort with a clear, actionable error on any exponent in 240–255, on a UC exceeding 2³¹−1 weights or bytes, on more than ~~16~~ *17* prefix tables *(corrected in Phase 5)*, and on a maximum code length above 32 bits that the limiter fails to fix.
 - **Produces:** histogram + a typed error enum for every abort condition.
 - **Verification:** histograms match the fixtures; the adversarial 240–255 case aborts with the right error and writes nothing.
 - **Depends on:** 1.3.
@@ -329,7 +331,7 @@ the thing under test here — correctness is.
 ### 1.6 — Hierarchical LUT builder
 
 - **Goal:** the `(n_prefixes + 1, 256)` uint8 LUTs with the ≥240 jump convention, in **both** modes from the start.
-- **Actions:** port `get_luts` including its carry-forward accumulator, which leaks across prefix tables (DESIGN §1.3, FINDINGS §0.5) — this is the default `--luts=compat` path and it must reproduce the leak exactly. Then add `--luts=correct`, which deterministically zero-fills those positions, behind the gate specified in [`COMPATIBILITY.md`](COMPATIBILITY.md): off by default, warns on use, stamps `df11pack_luts="correct"` into the safetensors `__metadata__`, and is barred from any released artefact until the Phase 5 kernel test passes. Enforce the ≤16-table bound in both.
+- **Actions:** port `get_luts` including its carry-forward accumulator, which leaks across prefix tables (DESIGN §1.3, FINDINGS §0.5) — this is the default `--luts=compat` path and it must reproduce the leak exactly. Then add `--luts=correct`, which deterministically zero-fills those positions, behind the gate specified in [`COMPATIBILITY.md`](COMPATIBILITY.md): off by default, warns on use, stamps `df11pack_luts="correct"` into the safetensors `__metadata__`, and is barred from any released artefact until the Phase 5 kernel test passes. Enforce the ~~≤16~~ *≤17*-table bound in both *(corrected in Phase 5)*.
 - **Produces:** the LUT builder with a mode switch; the metadata stamp; the warning.
 - **Verification:** in compat mode, LUT tensors byte-identical to the fixtures including the adversarial 2/3/4-level cases **and** a purpose-built case whose second or later prefix table lacks key `0`, asserting the leaked bytes match. In correct mode, assert the two outputs differ in exactly the positions predicted and nowhere else, and that the stamp is present. A test that never observes the leak is not evidence the leak is reproduced.
 - **Depends on:** 1.5.
@@ -338,9 +340,9 @@ the thing under test here — correctness is.
 ### 1.7 — Bit writer, `gaps`, `output_positions`
 
 - **Goal:** the bitstream itself, single-threaded, plus the two index tensors.
-- **Actions:** a 64-bit accumulator bit writer, MSB-first within each byte, branchless in the common path; emit EOF and pad to a byte boundary; derive `gaps` (5 bits per 64-bit window, padded with zeros to a multiple of 512 windows, then `packbits`-equivalent) and `output_positions` (uint32 stored as a uint8 view, one entry per 4096-byte chunk, with the trailing `len(data)`) **in the same pass**, exactly as DESIGN §5.3 step 4 requires.
+- **Actions:** a 64-bit accumulator bit writer, MSB-first within each byte, branchless in the common path; emit EOF and pad to a byte boundary; derive `gaps` (5 bits per 64-bit window, padded with zeros to a multiple of 512 windows, then `packbits`-equivalent) and `output_positions` (uint32 stored as a uint8 view, one entry per 4096-byte chunk, with the trailing ~~`len(data)`~~ *weight count*) **in the same pass**, exactly as DESIGN §5.3 step 4 requires.
 - **Produces:** `encoded_exponent`, `gaps`, `output_positions`.
-- **Structural requirement:** `gaps` and `output_positions` are produced by a **swappable index component**, not inline in the bit writer. The interface, its two rules (a builder may refuse; only `df11` may claim compatibility) and the already-designed `idx8` alternative are specified in [`INDEX_SCHEMES.md`](INDEX_SCHEMES.md), whose "Phase 1 obligations" section is normative for this step. Implement `df11` behind the interface and a failing stub to prove the seam is load-bearing; do **not** implement `idx8`. The two are derived in the same pass for speed, so the seam is an interface the pass calls, not a separate pass. This costs nothing now and is what makes any future alternative index scheme additive rather than a rewrite — see [`COMPATIBILITY.md`](COMPATIBILITY.md) "Format divergence". It does **not** imply any such scheme will be built.
+- **Structural requirement:** `gaps` and `output_positions` are produced by a **swappable index component**, not inline in the bit writer. The interface, its two rules (a builder may refuse; only `df11` may claim compatibility) and the already-designed `idx8` alternative are specified in [`INDEX_SCHEMES.md`](INDEX_SCHEMES.md), whose "Phase 1 obligations" section is normative for this step. Implement `df11` behind the interface and a failing stub to prove the seam is load-bearing; do **not** implement `idx8`. *(Since superseded: idx8 was implemented on 2026-09-23, and the "Phase 1 obligations" section was removed from INDEX_SCHEMES.md; see its status note.)* The two are derived in the same pass for speed, so the seam is an interface the pass calls, not a separate pass. This costs nothing now and is what makes any future alternative index scheme additive rather than a rewrite — see [`COMPATIBILITY.md`](COMPATIBILITY.md) "Format divergence". It does **not** imply any such scheme will be built.
 - **Verification:** all three byte-identical to the fixtures on every corpus case; the 0.6 invariant checker passes on the produced tensors.
 - **Depends on:** 1.6.
 - **Effort:** 3 days.
@@ -441,6 +443,12 @@ is removed rather than documented around.
 **Needs:** a rented NVIDIA GPU for the kernel path.
 Rough effort: 10–14 days.
 
+**Status: partly met.** Delivered: an independent CPU verifier and `--safe`, which
+catch injected errors in the bitstream, `gaps` and `output_positions`; the
+`--luts=correct` kernel test passed in the GPU session. Not delivered: the
+parallel decoder (the verifier is sequential, so H12 is unmeasured) and the GPU
+verification path. See FINDINGS, "Phases 4 and 5, in brief".
+
 ### Phase 6 — Standalone post-hoc verification — **DONE**
 
 `df11pack verify <out> [--source S --arch A] [--level integrity|sample|full]
@@ -482,21 +490,21 @@ real checkpoint's tensor names. That needs one real source file per architecture
 
 Carried from DESIGN §11 — listed here, not decided.
 
-1. **If H7 fails:** an optional Python + CuPy shim for GPU verification, or CPU decoder only? Blocks nothing before Phase 5, but it changes what "no Python at runtime" means.
+1. ~~**If H7 fails:** an optional Python + CuPy shim for GPU verification, or CPU decoder only? Blocks nothing before Phase 5, but it changes what "no Python at runtime" means.~~ *Closed: H7 confirmed in the GPU session, so no shim is needed.*
 2. **Licence.** The official code is Apache-2.0. Replicating the format and construction algorithm is compatible with any permissive licence; redistributing `decode.ptx` carries its licence and attribution. Should be settled before any public release, and it affects whether Phase 5 can ship the PTX. **Decided (2026-09-23): MIT.** `decode.ptx` is not redistributed.
 3. **ComfyUI integration:** CLI binary only, or also a thin node that invokes it?
-4. **Final project name** (`df11pack` is provisional). Cheapest to change now.
-5. **Does ChromaRadiance ship in v1?** One extra definition, but it drags in the single-tensor UC edge case (DESIGN §1.7). Affects step 1.8.
+4. ~~**Final project name** (`df11pack` is provisional). Cheapest to change now.~~ *Closed: released as `df11pack` v0.1.0.*
+5. ~~**Does ChromaRadiance ship in v1?** One extra definition, but it drags in the single-tensor UC edge case (DESIGN §1.7). Affects step 1.8.~~ *Closed: it ships (`data/architectures/chroma-radiance-comfyui.toml`).*
 
 ---
 
 ## Inconsistencies and open questions raised while writing this plan
 
 1. **H5 and H12 cannot be settled in Phase 0.** The brief's Phase 0 gate says "settle H1–H13", but H5 ("with a native encoder the disk becomes the bottleneck") requires the native encoder, and H12 ("a CPU decoder scales near-linearly with cores") requires the CPU decoder. DESIGN §10 agrees with the later placement — it puts H12's measurement in Phase 5. This plan therefore produces the H5 *target* in step 0.11 and settles H5 at the Phase 3 gate, and settles H12 at the Phase 5 gate. Flagged rather than silently resolved.
-2. **DESIGN §10's Phase 0 row says "H1–H12"**, omitting H13, which was added later to §2. The brief says H1–H13. This plan uses H1–H13.
-3. **Flux's ComfyUI double block: 10 or 8 linears?** The brief §4 says the ComfyUI double block has 10 linears (against 14 for diffusers), but DESIGN §1.7 lists Chroma's ComfyUI double block with 8 named `attr_names` and says the Chroma/Flux delta is only the modulations. Those two statements are hard to reconcile; step 0.9 derives the truth empirically from `split_positions` rather than from either document.
+2. ~~**DESIGN §10's Phase 0 row says "H1–H12"**, omitting H13, which was added later to §2. The brief says H1–H13. This plan uses H1–H13.~~ *Resolved: DESIGN §10 now says H1–H13.*
+3. ~~**Flux's ComfyUI double block: 10 or 8 linears?** The brief §4 says the ComfyUI double block has 10 linears (against 14 for diffusers), but DESIGN §1.7 lists Chroma's ComfyUI double block with 8 named `attr_names` and says the Chroma/Flux delta is only the modulations. Those two statements are hard to reconcile; step 0.9 derives the truth empirically from `split_positions` rather than from either document.~~ *Resolved: both hold. Flux's double block has 10 (`data/architectures/flux-comfyui.toml`, including `img_mod.lin` and `txt_mod.lin`), Chroma's has 8; the difference is the two modulation linears.*
 4. **The diffusers concatenation order is unconfirmed**, as both documents note. It cannot be guessed, and step 1.8 depends on it, so step 0.9 is on the critical path to Phase 1 — worth starting its downloads first.
-5. **~~No local GPU.~~** *Resolved.* The batched GPU session ran on a rented RTX A4000 for about $0.09 and confirmed H7, H6, H11 and the `--luts=correct` gate. Phase 5's GPU work will need another such session.
-6. **The development machine has 3 GB of RAM and 39 GB of disk** — measured during review, and tighter than anything DESIGN.md assumes. It does not constrain df11pack itself (~1.35 × N per worker; tier-0 units need single-digit MB) but it does constrain running the *official* compressor to produce fixtures. Hence the tiered corpus: tier 0 is sized so the reference tool fits in ~1 GB here. The one open question is 0.2c — whether the LLM `pattern_dict` puts Qwen3-0.6B's 155.6M-weight embedding in a single unit, which would put tier 1 out of reach locally. Developing on the constrained machine is treated as a feature: it tests the guiding principle continuously rather than at the end.
+5. **~~No local GPU.~~** *Resolved.* The batched GPU session ran on a rented RTX A4000 for about $0.09 and confirmed H7, H6, H11 and the `--luts=correct` gate. Phase 5's GPU work will need another such session. *(Phase 5 ended without its GPU path; that work is still open.)*
+6. **The development machine has 3 GB of RAM and 39 GB of disk** — measured during review, and tighter than anything DESIGN.md assumes. It does not constrain df11pack itself (~~about 1.35 × N per worker; tier-0 units need single-digit MB~~ *set later to 6.0 bytes/weight from measurement, about 94 MB per tier-0 unit*) but it does constrain running the *official* compressor to produce fixtures. Hence the tiered corpus: tier 0 is sized so the reference tool fits in ~1 GB here. The one open question is 0.2c — whether the LLM `pattern_dict` puts Qwen3-0.6B's 155.6M-weight embedding in a single unit, which would put tier 1 out of reach locally. Developing on the constrained machine is treated as a feature: it tests the guiding principle continuously rather than at the end.
 
 7. **~~Large-RAM access is unknown.~~** *Resolved during review.* An earlier draft of this plan required ~64 GB for steps 0.4, 0.7, 0.9 and 0.12, on the assumption that real-model fixtures meant running the official compressor. They don't: the official team and the Extended maintainer both publish the compressed output on Hugging Face, and reading it is a streaming operation. Step 0.2b downloads those instead. The only residue is step 0.4's 12B endpoint for H1, which is optional and does not gate anything. It was a mistake to import the reference implementation's memory requirement into a plan whose entire purpose is to eliminate it.

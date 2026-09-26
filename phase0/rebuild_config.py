@@ -79,20 +79,19 @@ RISK FIELDS (library-version-dependent; a Rust binary has no library to ask):
     exactly as FINDINGS.md 0.2 already flagged ("df11pack must emit the right
     version per target and tolerate both on read").
 
-WHY BYTE-IDENTITY MAY NOT MATTER IN PRACTICE (a hypothesis, NOT proven on
-this machine -- no transformers install available to test it): transformers'
-AutoConfig.from_pretrained is documented and generally observed to accept
-legacy/old-style kwargs (rope_theta, rope_scaling, torch_dtype) even on
-versions that themselves serialize the new-style schema, because config
-classes accept both the current and prior kwarg names for backward
-compatibility. If true, a df11pack config.json that keeps the SOURCE's
-original field names/shapes and only *adds* dfloat11_config (skipping the
-5 renormalization steps entirely) would still load correctly through
-AutoConfig on the end user's transformers, even though it is not
-byte-identical to what compress_model would have written. This is exactly
-the "functional equivalence" fallback mode this script also offers
-(--minimal), and it is the recommended default until someone with a
-transformers install confirms or refutes the compatibility claim.
+WHY BYTE-IDENTITY MAY NOT MATTER IN PRACTICE: this passage was first written
+as an unmeasured hypothesis (no transformers install was available then).
+The Phase 2 exit gate later measured the related case on a GPU (docs/FINDINGS.md,
+"Phase 2 exit gate: passed, and it found a version trap"): under transformers
+4.51.0, the version the source config was written with, the official output's
+5.x-schema config is misread (the rope keys moved) and inference changes; with
+the source-schema config df11pack writes, the official tensors give exactly
+df11pack's logits (max_abs_diff 0.0), so the difference was the config alone.
+Keeping the SOURCE's
+field names and only adding dfloat11_config -- what --minimal does, and what
+df11pack does (ConfigMode::PreserveSource) -- is the recommended default. Not
+measured: whether a newer transformers accepts the legacy keys (rope_theta,
+rope_scaling, torch_dtype) when loading such a config.
 """
 import argparse
 import copy
@@ -106,11 +105,15 @@ _RENAMED_OR_FOLDED = ("torch_dtype", "rope_theta", "rope_scaling")
 
 
 def derive_layer_types(config):
-    """Qwen3-specific. Confirmed only for sliding_window=None (both fixtures).
+    """Qwen3-specific. Returns all "full_attention" when sliding_window is None
+    or use_sliding_window is False. Only sliding_window=None is confirmed (both
+    fixtures); sliding_window set with use_sliding_window False follows the same
+    reading of Qwen3Config but no fixture checks it.
 
     Real Qwen3 hybrid-attention checkpoints (sliding_window set,
     use_sliding_window True) are UNTESTED here -- no such fixture exists in
-    phase0/corpus or in the two local outputs. Flagged, not guessed at.
+    phase0/corpus or in the two local outputs -- so that case raises rather
+    than guess.
     """
     n = config["num_hidden_layers"]
     if config.get("sliding_window") is None or not config.get("use_sliding_window", False):

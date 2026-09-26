@@ -1,0 +1,14 @@
+{
+  "wall_total_s": 108.464,
+  "model_load_s": 0.784,
+  "compress_call_s": 107.679,
+  "stages_s": {
+    "encode": 101.76
+  },
+  "stage_calls": {
+    "encode": 4
+  },
+  "note": "encode is nested inside encode_weights; do not sum them.",
+  "dominant_leaf_stage": "encode",
+  "dominant_leaf_share_of_compress": 0.945
+}

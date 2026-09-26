@@ -7,7 +7,13 @@
 > PLAN Phase 4); post-hoc verification's integrity level checks structure, or
 > opt-in `--hashes`, instead of journal hashes (§7.3); and added since: a
 > `diffusers-single` layout, per-definition key rules, the tied `lm_head` unit,
-> `--hashes`, and the experimental `idx8` index. Measurements: [FINDINGS.md](FINDINGS.md).
+> `--hashes`, and the experimental `idx8` index. Also stale below: the §5.2 budget
+> of 1.35 N bytes per worker is now a measured 6.0 (`BYTES_PER_WEIGHT_HELD`); §5.5's
+> per-tensor criterion is now whole-file byte-identity (FINDINGS, "Erratum:
+> byte-identical held for tensors"); the parallel CPU decoder and GPU path of §1.5
+> and §7.2 were not built (the verifier is sequential, H12 unmeasured); §8's
+> argpartition exception became a refusal; and §11 decisions 2 and 7 are closed (H7
+> confirmed; ChromaRadiance ships). Measurements: [FINDINGS.md](FINDINGS.md).
 
 
 An independent DFloat11 compressor: streaming, with crash recovery.
@@ -65,7 +71,7 @@ For each UC, in order and on a single thread:
 ### 1.2 Consequences
 
 - **UCs are completely independent** [CONFIRMED]: each one has its own codebook, LUTs and indices. There is no global state between UCs other than the configuration (`version`, `threads_per_block=(512,)`, `bytes_per_thread=8`, `pattern_dict`). Parallelising across UCs has no conceptual barrier whatsoever.
-- **The slowness does not come from "being single-threaded", but from the interpreted loop.** [HYPOTHESIS, consistent with the figures] Flux compresses ~11.8B weights (19 double blocks × ~340M + 38 single blocks × ~141M). At 300–600 ns per Python iteration that comes to 1–2 hours, exactly what the README describes. Parallelising that loop with multiprocessing would give ×cores; removing it with native code should give ×100 or more per core. This corrects my earlier explanation (the GIL is not the main cause).
+- **The slowness does not come from "being single-threaded", but from the interpreted loop.** [HYPOTHESIS, consistent with the figures] Flux compresses ~11.8B weights (19 double blocks × ~340M + 38 single blocks × ~141M). At 300–600 ns per Python iteration that comes to 1–2 hours, exactly what the README describes. Parallelising that loop with multiprocessing would give ×cores; removing it with native code should give ×100 or more per core. This corrects our earlier explanation (the GIL is not the main cause).
 - **The RAM comes from having the whole model instantiated plus huge per-UC temporaries.** [HYPOTHESIS] Estimate for a large UC (~340M weights): `cat` 0.7 GB, int16/uint8 temporaries ~1.3 GB, `.tolist()` ~2.7 GB (8 B per pointer), the `encoded` list ~0.9 GB, gaps as strings and bit lists ~1.3 GB. That is some 6–7 GB transient on top of the model's ~24 GB, plus whatever ComfyUI's loading costs (state_dict and model possibly coexisting) and the final serialisation. Reaching ~48 GB is plausible.
 
 ### 1.3 Format invariants we must respect [CONFIRMED]
@@ -181,9 +187,11 @@ concatenation order must be replicated exactly):
   `img_mlp.2`, `txt_attn.qkv`, `txt_attn.proj`, `txt_mlp.0`, `txt_mlp.2` (8)
 - `single_blocks\.\d+` → `linear1`, `linear2` (2)
 
-Corrections to the earlier estimate: the native single blocks of Flux and of
-Chroma have **the same 2** elements (the modulation was already outside the UC in
-Flux), so there is no delta there. And the approximator is **not a single UC**: it
+Corrections to the earlier estimate: the native single blocks differ by one
+element. Chroma's have 2 (`linear1`, `linear2`); Flux's have 3, because Extended's
+Flux definition keeps `modulation.lin` inside the unit
+(`data/architectures/flux-comfyui.toml`), while Chroma has no per-block modulation
+(it comes from the approximator). And the approximator is **not a single UC**: it
 is split into one UC per layer (5 UCs of 2 linears each), a much finer
 granularity that is favourable to the RAM budget.
 
@@ -191,9 +199,11 @@ granularity that is favourable to the RAM budget.
 (5 × `PixArtAlphaTextProjection`, each with `in_layer` and `out_layer`), `norms`
 (5 × RMSNorm), `out_proj` (Linear). **In the diffusers layout `in_proj` and
 `out_proj` are compressed** along with the `layers` linears, in one unit — see
-below and FINDINGS §0.9. Only the RMSNorms stay uncompressed. Whether the
-ComfyUI-native pattern in Extended makes the same choice is **not yet verified
-against a published native release**; treat the native claim as unconfirmed.
+below and FINDINGS §0.9. Only the RMSNorms stay uncompressed. The ComfyUI-native
+pattern in Extended makes a different choice, and it is now verified against a
+published native release (`mingyi456/Chroma1-HD-DF11-ComfyUI`, in
+`phase0/fixtures/real_headers/chroma-comfyui.json`): 5 units of `in_layer`,
+`out_layer`, with `in_proj` and `out_proj` left uncompressed.
 
 **Diffusers layout** — [CONFIRMED by measurement, 0.9]. Taken from the
 `dfloat11_config.pattern_dict` inside the published `DFloat11/Chroma-DF11` and
@@ -221,7 +231,8 @@ For reference, Flux diffusers is the same shape plus the modulation linears:
 12 above) and `single_transformer_blocks\.\d+` → 6 (`norm.linear`, then the 5
 above).
 
-**H13 is refuted [0.9].** This section previously claimed the approximator splits
+**H13 is refuted for the diffusers layout [0.9]; it holds for ComfyUI-native**
+(above). This section previously claimed the approximator splits
 into five units of two and that `in_proj`, `out_proj` and the RMSNorms stay
 uncompressed. In fact `in_proj` and `out_proj` **are compressed**, inside a single
 unit, and the sub-modules are named `linear_1`/`linear_2` rather than
@@ -500,7 +511,9 @@ inference output, both in ComfyUI (Extended node) and in diffusers
 **Delicate case:** the 32-bit limit path uses `np.argpartition`, whose ordering
 among ties depends on the implementation. If it cannot be replicated exactly, a
 different but valid result is accepted **only** in that case, documented and
-verified with the kernel.
+verified with the kernel. *(Superseded in Phase 1: df11pack refuses such a unit
+with `AmbiguousLimiterTie` instead of emitting a different result; FINDINGS 0.5,
+erratum.)*
 
 ---
 

@@ -1,6 +1,8 @@
 # Contributing
 
 Thanks for helping. By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+The project's working rules (evidence for every number, scoped claims, tests that can
+fail) are in [NORMS.md](NORMS.md).
 
 ## Most useful right now
 

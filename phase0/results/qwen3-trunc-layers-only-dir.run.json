@@ -1,0 +1,25 @@
+{
+  "model": "phase0/corpus/tier0/qwen3-trunc",
+  "pattern": "layers-only",
+  "pattern_dict": {
+    "model\\.layers\\.\\d+": [
+      "self_attn.q_proj",
+      "self_attn.k_proj",
+      "self_attn.v_proj",
+      "self_attn.o_proj",
+      "mlp.gate_proj",
+      "mlp.up_proj",
+      "mlp.down_proj"
+    ]
+  },
+  "wall_seconds": 113.0,
+  "peak_rss_mib": 956.4,
+  "rss_at": {
+    "start": 328.1,
+    "model loaded": 360.7,
+    "compressed": 657.0
+  },
+  "source_bytes": 142632024,
+  "output_bytes": 94168127,
+  "ratio": 0.6602
+}

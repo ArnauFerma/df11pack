@@ -119,6 +119,10 @@ row in PLAN.md's hardware table stays unexercised for tier 1.
    range from the safetensors files rather than downloading either model whole.
    This is a strong, early, low-cost target: the first thing df11pack does that
    the reference implementation cannot do here.
+   *(Erratum: the budget constant is now 6.0 bytes/weight, `BYTES_PER_WEIGHT_HELD`
+   in `crates/df11-codec/src/write.rs`, so this unit needs ~3.7 GB and does not
+   fit here. It was reproduced on a rented 124 GB box instead, identical to the
+   release; see "Qwen3-8B, three-way run".)*
 4. The layers-only choice for tier 1 is a **local** decision for fixtures. df11pack
    must still support the mainstream pattern, and consequence 3 is how that gets
    tested without a large machine.
@@ -196,10 +200,16 @@ file contains `model.embed_tokens.weight` and `model.norm.weight` — and *not*
 `lm_head.weight`, which is dropped entirely because it is tied. A loader must
 reconstruct it from the tie. Anything df11pack writes has to match that.
 
-### Two invariants in DESIGN §1.3 were wrong, and are now corrected
+### Two invariants in DESIGN §1.3 were ambiguous, and are now stated exactly
 
 Both found by checking the real output rather than trusting the prose, on a unit
-of 7 tensors totalling 15,728,640 weights.
+of 7 tensors totalling 15,728,640 weights. *(Correction: an earlier heading said
+"wrong". The original §1.3 wording, before commit 3b6611d, was ambiguous rather
+than wrong: "plus `len(data)`" is right in the encoder's own terms, where `data`
+is the list of exponent symbols, and "cumulative sums … (empty for a bare
+`nn.Linear`)" only fits n−1 entries, though it did not say the total is dropped.
+Both were misread before measurement, including in the step-0.6 brief's
+paraphrase (`phase0/INVARIANTS_RESULTS.md`); §1.3 now states them explicitly.)*
 
 1. **`split_positions` holds n−1 entries, not n.** Measured `[2097152, 3145728,
    4194304, 6291456, 9437184, 12582912]` for 7 tensors — exactly
@@ -239,7 +249,7 @@ Measurement follows in 0.4.
 Full detail in [`../phase0/H4_RESULTS.md`](../phase0/H4_RESULTS.md); spec in
 `phase0/h4_codec_spec.py` (numpy only, never imports dahuffman).
 
-**Core codebook: exact.** 682/682 histograms matched in the agent's suite. I
+**Core codebook: exact.** 682/682 histograms matched in the agent's suite. We
 re-verified independently on 300 fresh histograms with a different seed —
 including all-frequencies-equal cases, which is where tie-breaking is most
 exposed — and got 300/300. The rule:
@@ -278,6 +288,16 @@ in **every one** the final table-determining iteration had boundary value 2 with
 promotes the brief's "documented exception" from a footnote to a real porting
 task, and it is deterministic, so it is tractable — introselect on identical
 input is reproducible. It must be pinned to a numpy version in the fixtures.
+
+*(Erratum, Phase 1: the port does not reproduce numpy's tie order; it refuses
+instead. Where `np.argpartition` would choose among symbols tied at a boundary
+frequency above 1, df11pack aborts the unit with `AmbiguousLimiterTie`
+(`build_limited` in `crates/df11-codec/src/huffman.rs`, tested in
+`crates/df11-codec/tests/limiter.rs`, commit c3d55ed), so output is either
+byte-identical or not written. Reimplementing NumPy's introselect was rejected
+because it would tie compatibility to one NumPy version. Ties at frequency 1 are
+inert and proceed. The real Qwen3 units measured here have longest codes of
+25–27 bits and never enter the limiter.)*
 
 ### Caveat 2 — `get_luts` has a real bug, and byte-identity requires reproducing it
 
@@ -339,10 +359,10 @@ weights, 4-level LUT, max code length 27) and all four of our own tier-0 units
 (15.7M weights each, max code length 25, min 2).
 
 **No invariant in DESIGN §1.3 was violated by any real file** — but two were
-stated wrongly in §1.3 itself and are corrected above under 0.2. The checker was
-built independently from the official source and arrived at both corrections
-before being told, which is why they are recorded as confirmed rather than
-assumed.
+stated ambiguously in §1.3 and are now stated exactly (see 0.2). The checker was
+built independently from the official source and arrived at the same two
+readings from the encoder, which is why they are recorded as confirmed rather
+than assumed.
 
 ### A corruption that got through
 
@@ -363,12 +383,18 @@ must contain many code starts, since a code is between `min_code_len` and
 `max_code_len` bits, both readable from the LUT lengths row:
 
 ```
-ceil(bits / max_code_len)  <=  output_positions[i+1] - output_positions[i]  <=  floor(bits / min_code_len)
+ceil((chunk_bits - g [- 7 if last]) / max_code_len)  <=  delta
+delta  <=  floor((chunk_bits - 1) / min_code_len) + 1
 ```
 
-With max 25 and min 2 on our unit, a full chunk's delta must lie in [1311,
-16384]; the corruption's delta of 0 is now caught, naming the chunk and both
-bounds. Re-verified: 11 of 11 corruptions detected, all four real units still
+where `delta = output_positions[i+1] - output_positions[i]` and
+`g = max_code_len - 1`: the first code to begin in a chunk may start up to `g` bits
+in, and the last chunk also holds up to 7 bits of end padding. *(Corrected in the
+2026-09-26 review: the first version, `ceil(bits/max) … floor(bits/min)`,
+rejected valid units, e.g. a chunk of aligned 3-bit codes holding 10,923 starts,
+or a last chunk holding only padding, with delta 0.)* With max 25 and min 2 on our
+unit, a full chunk's delta must lie in [1310, 16384]; the corruption's delta of 0
+is caught, naming the chunk and both bounds. Re-verified: 11 of 11 corruptions detected, all four real units still
 pass, and an independent second published shard passes.
 
 ### A gap that remains open, deliberately
@@ -420,7 +446,7 @@ as written.
 The error is instructive. We inferred from tier 0 that the model stays mmapped and
 barely enters RSS — loading it there cost only 32 MiB. That inference did not
 survive scaling: at tier 1, loading cost **591 MiB** of RSS. The tier-0 signal
-was not evidence of mmap behaviour, it was evidence that 136 MiB is small. I
+was not evidence of mmap behaviour, it was evidence that 136 MiB is small. We
 generalised from a measurement taken in the regime where the effect we were
 measuring could not show up.
 
@@ -634,6 +660,15 @@ Three corrections in one:
 Only the RMSNorms survive the original claim: they are absent from the attribute
 list, so they do stay uncompressed.
 
+*(Qualified later: this refutes H13 for the **diffusers** layout only. In the
+ComfyUI-native layout H13 holds. Extended's Chroma pattern compresses
+`distilled_guidance_layer\.layers\.\d+` as 5 units of `in_layer`, `out_layer`, and
+the real release `mingyi456/Chroma1-HD-DF11-ComfyUI` keeps
+`distilled_guidance_layer.in_proj.weight` and `out_proj.weight` uncompressed
+(`phase0/fixtures/real_headers/chroma-comfyui.json`; checked by
+`crates/df11-codec/tests/real_names.rs`, "Definitions against real
+checkpoints").)*
+
 ### The concatenation orders, which could not have been guessed — and were not
 
 Step 0.9 warned that the diffusers order "cannot be guessed; it has to come out
@@ -798,8 +833,8 @@ independent cross-check.
 | H9 | Same, diffusers | **OPEN** | no diffusers output locally; closes as a by-product of Phase 2 |
 | H10 | `config.json` rebuildable without heavy libs | **CONFIRMED** | stdlib rebuild, byte-for-byte on both fixtures |
 | H11 | Loader ignores shard grouping | **CONFIRMED** | identical logits from merged and interleaved variants |
-| H12 | CPU decoder scales with cores | **Deferred to Phase 5** | needs the decoder |
-| H13 | Chroma approximator stays uncompressed | **REFUTED** | `in_proj`/`out_proj` are compressed, in one unit of 12 |
+| H12 | CPU decoder scales with cores | **Deferred to Phase 5** | needs the decoder (still unmeasured after Phase 5: the decoder built there is sequential) |
+| H13 | Chroma approximator stays uncompressed | **REFUTED for diffusers; holds for ComfyUI-native** | diffusers: `in_proj`/`out_proj` are compressed, in one unit of 12. ComfyUI-native (later, from a real release): they stay uncompressed (0.9) |
 
 **Phase 0 exit gate: met.** Every hypothesis has a verdict or an explicit
 deferral with the reason and the phase that closes it. Nothing is left silently
@@ -807,10 +842,10 @@ open.
 
 **What Phase 0 changed in the design**, beyond settling hypotheses:
 
-1. Two invariants in DESIGN §1.3 were stated wrongly and are corrected (0.2).
+1. Two invariants in DESIGN §1.3 were stated ambiguously and are now exact (0.2).
 2. `get_luts` leaks state across prefix tables, so byte-identity requires reproducing a bug — this produced [`COMPATIBILITY.md`](COMPATIBILITY.md) and the gated `--luts=correct` mode (0.5).
-3. `np.argpartition` tie order is load-bearing on realistic models, promoting a footnote to a porting task (0.5).
-4. The diffusers concatenation orders in DESIGN §1.7 were wrong; the real ones are now recorded, and H13 is refuted (0.9).
+3. `np.argpartition` tie order is load-bearing on realistic models, promoting a footnote to a porting task (0.5). Phase 1 resolved it by refusing ambiguous ties rather than reproducing them (erratum in 0.5).
+4. The diffusers concatenation orders in DESIGN §1.7 were wrong; the real ones are now recorded, and H13 is refuted for the diffusers layout (0.9).
 5. Non-unit norm tensors relocate into their layer's shard — a placement rule no per-tensor check would catch (0.7).
 6. `save_pretrained` rewrites the whole config schema rather than adding to it, and published diffusers releases ship a two-key `config.json`, not the diffusers schema (0.8).
 
@@ -819,10 +854,25 @@ open.
 grades against this and needs neither Python, nor the official compressor, nor a
 large machine.
 
+**Raw data.** The official runs' records behind 0.2, 0.3 and 0.4 are committed in
+[`../phase0/results/`](../phase0/results/), copied from the gitignored
+`phase0/out/` (its README lists what was left out). Local only: the RSS sample
+series, the stdout logs, the official outputs themselves (hashed in
+`MANIFEST.json`) and the H6 reordered shard.
+
 **The batched GPU session has run** — H7, H6, H11 and the `--luts=correct` gate
 are all confirmed. See the section below. H5 and H12 remain deferred to Phases 3
 and 5, where the code they need exists.
 
+
+---
+
+# Phase 1, in brief
+
+Exit gate: all six DF11 tensors of the four tier-0 units, 24 of 24, byte-identical
+to the official compressor (commit 822bbf0). Corpus case 2 was missing when this
+was declared and was built later (errata item 4). The 32-bit limiter refuses
+ambiguous ties instead of guessing (erratum in 0.5).
 
 ---
 
@@ -832,12 +882,19 @@ One rented RTX A4000 (16 GB, driver 550.144.03, CUDA 12.4), **32 minutes,
 about $0.09**. 111 MiB uploaded; nothing downloaded from Hugging Face. The
 pre-registration in `gpu_session/EXPECTED.md` was written before the session.
 
+Raw records are in `gpu_session/out/`. The aggregate `results.json` is from the
+first run and still lists H6 and H11 as ERROR (the transformers import failure
+under "Environment findings"); the confirming re-runs after the pins are in the
+per-item files `h6_reorder_inference.json` and `h11_repack_inference.json`.
+
 ## H7 — `decode.ptx` without CuPy: **CONFIRMED**
 
 The kernel was loaded and run through the raw CUDA driver API via `ctypes`
 (`cuInit` → `cuCtxCreate` → `cuModuleLoadData` → `cuLaunchKernel`), with CuPy as
 the control. Both decoded the same 15,728,640-element unit to **bit-for-bit
-identical** output.
+identical** output. Neither decode was compared with the source BF16 weights, so
+this shows the two launch paths agree, not that either is right; a ground-truth
+comparison against the source is for the next GPU session.
 
 **Consequence:** GPU verification can live inside the Rust binary. Open decision
 1 — "optional Python + CuPy shim, or CPU decoder only?" — is **closed**: neither
@@ -862,16 +919,19 @@ The constraint that remains is the *placement* rule from 0.7 (norm tensors trave
 with their layer), which is about matching the official output, not about what
 the loader tolerates.
 
-## `--luts=correct` gate — **CONFIRMED, and the mode is now releasable**
+## `--luts=correct` gate — **CONFIRMED on the one real leak**
 
 Zeroing the leaked LUT run — row 3, columns [0, 128), originally holding 105
 carried over from row 2 — and decoding with the real, unmodified CUDA kernel gave
 output **bit-for-bit identical** to decoding the original file, across all
 15,728,640 weights.
 
-So the inference that those positions are unreachable during decode was correct,
-and it is now measured rather than argued. Per `COMPATIBILITY.md`'s own rule, the
-mode may ship. Had it failed, the rule required removing the mode outright.
+So the positions are unreachable by construction (COMPATIBILITY.md gives the
+argument), and this was measured on the one real leak we have. Per
+`COMPATIBILITY.md`'s own rule, that let the mode ship, opt-in; had it failed, the
+rule required removing the mode outright. Like H7, this compares two GPU decodes
+with each other, not with the source weights; the ground-truth check is for the
+next GPU session.
 
 ## Environment findings, for anyone reproducing this
 
@@ -923,7 +983,9 @@ bounded-RAM work starts from a much better position than the plan assumed.
 
 A second GPU session (RTX 3070, ~12 minutes, about **$0.03**) loaded df11pack's
 output and the official compressor's output through the real `DFloat11Model` and
-the real CUDA kernel, and compared logits.
+the real CUDA kernel, and compared logits, with `gpu_session/test_phase2_gate.py`.
+That script only prints, and its output was not saved: the numbers below are the
+only record.
 
 ## The result
 
@@ -980,7 +1042,8 @@ comparison nobody benefits from.
 **Recorded as a limitation, not a solved problem:** df11pack currently emits the
 source's schema. A user who needs output for a *newer* transformers must convert
 the config themselves. Making the target schema an explicit flag belongs in
-Phase 2's remaining work.
+Phase 2's remaining work. *(Not done: v0.1.0 has no such flag, and `config.json`
+keeps the source schema.)*
 
 ## Status
 
@@ -1031,11 +1094,6 @@ The cause: the tied-embedding check read **both** `lm_head.weight` and
 largest tensors in the model, for a boolean. Comparing them in 1 MiB chunks
 instead dropped peak to **381 MiB**, a 44% reduction for a change that touches one
 line of intent.
-
-## Streaming: what it bought (superseded by the section below)
-
-*The figures in this subsection were measured before the streaming work landed
-and are kept for the record. The current numbers are in the next section.*
 
 ## What the RAM budget did not yet do (resolved below)
 
@@ -1203,7 +1261,7 @@ Chunk size was the obvious suspect and is **not** the answer. Sweeping it across
 and the merge passes are all sequential O(N) work**, three passes over the unit
 that no amount of chunking touches. Amdahl's law does the rest.
 
-Both are per-chunk reductions and could be parallelised the same way the encoder
+All three are per-chunk reductions and could be parallelised the same way the encoder
 was. That is a real and available optimisation, and it is **not being taken now**:
 the encoder is already ~72× the official compressor on the same machine (an earlier
 "683×" here compared two machines; see the errata below). Phases 4 through 7 are correctness features the
@@ -1256,6 +1314,21 @@ flag is supposed to cause.
 
 ---
 
+# Phases 4 and 5, in brief
+
+**Phase 4** was revised to atomic output: every file is written to a `.tmp`,
+fsynced and renamed, and the journal and resume were dropped (PLAN, Phase 4;
+commit bad000b). Gate met: a failed write leaves nothing at the destination.
+
+**Phase 5 is partly met.** Delivered: an independent CPU verifier written from
+`decode.cu`'s semantics, and `--safe`, which verifies each unit against the source
+before writing it (commits 46e4404, b47d3e7). Writing a test for the verifier's
+LUT jump threshold showed the prefix-table bound is 17, not 16 (errata item 5).
+Not delivered: a parallel decoder, so H12 is still unmeasured, and GPU
+verification through the official kernel.
+
+---
+
 # Errata and open gaps, from a full review (2026-09-23)
 
 Everything below was re-checked against code and data rather than memory.
@@ -1274,7 +1347,8 @@ Everything below was re-checked against code and data rather than memory.
 4. **Phase 1's exit gate was declared met with one case missing.** PLAN names corpus cases 1, 2
    and 4. Case 2 — a reduced synthetic Flux in both layouts — was never built. **No Flux or
    Chroma unit has ever been encoded or byte-checked**; those eight definitions are verified
-   only as `pattern_dict` transcriptions. Every byte-identity result is Qwen3.
+   only as `pattern_dict` transcriptions. Every byte-identity result is Qwen3. (Fixed below:
+   "Corpus case 2 built".)
 5. **`MAX_PREFIX_TABLES = 17` was labelled "corrected by measurement". It was derived**, from
    `get_luts` and the 240 jump convention. `decode.ptx` is consistent with it — LUTs are read
    from global memory and the decode unrolls three jump levels, so table *count* is not bounded
@@ -1591,11 +1665,14 @@ and its tensor count against `split_positions`; and every uncompressed tensor in
 the same file. It does not check attribute *order* (the drift test against the
 official pattern_dicts does), and it cannot check values.
 
-Not covered (gated: needs a Hugging Face token): Gemma-3, SD3.5, FLUX.1-dev/Kontext/
-Krea diffusers, Llama. The Llama definition is covered through Mistral-Nemo, which
-shares it.
+Not covered: 7 of the 35 definitions. Four have gated sources that need a Hugging
+Face token: `gemma-3`, `sd35-large-diffusers`, `flux-dev-diffusers` and
+`flux-kontext-dev-diffusers` (Kontext and Krea). Three have no real header fetched:
+`flux-comfyui`, `flux2-alt-comfyui` and `zimage-pixel-space-comfyui`. Llama is
+gated too, but its definition (`llama-3.3-70b`) is covered through Mistral-Nemo,
+which shares it.
 
-## Result: 15 fit exactly, 13 diverge in four understood ways
+## Result: 15 fit exactly; 13 diverge: 12 in four understood ways, plus Chroma1-Base's layout change
 
 **Fit exactly (15):** qwen3-4b, qwen3-8b, llama-3.3-70b (via Mistral-Nemo), phi-4,
 bagel-7b-mot, chroma-diffusers, qwen-image-diffusers-single, acestep15, ernie-image,
@@ -1621,7 +1698,7 @@ checkpoints key everything under `net.`; the releases do not. Cosmos also drops 
 training counters (`accum_*`) and every `_extra_state`. With `net.` stripped, Anima
 fits exactly.
 
-**4. Tied `lm_head` compressed as its own unit (OmniGen2-mllm).** The source has
+**4. Tied `lm_head` compressed as its own unit (OmniGen2-mllm, also counted in 1).** The source has
 tied embeddings and no `lm_head.weight`; the release has an `lm_head` unit exactly
 the size of `embed_tokens` — the official walk finds the tied Linear and compresses
 the shared weight twice.
@@ -1682,3 +1759,31 @@ nothing. **Decided: an escape table** (INDEX_SCHEMES.md). With it the tier-0
 layer that refused indexes with 14 escapes, verifies block by block, and its index
 is 276.6 KB against DF11's 414.1 KB: 0.64% of the unit, inside the 0.6–1.3%
 predicted before any of this was built.
+
+---
+
+# Qwen3-8B, three-way run
+
+The official compressor, df11pack and df11pack's idx8 variant on the full
+Qwen3-8B, on one rented box (8 vCPU, 124 GB RAM, per `results/run.log`), about 42
+minutes in all. Pattern `qwen3-8b`: 36 layer units plus standalone `lm_head` and
+`model.embed_tokens`, 38 units. The idx8 size was predicted from the release's
+headers before the run (`gpu_session/qwen3_8b/PREDICTION.json`, commit 3a7c002).
+Raw data: `gpu_session/qwen3_8b/results/` (`report.json`, and a `.time` and
+`.log` per step).
+
+| step | wall | peak RSS |
+|---|---|---|
+| official compressor | 37 min 3 s | 28,005.7 MiB (27.3 GiB) |
+| `df11pack compress` | 39.6 s | 6,727.2 MiB (6.6 GiB) |
+| `df11pack verify --level full` | 1 min 22 s | 12,328.6 MiB (12.0 GiB) |
+| `df11pack compress --index idx8 --safe` | 38.9 s | 8,736.4 MiB (8.5 GiB) |
+
+- **Identical as whole files.** All 39 files of df11pack's output have the same
+  SHA-256 as the official compressor's output and as the published
+  `DFloat11/Qwen3-8B-DF11` release: 11,156,564,065 bytes each way.
+- **Full verification is the memory peak.** `verify --level full` decoded all 38
+  units (670,929 chunks) against the source and passed, but it peaked at 12.0
+  GiB, nearly twice compression's 6.6 GiB.
+- **idx8** (not DFloat11): 11,083,193,141 bytes, 0.6576% smaller than DF11,
+  against 0.6580% predicted; 3,111 escapes in 127,975,424 blocks.

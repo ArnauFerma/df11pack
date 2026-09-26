@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """check_invariants.py -- executable checker for the DF11 safetensors format.
 
-Validates every invariant listed in docs/DESIGN.md section 1.3 ("Format
-invariants we must respect") against one or more DF11-compressed
-safetensors files, WITHOUT loading whole tensors into memory and WITHOUT
+Validates the structural invariants from docs/DESIGN.md section 1.3
+("Format invariants we must respect") against one or more DF11-compressed
+safetensors files: tensor names, shapes and dtypes, table and length
+bounds, and the shape and ordering of output_positions, gaps and
+split_positions. It does not decode the bitstream, so it cannot tell
+whether the gaps and output_positions values match it (an output_positions
+entry off by one passes), nor whether the tensors were concatenated in the
+right order. It works WITHOUT loading whole tensors into memory and WITHOUT
 importing torch. Parses the safetensors header directly (8-byte
 little-endian header length + JSON) and reads tensor payloads by seek/read,
 one small tensor at a time.
@@ -56,7 +61,7 @@ WINDOW_BITS = 8 * BYTES_PER_THREAD          # 64 bits per gaps window
 CHUNK_BYTES = BYTES_PER_THREAD * THREADS_PER_BLOCK  # 4096 bytes per output_positions chunk
 GAP_BITS = 5                                # bits packed per gaps window
 MAX_CODE_LEN = 32                           # kernel/gaps hard limit
-MAX_PREFIX_TABLES = 16                      # luts jump byte range (240..255) -> <=16 targets
+MAX_PREFIX_TABLES = 17                      # table 0 + jump targets 1..=16 (256 - 240..255); lib.rs MAX_PREFIX_TABLES
 JUMP_THRESHOLD = 240
 INT32_MAX = 2 ** 31 - 1
 
@@ -392,8 +397,10 @@ def check_unit(path, data_start, unit_name, tensors, failures):
                 f"see module docstring)",
             )
 
-    # --- INV-SM: sign_mantissa is one byte per weight (cross-checked against
-    # output_positions' independently-encoded weight count, not tautological) ---
+    # --- INV-SM-LENGTH: an alias of INV-OUTPOS-TOTAL. It is the same
+    # comparison (sign_mantissa length vs output_positions' trailing total),
+    # so any failure here is also reported as INV-OUTPOS-TOTAL. It is kept
+    # only so the tag lists recorded in INVARIANTS_RESULTS.md stay valid. ---
     if op_u32 is not None and len(op_u32) >= 1:
         op_total = int(op_u32[-1])
         if n_elements != op_total:

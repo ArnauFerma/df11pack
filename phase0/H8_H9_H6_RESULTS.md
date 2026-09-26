@@ -140,7 +140,7 @@ below to have zero effect on any tensor payload).
 
 Verification, in three independent ways:
 
-1. **My own header parser** (same one used for H8/H9): re-parsed the
+1. **Our own header parser** (same one used for H8/H9): re-parsed the
    reordered file's header, confirmed the key set is unchanged (10/10), and
    confirmed the on-disk physical order matches the intended new order
    exactly. Recomputed SHA-256 for each of the 10 tensors by name from the
