@@ -85,4 +85,4 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "df11pack $GITHUB_REF_NAME" --notes-file notes.md \
-            $([[ "$GITHUB_REF_NAME" == v0.* ]] && echo --prerelease)
+            $([[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease)  # only tags like v0.2.0-rc1
