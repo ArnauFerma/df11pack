@@ -52,8 +52,9 @@ pub struct UnitPattern {
     /// Regex matched against the full module name.
     pub pattern: String,
     /// Attribute paths, **in concatenation order**. Empty means the matched
-    /// module is itself a single tensor to compress — the case every published
-    /// DF11 LLM at 8B and above uses for `lm_head` and `model.embed_tokens`.
+    /// module is itself a single tensor to compress — the case the published
+    /// DF11 LLMs at 8B and above use for `lm_head` and `model.embed_tokens`
+    /// (Gemma-3 12B and 27B excepted: their only unit is the layer).
     pub attrs: Vec<String>,
 }
 

@@ -90,9 +90,9 @@ pub const MAX_UNIT_BYTES: u64 = (1 << 31) - 1;
 /// The most prefix tables a unit may have.
 ///
 /// A LUT value of 240 or more encodes a jump to table `256 - v`, so the
-/// reachable targets are 1..=16. With table 0 that is **17** tables, not 16 as
-/// DESIGN §1.3 states. Exponents are confined to 0..=239, so no symbol value
-/// collides with a jump.
+/// reachable targets are 1..=16. With table 0 that is **17** tables (DESIGN
+/// §1.3, corrected in Phase 5; it first said 16). Exponents are confined to
+/// 0..=239, so no symbol value collides with a jump.
 ///
 /// The distinction is not academic: a unit needing a 17th table is legal and the
 /// old bound would have refused it, while a unit needing an 18th would have its
@@ -139,6 +139,9 @@ pub enum EncodeError {
     },
     /// A source tensor could not be read while encoding.
     SourceRead(String),
+    /// Every tensor of the unit is empty: there is nothing to build a
+    /// codebook from, and the format has no encoding for zero weights.
+    EmptyUnit,
     /// The unit cannot be indexed with idx8 (only when idx8 was asked for).
     Idx8(crate::idx8::Idx8Error),
 }
@@ -182,6 +185,10 @@ impl fmt::Display for EncodeError {
                  see docs/COMPATIBILITY.md"
             ),
             Self::SourceRead(m) => write!(f, "could not read a source tensor: {m}"),
+            Self::EmptyUnit => write!(
+                f,
+                "every tensor in the unit has zero elements; there is nothing to compress"
+            ),
             Self::Idx8(e) => write!(f, "{e}"),
             Self::CodeTooLong { bits } => write!(
                 f,

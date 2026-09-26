@@ -16,10 +16,7 @@ const QWEN3_LAYER: [&str; 7] = [
 
 #[test]
 fn every_shipped_definition_parses_and_validates() {
-    let Some(defs) = architecture_defs() else {
-        eprintln!("SKIP: data/architectures missing");
-        return;
-    };
+    let defs = architecture_defs();
     assert!(
         defs.len() >= 24,
         "expected the shipped set, got {}",
@@ -33,15 +30,14 @@ fn every_shipped_definition_parses_and_validates() {
     }
 }
 
-/// Drift guard. These files are generated from verified official releases, so
-/// this does not validate the original transcription -- it catches a later
-/// hand-edit that silently changes an order.
+/// Drift guard. These files are generated (phase0/gen_arch_defs.py) from the
+/// recorded pattern_dicts this test reads: a published release's
+/// dfloat11_config, or ComfyUI-DFloat11-Extended's pattern_dict.py at a pinned
+/// commit, as each file's header says. So this does not validate the original
+/// transcription -- it catches a later hand-edit that silently changes an order.
 #[test]
 fn definitions_still_match_the_official_pattern_dicts() {
-    let (Some(defs), Some(official)) = (architecture_defs(), official_pattern_dicts()) else {
-        eprintln!("SKIP: fixtures missing");
-        return;
-    };
+    let (defs, official) = (architecture_defs(), official_pattern_dicts());
     let mut checked = 0;
     for (name, src) in &defs {
         let Some(o) = official.get(name) else {
@@ -78,9 +74,7 @@ fn definitions_still_match_the_official_pattern_dicts() {
 
 #[test]
 fn standalone_units_are_recognised() {
-    let (Some(defs), _) = (architecture_defs(), ()) else {
-        return;
-    };
+    let defs = architecture_defs();
     let (_, src) = defs
         .iter()
         .find(|(n, _)| n == "qwen3-8b")
@@ -163,10 +157,10 @@ fn split_positions_reproduce_official_output() {
     let Some(fx) = skip_if_missing("split_positions_reproduce_official_output") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
 
     let mut checked = 0;
     for unit in set.unit_names() {

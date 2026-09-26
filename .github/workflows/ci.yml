@@ -39,4 +39,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.85
-      - run: cargo build --workspace --release
+      # rust-toolchain.toml pins `stable`, which wins over the default the
+      # action sets (1.85.1). RUSTUP_TOOLCHAIN wins over the file, so these
+      # steps really use 1.85.1; the version is printed to show it.
+      - run: rustc --version && cargo build --workspace --release
+        env:
+          RUSTUP_TOOLCHAIN: "1.85.1"

@@ -57,10 +57,10 @@ fn official_output_verifies_against_the_source() {
     let Some(fx) = skip_if_missing("official_output_verifies_against_the_source") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
     let mut n = 0;
     for unit in set.unit_names() {
         let shard = &set.unit(&unit)[0].file;
@@ -79,10 +79,10 @@ fn a_corrupted_bitstream_is_caught() {
     let Some(fx) = skip_if_missing("a_corrupted_bitstream_is_caught") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
     let unit = "model.layers.0";
     let mut l = load(&set.unit(unit)[0].file, unit);
     let source = src.unit_input(unit, &QWEN3_LAYER).expect("source");
@@ -106,10 +106,10 @@ fn a_corrupted_gap_is_caught() {
     let Some(fx) = skip_if_missing("a_corrupted_gap_is_caught") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
     let unit = "model.layers.0";
     let mut l = load(&set.unit(unit)[0].file, unit);
     let source = src.unit_input(unit, &QWEN3_LAYER).expect("source");
@@ -129,10 +129,10 @@ fn a_corrupted_output_position_is_caught() {
     let Some(fx) = skip_if_missing("a_corrupted_output_position_is_caught") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
     let unit = "model.layers.0";
     let mut l = load(&set.unit(unit)[0].file, unit);
     let source = src.unit_input(unit, &QWEN3_LAYER).expect("source");
@@ -153,10 +153,10 @@ fn a_corrupted_sign_mantissa_is_caught() {
     let Some(fx) = skip_if_missing("a_corrupted_sign_mantissa_is_caught") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
     let unit = "model.layers.0";
     let mut l = load(&set.unit(unit)[0].file, unit);
     let source = src.unit_input(unit, &QWEN3_LAYER).expect("source");
@@ -223,7 +223,6 @@ fn a_wrong_eof_window_gap_is_caught() {
         return;
     };
     let Some(set) = fx.set("synthetic-flux-comfyui") else {
-        eprintln!("SKIP: run phase0/make_synthetic.py");
         return;
     };
     let unit = "double_blocks.0";
@@ -262,4 +261,42 @@ fn a_wrong_eof_window_gap_is_caught() {
         matches!(e, VerifyError::GapNotACodeBoundary { window: 95531, .. }),
         "expected the EOF window to be named, got {e}"
     );
+}
+
+/// A window the stream enters must have a `gaps` entry. Built from a synthetic
+/// unit, so it runs without the fixtures: dropping the last gap bytes used to
+/// be skipped silently and the unit reported good.
+#[test]
+fn a_window_with_no_gap_entry_is_a_failure() {
+    use df11_codec::unit::encode_unit;
+    // Enough weights for several kernel chunks, with a spread of exponents.
+    let src: Vec<u8> = (0..200_000u32)
+        .flat_map(|i| {
+            let e = 100 + (i.wrapping_mul(2_654_435_761) >> 28) as u16; // 100..=115
+            ((e << 7) | (i as u16 & 0x807f)).to_le_bytes()
+        })
+        .collect();
+    let u = encode_unit("u", &[&src], 512, 8).expect("encodes");
+    let luts: Vec<u8> = u.luts.iter().flat_map(|r| r.iter().copied()).collect();
+    let v = |gaps: &[u8]| {
+        verify_unit(
+            &UnitView {
+                luts: &luts,
+                encoded_exponent: &u.encoded_exponent,
+                sign_mantissa: &u.sign_mantissa,
+                output_positions: &u.output_positions,
+                gaps,
+                bytes_per_thread: 8,
+                threads_per_block: 512,
+            },
+            &src,
+        )
+    };
+    assert_eq!(v(&u.gaps), Ok(()), "the intact unit verifies");
+    // Half the entries: the stream certainly enters windows past the cut.
+    let short = &u.gaps[..u.gaps.len() / 2];
+    match v(short) {
+        Err(VerifyError::Malformed(m)) => assert!(m.contains("gaps has only"), "{m}"),
+        other => panic!("a window with no gaps entry must fail, got {other:?}"),
+    }
 }

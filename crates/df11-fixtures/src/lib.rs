@@ -4,9 +4,12 @@
 //! The fixtures themselves are large and untracked. `phase0/fixtures/MANIFEST.json`
 //! is tracked and indexes them. When the outputs are absent, [`Fixtures::load`]
 //! returns [`None`] so tests can skip cleanly rather than fail — see
-//! [`skip_if_missing`].
+//! [`skip_if_missing`]. That is the only case that skips: the tracked files
+//! (the manifest, the definitions, the small committed fixtures) and a set's
+//! source model, once its output exists, are required, and their absence is a
+//! panic, not a silent pass.
 //!
-//! Regenerate with `phase0/env/bin/python phase0/freeze_fixtures.py`.
+//! Regenerate as described under "Regenerating the fixtures" in phase0/README.md.
 
 use std::fmt;
 use std::fs::File;
@@ -182,19 +185,28 @@ fn locate(path: &Path, tensor: &str) -> std::io::Result<((u64, u64), u64)> {
 /// The loaded manifest.
 #[derive(Debug)]
 pub struct Fixtures {
+    /// The sets whose output exists on this machine.
     pub sets: Vec<FixtureSet>,
+    /// Sets the manifest lists but whose output was not generated here.
+    pub absent: Vec<String>,
 }
 
 impl Fixtures {
-    /// Load the manifest, or `None` when the fixtures are not present.
+    /// Load the manifest, or `None` when no set's output is present.
+    ///
+    /// Panics if the tracked manifest itself cannot be read: that is a broken
+    /// checkout, not missing fixtures.
     pub fn load() -> Option<Self> {
-        let root = workspace_root()?;
+        let root = repo_root();
         let man = root.join("phase0/fixtures/MANIFEST.json");
-        let raw: RawManifest = serde_json::from_slice(&std::fs::read(&man).ok()?).ok()?;
+        let raw: RawManifest = serde_json::from_slice(&read_tracked(&man))
+            .unwrap_or_else(|e| panic!("{}: {e}", man.display()));
         let mut sets = Vec::new();
+        let mut absent = Vec::new();
         for s in raw.sets {
             let dir = resolve(&root, &s.output_dir);
             if !dir.exists() {
+                absent.push(s.name);
                 continue;
             }
             let mut tensors = Vec::new();
@@ -220,12 +232,43 @@ impl Fixtures {
         if sets.is_empty() {
             return None;
         }
-        Some(Fixtures { sets })
+        Some(Fixtures { sets, absent })
     }
 
+    /// A set by name.
+    ///
+    /// `None`, after printing a SKIP line, when the manifest lists the set but
+    /// its output was not generated on this machine. Panics on a name the
+    /// manifest does not list: that is a mistake in the test, and skipping it
+    /// would let the test pass without checking anything.
     pub fn set(&self, name: &str) -> Option<&FixtureSet> {
-        self.sets.iter().find(|s| s.name == name)
+        if let Some(s) = self.sets.iter().find(|s| s.name == name) {
+            return Some(s);
+        }
+        if self.absent.iter().any(|a| a == name) {
+            eprintln!(
+                "SKIP fixture set {name}: not generated on this machine \
+                 (phase0/README.md, \"Regenerating the fixtures\")"
+            );
+            return None;
+        }
+        panic!("no fixture set {name:?} in phase0/fixtures/MANIFEST.json");
     }
+
+    /// Whether the manifest lists a set, generated here or not.
+    pub fn lists(&self, name: &str) -> bool {
+        self.sets.iter().any(|s| s.name == name) || self.absent.iter().any(|a| a == name)
+    }
+}
+
+/// The repository root: the first ancestor of this crate holding `phase0/`.
+fn repo_root() -> PathBuf {
+    workspace_root().expect("no phase0/ above the df11-fixtures crate; is the checkout complete?")
+}
+
+/// A file committed to the repository. Its absence is a broken checkout.
+fn read_tracked(p: &Path) -> Vec<u8> {
+    std::fs::read(p).unwrap_or_else(|e| panic!("{} (a tracked file): {e}", p.display()))
 }
 
 fn resolve(root: &Path, p: &str) -> PathBuf {
@@ -258,8 +301,8 @@ pub fn skip_if_missing(test: &str) -> Option<Fixtures> {
         Some(f) => Some(f),
         None => {
             eprintln!(
-                "SKIP {test}: Phase 0 fixtures absent. \
-                 Regenerate with `phase0/env/bin/python phase0/freeze_fixtures.py`."
+                "SKIP {test}: Phase 0 fixtures absent. Regenerate them as described \
+                 in phase0/README.md, \"Regenerating the fixtures\"."
             );
             None
         }
@@ -369,9 +412,17 @@ pub struct SourceModel {
 }
 
 impl SourceModel {
-    pub fn open(set: &FixtureSet) -> Option<Self> {
+    /// The source of a set whose output is present. Panics when the source is
+    /// missing: the set was generated, so its input must be there too.
+    pub fn open(set: &FixtureSet) -> Self {
         let p = set.source_dir.join("model.safetensors");
-        p.is_file().then_some(SourceModel { path: p })
+        assert!(
+            p.is_file(),
+            "fixture set {}: output present but source model missing at {}",
+            set.name,
+            p.display()
+        );
+        SourceModel { path: p }
     }
 
     /// Raw little-endian bytes of one tensor.
@@ -429,12 +480,12 @@ struct LimiterFile {
     cases: Vec<LimiterCase>,
 }
 
-/// Load the generated limiter cases, or `None` if they are absent.
-pub fn limiter_cases() -> Option<Vec<LimiterCase>> {
-    let root = workspace_root()?;
-    let p = root.join("phase0/fixtures/limiter_cases.json");
-    let f: LimiterFile = serde_json::from_slice(&std::fs::read(p).ok()?).ok()?;
-    Some(f.cases)
+/// Load the generated limiter cases (tracked; panics if unreadable).
+pub fn limiter_cases() -> Vec<LimiterCase> {
+    let p = repo_root().join("phase0/fixtures/limiter_cases.json");
+    let f: LimiterFile = serde_json::from_slice(&read_tracked(&p))
+        .unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+    f.cases
 }
 
 /// A `pattern_dict` transcribed from a published official release.
@@ -450,31 +501,39 @@ pub struct OfficialPatternDict {
 }
 
 /// Load the recorded official `pattern_dict`s, keyed by definition name.
-pub fn official_pattern_dicts() -> Option<std::collections::BTreeMap<String, OfficialPatternDict>> {
-    let root = workspace_root()?;
-    let p = root.join("phase0/fixtures/official_pattern_dicts.json");
+///
+/// The files are tracked; anything unreadable or malformed panics.
+pub fn official_pattern_dicts() -> std::collections::BTreeMap<String, OfficialPatternDict> {
+    fn parse<T: serde::de::DeserializeOwned>(p: &Path) -> T {
+        serde_json::from_slice(&read_tracked(p)).unwrap_or_else(|e| panic!("{}: {e}", p.display()))
+    }
+    let root = repo_root();
     let mut out: std::collections::BTreeMap<String, OfficialPatternDict> =
-        serde_json::from_slice(&std::fs::read(p).ok()?).ok()?;
+        parse(&root.join("phase0/fixtures/official_pattern_dicts.json"));
 
     // Definitions generated from Extended's pattern_dict (phase0/import_extended.py),
     // pinned to one commit. All ComfyUI-native with the default geometry.
-    let ext: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(root.join("phase0/fixtures/extended_pattern_dicts.json")).ok()?,
-    )
-    .ok()?;
-    let names: std::collections::BTreeMap<String, String> = serde_json::from_slice(
-        &std::fs::read(root.join("phase0/fixtures/extended_def_names.json")).ok()?,
-    )
-    .ok()?;
+    let ext: serde_json::Value = parse(&root.join("phase0/fixtures/extended_pattern_dicts.json"));
+    let names: std::collections::BTreeMap<String, String> =
+        parse(&root.join("phase0/fixtures/extended_def_names.json"));
+    let commit = ext["commit"]
+        .as_str()
+        .expect("extended_pattern_dicts.json: no commit");
     for (def, model) in names {
         let mut pattern_dict = serde_json::Map::new();
-        for pair in ext["models"][&model].as_array()? {
-            pattern_dict.insert(pair[0].as_str()?.to_string(), pair[1].clone());
+        let pairs = ext["models"][&model].as_array().unwrap_or_else(|| {
+            panic!("extended_pattern_dicts.json: no model {model:?} (for {def})")
+        });
+        for pair in pairs {
+            let key = pair[0]
+                .as_str()
+                .unwrap_or_else(|| panic!("extended_pattern_dicts.json: {model}: bad pair {pair}"));
+            pattern_dict.insert(key.to_string(), pair[1].clone());
         }
         out.insert(
             def,
             OfficialPatternDict {
-                repo: format!("Extended @ {}", ext["commit"].as_str()?),
+                repo: format!("Extended @ {commit}"),
                 version: Some("0.5.0".into()),
                 threads_per_block: vec![512],
                 bytes_per_thread: 8,
@@ -482,24 +541,36 @@ pub fn official_pattern_dicts() -> Option<std::collections::BTreeMap<String, Off
             },
         );
     }
-    Some(out)
+    out
 }
 
-/// Every shipped architecture definition, as `(name, toml source)`.
-pub fn architecture_defs() -> Option<Vec<(String, String)>> {
-    let root = workspace_root()?;
-    let dir = root.join("data/architectures");
+/// Every shipped architecture definition, as `(name, toml source)`, sorted by
+/// name.
+///
+/// `data/architectures` is tracked, so any entry that cannot be read panics,
+/// naming it, rather than dropping the whole set or the one entry.
+pub fn architecture_defs() -> Vec<(String, String)> {
+    let dir = repo_root().join("data/architectures");
     let mut out = Vec::new();
-    for e in std::fs::read_dir(dir).ok()? {
-        let e = e.ok()?;
-        let p = e.path();
+    let entries = std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    for e in entries {
+        let p = e
+            .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+            .path();
         if p.extension().is_some_and(|x| x == "toml") {
-            let name = p.file_stem()?.to_string_lossy().into_owned();
-            out.push((name, std::fs::read_to_string(&p).ok()?));
+            let name = p
+                .file_stem()
+                .expect("a .toml file has a stem")
+                .to_string_lossy()
+                .into_owned();
+            let text =
+                std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+            out.push((name, text));
         }
     }
+    assert!(!out.is_empty(), "no definitions in {}", dir.display());
     out.sort_by(|a, b| a.0.cmp(&b.0));
-    Some(out)
+    out
 }
 
 /// A fresh, empty directory for one test's output.

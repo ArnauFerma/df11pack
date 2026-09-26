@@ -108,10 +108,10 @@ fn present_symbols_match_the_official_codebook() {
     let Some(fx) = skip_if_missing("present_symbols_match_the_official_codebook") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0 set");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
 
     let mut checked = 0;
     for unit in set.unit_names() {

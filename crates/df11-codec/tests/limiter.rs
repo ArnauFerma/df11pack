@@ -16,10 +16,7 @@ use df11_fixtures::limiter_cases;
 
 #[test]
 fn unambiguous_cases_match_the_spec_exactly() {
-    let Some(cases) = limiter_cases() else {
-        eprintln!("SKIP: run phase0/gen_limiter_cases.py");
-        return;
-    };
+    let cases = limiter_cases();
     let mut checked = 0;
     for c in cases.iter().filter(|c| !c.ambiguous) {
         let built = build_limited(&c.freqs)
@@ -65,9 +62,7 @@ fn unambiguous_cases_match_the_spec_exactly() {
 
 #[test]
 fn ambiguous_cases_are_refused_with_the_measured_numbers() {
-    let Some(cases) = limiter_cases() else {
-        return;
-    };
+    let cases = limiter_cases();
     let mut checked = 0;
     for c in cases.iter().filter(|c| c.ambiguous) {
         let d = c.first_ambiguous.as_ref().expect("detail present");

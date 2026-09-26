@@ -54,11 +54,10 @@ fn sign_mantissa_matches_official_output_for_every_unit() {
     let Some(fx) = skip_if_missing("sign_mantissa_matches_official_output_for_every_unit") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0 set");
-    let Some(src) = SourceModel::open(set) else {
-        eprintln!("SKIP: source model absent at {}", set.source_dir.display());
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
 
     let units = set.unit_names();
     assert_eq!(units.len(), 4, "tier0 has 4 layer units");
@@ -93,10 +92,10 @@ fn exponents_are_in_range_for_real_weights() {
     let Some(fx) = skip_if_missing("exponents_are_in_range_for_real_weights") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0 set");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
     let unit = "model.layers.0";
     let input = src.unit_input(unit, &QWEN3_LAYER).expect("source");
     let (exp, _sm) = split_fields(&input);

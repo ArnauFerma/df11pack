@@ -55,12 +55,14 @@ impl TensorInfo {
     }
 
     /// Whether the declared shape and dtype account for exactly `nbytes`.
+    /// A dtype we do not know cannot be checked and counts as consistent.
     pub fn is_consistent(&self) -> bool {
         match self.dtype.width() {
-            Some(w) => {
-                let n: u64 = self.shape.iter().product::<u64>();
-                n * w as u64 == self.nbytes()
-            }
+            Some(w) => self
+                .shape
+                .iter()
+                .try_fold(w as u64, |acc, &d| acc.checked_mul(d))
+                .is_some_and(|n| n == self.nbytes()),
             None => true,
         }
     }
@@ -104,15 +106,29 @@ pub struct SafeTensorsFile {
 }
 
 impl SafeTensorsFile {
+    /// Open a file and parse its header.
+    ///
+    /// A malformed header is refused here, with the tensor named, rather than
+    /// surfacing later as a short read or a wrong weight count: every shape
+    /// entry and offset must be a non-negative integer, each tensor's byte
+    /// range must lie inside the file, and its shape and dtype must account for
+    /// exactly that many bytes.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, StError> {
         let path = path.as_ref().to_path_buf();
         let mut f = File::open(&path)?;
+        let file_len = f.metadata()?.len();
         let mut len = [0u8; 8];
         f.read_exact(&mut len)?;
         let n = u64::from_le_bytes(len);
         if n > 100 * 1024 * 1024 {
             return Err(StError::Malformed(format!("header claims {n} bytes")));
         }
+        if 8 + n > file_len {
+            return Err(StError::Malformed(format!(
+                "header claims {n} bytes, but the file is only {file_len}"
+            )));
+        }
+        let data_len = file_len - 8 - n;
         let mut buf = vec![0u8; n as usize];
         f.read_exact(&mut buf)?;
         let v: serde_json::Value =
@@ -144,8 +160,14 @@ impl SafeTensorsFile {
                 .and_then(|s| s.as_array())
                 .ok_or_else(|| StError::Malformed(format!("{k}: no shape")))?
                 .iter()
-                .filter_map(|x| x.as_u64())
-                .collect();
+                .map(|x| {
+                    x.as_u64().ok_or_else(|| {
+                        StError::Malformed(format!(
+                            "{k}: shape entry {x} is not a non-negative integer"
+                        ))
+                    })
+                })
+                .collect::<Result<_, _>>()?;
             let off = val
                 .get("data_offsets")
                 .and_then(|o| o.as_array())
@@ -155,19 +177,34 @@ impl SafeTensorsFile {
                     "{k}: data_offsets is not a pair"
                 )));
             }
-            let (s, e) = (off[0].as_u64().unwrap_or(0), off[1].as_u64().unwrap_or(0));
+            let (Some(s), Some(e)) = (off[0].as_u64(), off[1].as_u64()) else {
+                return Err(StError::Malformed(format!(
+                    "{k}: data_offsets {} is not a pair of non-negative integers",
+                    serde_json::Value::Array(off.clone())
+                )));
+            };
             if e < s {
                 return Err(StError::Malformed(format!("{k}: data_offsets reversed")));
             }
+            if e > data_len {
+                return Err(StError::Malformed(format!(
+                    "{k}: data_offsets end at {e}, past the {data_len}-byte data section"
+                )));
+            }
+            let info = TensorInfo {
+                dtype: Dtype::new(dtype),
+                shape,
+                offsets: (s, e),
+            };
+            if !info.is_consistent() {
+                return Err(StError::Malformed(format!(
+                    "{k}: shape {:?} of {dtype} does not account for its {} bytes",
+                    info.shape,
+                    info.nbytes()
+                )));
+            }
             order.push(k.clone());
-            tensors.insert(
-                k.clone(),
-                TensorInfo {
-                    dtype: Dtype::new(dtype),
-                    shape,
-                    offsets: (s, e),
-                },
-            );
+            tensors.insert(k.clone(), info);
         }
         Ok(SafeTensorsFile {
             path,

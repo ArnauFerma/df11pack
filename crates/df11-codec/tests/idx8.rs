@@ -96,7 +96,7 @@ fn idx8_output_shares_the_payload_and_never_claims_df11() {
     let Some(set) = fx.set("synthetic-flux-dev-diffusers") else {
         return;
     };
-    let defs = architecture_defs().unwrap();
+    let defs = architecture_defs();
     let (_, toml) = defs
         .iter()
         .find(|(n, _)| n == "flux-dev-diffusers")
@@ -177,7 +177,7 @@ fn a_wrong_idx8_length_on_disk_is_caught() {
     let Some(set) = fx.set("synthetic-flux-dev-diffusers") else {
         return;
     };
-    let defs = architecture_defs().unwrap();
+    let defs = architecture_defs();
     let (_, toml) = defs
         .iter()
         .find(|(n, _)| n == "flux-dev-diffusers")
@@ -245,8 +245,10 @@ fn a_real_layer_with_outliers_indexes_and_verifies() {
     let Some(fx) = skip_if_missing("idx8_real") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").unwrap();
-    let defs = architecture_defs().unwrap();
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
+        return;
+    };
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").unwrap();
     let def = ArchDef::from_toml(toml).unwrap();
     let src = ModelSource::open(set.source_dir.join("model.safetensors")).unwrap();

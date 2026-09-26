@@ -58,7 +58,9 @@ fn a_sharded_source_reads_identically_to_a_single_file() {
     let Some(fx) = skip_if_missing("a_sharded_source_reads_identically_to_a_single_file") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
+        return;
+    };
     let whole = set.source_dir.join("model.safetensors");
     let single = SafeTensorsFile::open(&whole).expect("open source");
     let names: Vec<String> = single.names().map(String::from).collect();

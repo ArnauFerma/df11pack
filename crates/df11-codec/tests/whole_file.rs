@@ -10,15 +10,26 @@ use df11_codec::write::{write_directory, WriteOptions};
 use df11_fixtures::{architecture_defs, skip_if_missing};
 use std::path::{Path, PathBuf};
 
+/// `None` only when the fixtures, or this set, are absent (a SKIP line says
+/// so). A definition that fails to parse or a source that cannot be opened is a
+/// failure, not a skip.
 fn run(tag: &str, set: &str, arch: &str) -> Option<(PathBuf, PathBuf)> {
     let fx = skip_if_missing(tag)?;
     let set = fx.set(set)?;
-    let official = set.tensors()[0].file.parent()?.to_path_buf();
+    let official = set.tensors()[0]
+        .file
+        .parent()
+        .expect("official dir")
+        .to_path_buf();
     let out = df11_fixtures::scratch(&format!("wf_{tag}"));
-    let defs = architecture_defs()?;
-    let (_, toml) = defs.iter().find(|(n, _)| n == arch)?;
-    let def = ArchDef::from_toml(toml).ok()?;
-    let src = ModelSource::open(set.source_dir.join("model.safetensors")).ok()?;
+    let defs = architecture_defs();
+    let (_, toml) = defs
+        .iter()
+        .find(|(n, _)| n == arch)
+        .unwrap_or_else(|| panic!("no definition {arch}"));
+    let def = ArchDef::from_toml(toml).unwrap_or_else(|e| panic!("{arch}: {e}"));
+    let src = ModelSource::open(set.source_dir.join("model.safetensors"))
+        .unwrap_or_else(|e| panic!("{}: source: {e}", set.name));
     write_directory(&src, &def, &out, &WriteOptions::default()).unwrap();
     Some((out, official))
 }
@@ -66,7 +77,7 @@ fn comfyui_single_file_is_identical() {
         ),
     ] {
         let Some((out, official)) = run(arch, set, arch) else {
-            return;
+            continue;
         };
         assert_eq!(assert_identical(&out, &official, &[]), 1, "{set}");
     }

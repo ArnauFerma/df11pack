@@ -49,13 +49,15 @@ fn view(l: &Loaded) -> UnitView<'_> {
     }
 }
 
+/// `None` only when the fixtures are absent (a SKIP line says so); anything
+/// else missing is a failure.
 fn setup() -> Option<(Loaded, Vec<u8>)> {
     let fx = skip_if_missing("chunk_verify")?;
     let set = fx.set("tier0-qwen3-trunc-layers-only")?;
-    let src = SourceModel::open(set)?;
+    let src = SourceModel::open(set);
     let unit = "model.layers.0";
     let l = load(&set.unit(unit)[0].file, unit);
-    let source = src.unit_input(unit, &QWEN3_LAYER).ok()?;
+    let source = src.unit_input(unit, &QWEN3_LAYER).expect("source unit");
     Some((l, source))
 }
 

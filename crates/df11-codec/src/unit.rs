@@ -176,6 +176,9 @@ where
     EncodeError: From<E>,
 {
     let total_weights: u64 = counts.iter().sum();
+    if total_weights == 0 {
+        return Err(EncodeError::EmptyUnit);
+    }
     check_unit_limits(total_weights, 0)?;
 
     // Split each tensor straight into the two streams. The concatenated copy of

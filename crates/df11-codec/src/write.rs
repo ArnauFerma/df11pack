@@ -181,6 +181,9 @@ pub struct WriteReport {
     /// The config file written, if the layout has one. ComfyUI-native output is
     /// a single file with no config, so this is `None` there.
     pub config: Option<String>,
+    /// `generation_config.json`, when the source had one to carry over
+    /// (transformers layout only).
+    pub generation_config: Option<String>,
 }
 
 #[derive(Debug)]
@@ -798,12 +801,14 @@ pub fn write_directory(
     // byte. One is never invented: upstream's is synthesised by transformers from
     // config.json and stamped with the installed version, and transformers
     // regenerates it from the config when it is absent.
+    let mut generation_config = None;
     if def.layout == Layout::Transformers {
         let g = src.dir().join("generation_config.json");
         if g.is_file() {
             let path = out_dir.join("generation_config.json");
             write_bytes_atomic(&path, &std::fs::read(&g)?)?;
             output_bytes += std::fs::metadata(&path)?.len();
+            generation_config = Some("generation_config.json".to_string());
         }
     }
 
@@ -820,5 +825,6 @@ pub fn write_directory(
         verified,
         max_concurrent_reads: peak_reads.load(std::sync::atomic::Ordering::SeqCst),
         config,
+        generation_config,
     })
 }

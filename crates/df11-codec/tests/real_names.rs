@@ -194,23 +194,25 @@ const KNOWN: [(&str, &[&str], &str); 5] = [
 
 #[test]
 fn definitions_fit_real_checkpoints() {
-    let Some(root) = df11_fixtures::workspace_root() else {
-        return;
-    };
+    // The headers are committed, so their absence is a broken checkout, not a
+    // reason to skip.
+    let root = df11_fixtures::workspace_root().expect("repository root");
     let dir = root.join("phase0/fixtures/real_headers");
-    let Ok(entries) = std::fs::read_dir(&dir) else {
-        eprintln!("SKIP: run phase0/fetch_real_headers.py");
-        return;
-    };
+    let entries = std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
     let defs: BTreeMap<String, ArchDef> = architecture_defs()
-        .unwrap()
         .into_iter()
         .map(|(n, t)| (n, ArchDef::from_toml(&t).unwrap()))
         .collect();
     let mut report = Vec::new();
     let mut failed = 0;
-    let mut paths: Vec<_> = entries.flatten().map(|e| e.path()).collect();
+    let mut paths: Vec<_> = entries.map(|e| e.expect("read_dir entry").path()).collect();
     paths.sort();
+    assert!(
+        paths.len() >= 28,
+        "{} real headers in {}; 28 are committed",
+        paths.len(),
+        dir.display()
+    );
     for p in paths {
         let fx: Value = serde_json::from_slice(&std::fs::read(&p).unwrap()).unwrap();
         let name = fx["definition"].as_str().unwrap().to_string();

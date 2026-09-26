@@ -225,12 +225,15 @@ pub fn verify_unit(view: &UnitView, source_bf16_le: &[u8]) -> Result<(), VerifyE
     }
 
     // Every gap must name the bit at which its window is entered. A window the
-    // stream never enters is unconstrained.
+    // stream never enters is unconstrained; one it enters must have an entry.
     let unpacked = unpack_gaps(view.gaps);
     for (w, entry) in window_entry.iter().enumerate() {
         let Some(want) = entry else { continue };
         let Some(&got) = unpacked.get(w) else {
-            continue;
+            return Err(VerifyError::Malformed(format!(
+                "the stream enters window {w}, but gaps has only {} entries",
+                unpacked.len()
+            )));
         };
         if got as usize != *want {
             return Err(VerifyError::GapNotACodeBoundary {
@@ -245,7 +248,10 @@ pub fn verify_unit(view: &UnitView, source_bf16_le: &[u8]) -> Result<(), VerifyE
     for (c, entry) in chunk_entry.iter().enumerate() {
         let Some(want) = entry else { continue };
         let Some(&stored) = view.output_positions.get(c) else {
-            continue;
+            return Err(VerifyError::Malformed(format!(
+                "the stream enters chunk {c}, but output_positions has only {} entries",
+                view.output_positions.len()
+            )));
         };
         if stored != *want {
             return Err(VerifyError::OutputPositionMismatch {

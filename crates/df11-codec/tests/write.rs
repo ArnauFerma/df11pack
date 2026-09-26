@@ -38,13 +38,11 @@ fn the_written_directory_matches_the_official_one() {
     let Some(fx) = skip_if_missing("the_written_directory_matches_the_official_one") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(_s) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
-    let Some(defs) = architecture_defs() else {
-        return;
-    };
+    let _s = SourceModel::open(set);
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
     let def = ArchDef::from_toml(toml).expect("parses");
 
@@ -137,10 +135,10 @@ fn a_tied_tensor_is_dropped_and_reported() {
     let Some(fx) = skip_if_missing("a_tied_tensor_is_dropped_and_reported") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(defs) = architecture_defs() else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
     let def = ArchDef::from_toml(toml).expect("parses");
     let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
@@ -169,10 +167,10 @@ fn a_config_is_written_for_layouts_that_have_one() {
     let Some(fx) = skip_if_missing("a_config_is_written_for_layouts_that_have_one") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(defs) = architecture_defs() else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
     let def = ArchDef::from_toml(toml).expect("parses");
     assert_eq!(def.layout, Layout::Transformers);
@@ -211,7 +209,9 @@ fn comfyui_native_output_has_no_config() {
     let Some(fx) = skip_if_missing("comfyui_native_output_has_no_config") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
+        return;
+    };
     // Reuse the Qwen pattern but declare the native layout, which is what
     // decides whether a config is emitted.
     let def = ArchDef::from_toml(
@@ -366,10 +366,10 @@ fn worker_count_never_changes_the_output() {
     let Some(fx) = skip_if_missing("worker_count_never_changes_the_output") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(defs) = architecture_defs() else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
     let def = ArchDef::from_toml(toml).expect("parses");
     let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
@@ -421,10 +421,10 @@ fn the_io_plan_is_reported_and_obeyed() {
     let Some(fx) = skip_if_missing("the_io_plan_is_reported_and_obeyed") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(defs) = architecture_defs() else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
     let def = ArchDef::from_toml(toml).expect("parses");
     let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
@@ -465,10 +465,10 @@ fn a_512_mib_budget_still_compresses_and_bounds_workers() {
     let Some(fx) = skip_if_missing("a_512_mib_budget_still_compresses_and_bounds_workers") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(defs) = architecture_defs() else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
     let def = ArchDef::from_toml(toml).expect("parses");
     let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
@@ -515,10 +515,10 @@ fn safe_mode_verifies_every_unit_before_writing_it() {
     let Some(fx) = skip_if_missing("safe_mode_verifies_every_unit_before_writing_it") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(defs) = architecture_defs() else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
     let def = ArchDef::from_toml(toml).expect("parses");
     let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
@@ -570,8 +570,10 @@ fn correct_lut_mode_reaches_the_written_luts() {
     let Some(fx) = skip_if_missing("correct_lut_mode_reaches_the_written_luts") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let defs = architecture_defs().expect("definitions");
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
+        return;
+    };
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
     let def = ArchDef::from_toml(toml).expect("parses");
     let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
@@ -640,10 +642,10 @@ fn generation_config_is_copied_when_present_and_never_invented() {
     else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(defs) = architecture_defs() else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == "qwen3-4b").expect("def");
     let def = ArchDef::from_toml(toml).expect("parses");
 

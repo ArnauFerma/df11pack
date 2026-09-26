@@ -205,7 +205,9 @@ fn reads_a_real_official_shard() {
     let Some(fx) = skip_if_missing("reads_a_real_official_shard") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
+        return;
+    };
     let t = set
         .unit_tensors()
         .find(|t| t.name.ends_with("split_positions"))
@@ -452,4 +454,77 @@ fn layout_follows_the_safetensors_library_order() {
     );
     let mut bad = vec![("z", "Q4_K")];
     assert!(canonical_order(&mut bad, |t| (t.0, t.1)).is_err());
+}
+
+/// Write a file with a hand-made header and `data` as its data section.
+fn raw_file(name: &str, header: &str, data: &[u8]) -> std::path::PathBuf {
+    let path = tmp(name);
+    let mut b = (header.len() as u64).to_le_bytes().to_vec();
+    b.extend_from_slice(header.as_bytes());
+    b.extend_from_slice(data);
+    std::fs::write(&path, b).unwrap();
+    path
+}
+
+/// A malformed header is refused at open, naming the tensor and the problem,
+/// instead of surfacing later as a short read or a wrong weight count. Each of
+/// these used to open without complaint.
+#[test]
+fn a_malformed_header_is_refused_at_open() {
+    let good = raw_file(
+        "hdr_good.safetensors",
+        r#"{"t":{"dtype":"BF16","shape":[2,2],"data_offsets":[0,8]}}"#,
+        &[0; 8],
+    );
+    assert!(
+        SafeTensorsFile::open(&good).is_ok(),
+        "the well-formed control opens"
+    );
+
+    for (name, header, want) in [
+        (
+            "hdr_shape",
+            r#"{"t":{"dtype":"BF16","shape":[2,"2"],"data_offsets":[0,8]}}"#,
+            "shape entry",
+        ),
+        (
+            "hdr_shape_float",
+            r#"{"t":{"dtype":"BF16","shape":[2.5],"data_offsets":[0,8]}}"#,
+            "shape entry",
+        ),
+        (
+            "hdr_offsets",
+            r#"{"t":{"dtype":"BF16","shape":[2,2],"data_offsets":["0",8]}}"#,
+            "not a pair of non-negative integers",
+        ),
+        (
+            "hdr_past_end",
+            r#"{"t":{"dtype":"BF16","shape":[2,4],"data_offsets":[0,16]}}"#,
+            "past the 8-byte data section",
+        ),
+        (
+            "hdr_size",
+            r#"{"t":{"dtype":"BF16","shape":[3],"data_offsets":[0,8]}}"#,
+            "does not account for",
+        ),
+    ] {
+        let p = raw_file(&format!("{name}.safetensors"), header, &[0; 8]);
+        match SafeTensorsFile::open(&p) {
+            Err(StError::Malformed(m)) => {
+                assert!(m.contains(want), "{name}: {m}");
+                assert!(m.starts_with("t: "), "{name}: names the tensor: {m}");
+            }
+            other => panic!("{name}: expected a Malformed error, got {other:?}"),
+        }
+    }
+
+    // A header longer than the file.
+    let p = tmp("hdr_len.safetensors");
+    let mut b = 1000u64.to_le_bytes().to_vec();
+    b.extend_from_slice(b"{}");
+    std::fs::write(&p, b).unwrap();
+    assert!(
+        matches!(SafeTensorsFile::open(&p), Err(StError::Malformed(_))),
+        "a header length past the end of the file is malformed"
+    );
 }

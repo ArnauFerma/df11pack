@@ -94,10 +94,10 @@ fn matches_the_serial_encoder_on_every_real_unit() {
     let Some(fx) = skip_if_missing("matches_the_serial_encoder_on_every_real_unit") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
     let mut n = 0;
     for unit in set.unit_names() {
         let input = src.unit_input(&unit, &QWEN3_LAYER).expect("source");

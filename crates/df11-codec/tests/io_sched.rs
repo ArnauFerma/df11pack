@@ -1,6 +1,6 @@
 //! Phase 3 -- the I/O scheduling decision.
 
-use df11_codec::io_sched::{parse_rotational, plan, rotational_for, IoMode};
+use df11_codec::io_sched::{parse_rotational, plan, rotational_at, rotational_for, IoMode};
 use std::path::Path;
 
 #[test]
@@ -19,8 +19,6 @@ fn explicit_modes_are_obeyed_and_explained() {
 fn auto_always_gives_a_decision_and_a_reason() {
     let p = plan(Path::new("."), IoMode::Auto);
     assert!(!p.reason.is_empty(), "a decision must say why");
-    // Whatever this machine is, Auto must not panic or hang.
-    let _ = p.sequential;
 }
 
 /// The default when the device cannot be identified must be concurrent:
@@ -59,6 +57,23 @@ fn rotational_detection_agrees_with_sysfs_on_this_machine() {
     // otherwise silently read the wrong device's flag.
     let here = std::env::current_dir().expect("cwd");
     let got = rotational_for(&here);
+    #[cfg(target_os = "linux")]
+    {
+        // When the kernel lists the backing device, detection must find it.
+        // (A filesystem with no block device -- overlay, tmpfs -- has none.)
+        use std::os::unix::fs::MetadataExt;
+        let dev = std::fs::metadata(&here).unwrap().dev();
+        let (major, minor) = (
+            ((dev >> 8) & 0xfff) | ((dev >> 32) & 0xffff_f000),
+            (dev & 0xff) | ((dev >> 12) & 0xffff_ff00),
+        );
+        let listed = std::path::Path::new(&format!("/sys/dev/block/{major}:{minor}")).exists();
+        assert_eq!(
+            got.is_some(),
+            listed,
+            "device {major}:{minor} listed in /sys/dev/block: {listed}, detected: {got:?}"
+        );
+    }
     if let Some(v) = got {
         // Cross-check: at least one block device must report that value.
         let mut seen = false;
@@ -73,5 +88,46 @@ fn rotational_detection_agrees_with_sysfs_on_this_machine() {
             }
         }
         assert!(seen, "reported rotational={v} but no block device says so");
+    }
+}
+
+/// A partition has no `queue/` of its own; its disk is the parent directory in
+/// sysfs. Checked on a fake sysfs tree shaped like an NVMe disk, whose
+/// partition names (`nvme0n1p1`) defeat the old rule of stripping trailing
+/// digits (`nvme0n1p`, which does not exist).
+#[test]
+fn a_partition_takes_its_disks_rotational_flag() {
+    let root = df11_fixtures::scratch("io_sysfs");
+    let disk = root.join("block/nvme0n1");
+    let part = disk.join("nvme0n1p1");
+    std::fs::create_dir_all(disk.join("queue")).unwrap();
+    std::fs::create_dir_all(&part).unwrap();
+    std::fs::write(disk.join("queue/rotational"), "1\n").unwrap();
+    std::fs::write(part.join("partition"), "1\n").unwrap();
+    assert_eq!(rotational_at(&disk), Some(true), "the disk itself");
+    assert_eq!(rotational_at(&part), Some(true), "its partition");
+
+    std::fs::write(disk.join("queue/rotational"), "0\n").unwrap();
+    assert_eq!(rotational_at(&part), Some(false), "follows the disk");
+
+    // A directory that is neither a device with a queue nor a partition.
+    let other = root.join("block/other");
+    std::fs::create_dir_all(&other).unwrap();
+    assert_eq!(rotational_at(&other), None);
+}
+
+/// Every partition the kernel lists resolves to a flag.
+#[cfg(target_os = "linux")]
+#[test]
+fn every_real_partition_resolves() {
+    for e in std::fs::read_dir("/sys/dev/block").unwrap().flatten() {
+        let p = e.path();
+        if p.join("partition").is_file() {
+            assert!(
+                rotational_at(&p).is_some(),
+                "{}: a partition whose disk flag was not found",
+                p.display()
+            );
+        }
     }
 }

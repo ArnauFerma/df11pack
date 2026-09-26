@@ -43,7 +43,9 @@ fn native_output_is_one_file_and_no_config() {
     let Some(fx) = skip_if_missing("native_output_is_one_file_and_no_config") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
+        return;
+    };
     let def = ArchDef::from_toml(NATIVE_QWEN).expect("parses");
     let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
     let out = outdir("one");
@@ -65,7 +67,9 @@ fn the_single_file_holds_every_official_tensor_exactly() {
     let Some(fx) = skip_if_missing("the_single_file_holds_every_official_tensor_exactly") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
+        return;
+    };
     let def = ArchDef::from_toml(NATIVE_QWEN).expect("parses");
     let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
     let out = outdir("exact");
@@ -99,7 +103,9 @@ fn a_prefixed_source_gives_the_same_output() {
     let Some(fx) = skip_if_missing("a_prefixed_source_gives_the_same_output") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
+        return;
+    };
     let def = ArchDef::from_toml(NATIVE_QWEN).expect("parses");
     let plain = SafeTensorsFile::open(set.source_dir.join("model.safetensors")).expect("source");
 
@@ -157,7 +163,9 @@ fn native_output_is_identical_across_worker_counts() {
     let Some(fx) = skip_if_missing("native_output_is_identical_across_worker_counts") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
+        return;
+    };
     let def = ArchDef::from_toml(NATIVE_QWEN).expect("parses");
     let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
     let a = outdir("w1");

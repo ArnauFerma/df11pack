@@ -195,13 +195,11 @@ fn discovery_on_the_real_model_matches_the_official_shards() {
     else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(_src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
-    let Some(defs) = architecture_defs() else {
-        return;
-    };
+    SourceModel::open(set);
+    let defs = architecture_defs();
     let (_, toml) = defs
         .iter()
         .find(|(n, _)| n == "qwen3-4b")

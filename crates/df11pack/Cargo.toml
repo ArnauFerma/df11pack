@@ -1,7 +1,7 @@
 [package]
 name = "df11pack"
 version.workspace = true
-description = "Fast, byte-identical DFloat11 compressor for BF16 models (LLMs, diffusers, ComfyUI)"
+description = "Fast DFloat11 compressor for BF16 models (LLMs, diffusers, ComfyUI); byte-identical to the official compressor in its default mode"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

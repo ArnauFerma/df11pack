@@ -6,7 +6,7 @@ use df11_fixtures::{architecture_defs, official_pattern_dicts};
 use serde_json::json;
 
 fn def(name: &str) -> ArchDef {
-    let defs = architecture_defs().expect("definitions present");
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == name).expect(name);
     ArchDef::from_toml(toml).expect("parses")
 }
@@ -37,7 +37,7 @@ fn dfloat11_config_has_the_four_keys_the_format_defines() {
 /// concatenation order.
 #[test]
 fn dfloat11_config_matches_published_releases_exactly() {
-    let official = official_pattern_dicts().expect("fixture");
+    let official = official_pattern_dicts();
     let mut checked = 0;
     for (name, o) in &official {
         let d = def(name);

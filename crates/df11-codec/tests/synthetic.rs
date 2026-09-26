@@ -12,15 +12,16 @@ use df11_codec::write::{write_directory, WriteOptions};
 use df11_fixtures::{architecture_defs, skip_if_missing};
 use std::collections::BTreeSet;
 
-fn check(set_name: &str, def_name: &str) {
+/// Returns whether the set was checked: `false` only when it is absent (with a
+/// SKIP line).
+fn check(set_name: &str, def_name: &str) -> bool {
     let Some(fx) = skip_if_missing(set_name) else {
-        return;
+        return false;
     };
     let Some(set) = fx.set(set_name) else {
-        eprintln!("SKIP {set_name}: not in the manifest; run phase0/make_synthetic.py");
-        return;
+        return false;
     };
-    let defs = architecture_defs().expect("definitions");
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == def_name).expect(def_name);
     let def = ArchDef::from_toml(toml).expect("parses");
     let src = ModelSource::open(set.source_dir.join("model.safetensors")).expect("source");
@@ -76,26 +77,27 @@ fn check(set_name: &str, def_name: &str) {
         "{set_name}: we emitted tensors the official output does not have"
     );
     let _ = std::fs::remove_dir_all(&out);
+    true
 }
 
 #[test]
 fn flux_comfyui_native_matches_the_official_output() {
-    check("synthetic-flux-comfyui", "flux-comfyui");
+    let _ = check("synthetic-flux-comfyui", "flux-comfyui");
 }
 
 #[test]
 fn chroma_comfyui_native_matches_the_official_output() {
-    check("synthetic-chroma-comfyui", "chroma-comfyui");
+    let _ = check("synthetic-chroma-comfyui", "chroma-comfyui");
 }
 
 #[test]
 fn flux_diffusers_matches_the_official_output() {
-    check("synthetic-flux-dev-diffusers", "flux-dev-diffusers");
+    let _ = check("synthetic-flux-dev-diffusers", "flux-dev-diffusers");
 }
 
 #[test]
 fn chroma_diffusers_matches_the_official_output() {
-    check("synthetic-chroma-diffusers", "chroma-diffusers");
+    let _ = check("synthetic-chroma-diffusers", "chroma-diffusers");
 }
 
 /// Phase 7: every other definition, each against its own synthetic model
@@ -115,18 +117,24 @@ fn every_definition_matches_the_official_output() {
         "chroma-diffusers",
     ];
     const UNCOVERED: [&str; 0] = [];
-    let mut checked = 0;
-    for (name, _) in architecture_defs().expect("definitions") {
+    let (mut checked, mut skipped) = (0, 0);
+    for (name, _) in architecture_defs() {
         if ELSEWHERE.contains(&name.as_str()) || UNCOVERED.contains(&name.as_str()) {
             continue;
         }
         let set = format!("synthetic-{name}");
         assert!(
-            fx.set(&set).is_some(),
-            "{name}: no synthetic fixture; run phase0/make_synthetic.py {name}"
+            fx.lists(&set),
+            "{name}: no synthetic fixture in the manifest; run phase0/make_synthetic.py {name}"
         );
-        check(&set, &name);
-        checked += 1;
+        if check(&set, &name) {
+            checked += 1;
+        } else {
+            skipped += 1;
+        }
     }
-    assert!(checked >= 29, "checked {checked}");
+    assert!(
+        checked + skipped >= 29,
+        "checked {checked}, skipped {skipped}"
+    );
 }

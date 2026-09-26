@@ -25,7 +25,9 @@ fn verify_exits_0_on_a_good_output_and_1_on_a_corrupted_one() {
     let Some(fx) = skip_if_missing("verify_cli") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").unwrap();
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
+        return;
+    };
     let official = set.tensors()[0].file.parent().unwrap().to_path_buf();
     let out: PathBuf = df11_fixtures::scratch("cli");
     let _ = std::fs::remove_dir_all(&out);
@@ -82,7 +84,9 @@ fn a_hashed_output_catches_a_flipped_value_without_the_source() {
     let Some(fx) = skip_if_missing("verify_cli_hashes") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").unwrap();
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
+        return;
+    };
     let source = set.source_dir.join("model.safetensors");
     let out: PathBuf = df11_fixtures::scratch("cli_h");
     let _ = std::fs::remove_dir_all(&out);
@@ -90,6 +94,12 @@ fn a_hashed_output_catches_a_flipped_value_without_the_source() {
     let (code, stdout) = run(&["compress", s, "--arch", "qwen3-4b", "-o", o, "--hashes"]);
     assert_eq!(code, 0, "{stdout}");
     assert!(stdout.contains("differ from the official"), "{stdout}");
+    // What was written, named: 4 unit shards + the remainder, and the config.
+    // The tier-0 source has no generation_config.json, so none is claimed.
+    assert!(
+        stdout.contains("wrote 5 safetensors files + config.json -> "),
+        "{stdout}"
+    );
 
     let (code, stdout) = run(&["verify", o]);
     assert_eq!(code, 0, "{stdout}");
@@ -107,5 +117,59 @@ fn a_hashed_output_catches_a_flipped_value_without_the_source() {
     let (code, stdout) = run(&["verify", o]);
     assert_eq!(code, 1, "{stdout}");
     assert!(stdout.contains("FAIL model.layers.3"), "{stdout}");
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+/// `verify` does not read idx8 output. It must say so and exit 2 ("could not
+/// check"), not report every unit as broken with exit 1.
+#[test]
+fn verify_refuses_idx8_output_with_exit_2() {
+    let Some(fx) = skip_if_missing("verify_cli_idx8") else {
+        return;
+    };
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
+        return;
+    };
+    let source = set.source_dir.join("model.safetensors");
+    let out: PathBuf = df11_fixtures::scratch("cli_idx8");
+    let (o, s) = (out.to_str().unwrap(), source.to_str().unwrap());
+    let (code, stdout) = run(&[
+        "compress", s, "--arch", "qwen3-4b", "-o", o, "--index", "idx8",
+    ]);
+    assert_eq!(code, 0, "{stdout}");
+
+    for args in [
+        &["verify", o][..],
+        &["verify", o, "--source", s, "--arch", "qwen3-4b"][..],
+    ] {
+        let r = Command::new(env!("CARGO_BIN_EXE_df11pack"))
+            .args(args)
+            .output()
+            .unwrap();
+        let err = String::from_utf8_lossy(&r.stderr);
+        assert_eq!(r.status.code(), Some(2), "{args:?}: {err}");
+        assert!(
+            err.contains("idx8 output: not supported by verify"),
+            "{args:?}: {err}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+/// A single-file layout writes one file and no config, and says exactly that.
+#[test]
+fn compress_names_what_it_wrote_for_a_single_file() {
+    let Some(fx) = skip_if_missing("verify_cli_single") else {
+        return;
+    };
+    let Some(set) = fx.set("synthetic-flux-comfyui") else {
+        return;
+    };
+    let source = set.source_dir.join("model.safetensors");
+    let out: PathBuf = df11_fixtures::scratch("cli_single");
+    let (o, s) = (out.to_str().unwrap(), source.to_str().unwrap());
+    let (code, stdout) = run(&["compress", s, "--arch", "flux-comfyui", "-o", o]);
+    assert_eq!(code, 0, "{stdout}");
+    assert!(stdout.contains("wrote 1 safetensors file -> "), "{stdout}");
     let _ = std::fs::remove_dir_all(&out);
 }

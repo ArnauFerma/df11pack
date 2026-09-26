@@ -60,6 +60,9 @@ impl CheckReport {
 pub enum CheckError {
     /// Sample and full levels compare against the source; one must be given.
     NeedsSource,
+    /// The output was written with `--index idx8`, which this checker does not
+    /// read. It says nothing about whether the output is good.
+    Idx8Unsupported,
     Other(String),
 }
 
@@ -70,6 +73,7 @@ impl std::fmt::Display for CheckError {
                 f,
                 "this level decodes against the source model; pass --source and --arch"
             ),
+            Self::Idx8Unsupported => write!(f, "idx8 output: not supported by verify"),
             Self::Other(m) => write!(f, "{m}"),
         }
     }
@@ -332,6 +336,18 @@ pub fn check_output(
         },
         failures: Vec::new(),
     };
+
+    // idx8 output has no gaps or output_positions; checking it as DF11 would
+    // report every unit as broken. Refuse instead: "cannot check", not "bad".
+    let idx8 = output.names().iter().any(|n| {
+        output
+            .metadata_of(n)
+            .and_then(|m| m.get("df11pack_index"))
+            .is_some_and(|v| v == "idx8")
+    });
+    if idx8 {
+        return Err(CheckError::Idx8Unsupported);
+    }
 
     let Some((source, def)) = reference else {
         if level != Level::Integrity {

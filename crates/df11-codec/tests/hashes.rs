@@ -23,16 +23,21 @@ fn outdir(tag: &str) -> PathBuf {
 }
 
 fn def(name: &str) -> ArchDef {
-    let defs = architecture_defs().unwrap();
+    let defs = architecture_defs();
     let (_, toml) = defs.iter().find(|(n, _)| n == name).unwrap();
     ArchDef::from_toml(toml).unwrap()
 }
 
 /// Compress `set` with hashes on; returns (output dir, source file, official dir).
+/// `None` only when the fixtures are absent, with a SKIP line.
 fn compress(tag: &str, set: &str, arch: &str, hashes: bool) -> Option<(PathBuf, PathBuf, PathBuf)> {
     let fx = skip_if_missing(tag)?;
     let set = fx.set(set)?;
-    let official = set.tensors()[0].file.parent()?.to_path_buf();
+    let official = set.tensors()[0]
+        .file
+        .parent()
+        .expect("official dir")
+        .to_path_buf();
     let source = set.source_dir.join("model.safetensors");
     let out = outdir(tag);
     let src = ModelSource::open(&source).unwrap();
@@ -88,15 +93,22 @@ fn a_stored_hash_is_the_sha256_of_the_tensor_bytes() {
     let bytes = f.read("model.layers.2.gaps").unwrap();
     let dump = df11_fixtures::scratch("h_gaps").join("gaps.bin");
     std::fs::write(&dump, &bytes).unwrap();
-    let Ok(o) = std::process::Command::new("sha256sum").arg(&dump).output() else {
-        eprintln!("SKIP: no sha256sum");
-        return;
+    // `sha256sum` where it exists; otherwise the sha2 crate called directly,
+    // which is still independent of the writer's own hashing path.
+    let want = match std::process::Command::new("sha256sum").arg(&dump).output() {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+            .split_whitespace()
+            .next()
+            .unwrap()
+            .to_string(),
+        _ => {
+            use sha2::{Digest, Sha256};
+            Sha256::digest(&bytes)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect()
+        }
     };
-    let want = String::from_utf8_lossy(&o.stdout)
-        .split_whitespace()
-        .next()
-        .unwrap()
-        .to_string();
     assert_eq!(f.metadata()["df11pack_sha256:model.layers.2.gaps"], want);
 }
 

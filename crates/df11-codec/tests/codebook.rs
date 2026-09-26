@@ -69,10 +69,10 @@ fn luts_match_official_output_byte_for_byte() {
     let Some(fx) = skip_if_missing("luts_match_official_output_byte_for_byte") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
 
     let mut checked = 0;
     for unit in set.unit_names() {
@@ -124,10 +124,10 @@ fn the_cross_row_carry_over_is_reproduced() {
     let Some(fx) = skip_if_missing("the_cross_row_carry_over_is_reproduced") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
     let input = src
         .unit_input("model.layers.0", &QWEN3_LAYER)
         .expect("source");
@@ -159,10 +159,10 @@ fn correct_mode_differs_only_where_the_leak_is() {
     let Some(fx) = skip_if_missing("correct_mode_differs_only_where_the_leak_is") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
 
     let mut units_with_leak = 0;
     for unit in set.unit_names() {

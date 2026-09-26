@@ -18,10 +18,10 @@ fn all_six_tensors_match_official_output_for_every_unit() {
     let Some(fx) = skip_if_missing("all_six_tensors_match_official_output_for_every_unit") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
 
     let mut units_checked = 0;
     let mut tensors_checked = 0;
@@ -73,10 +73,10 @@ fn a_single_tensor_unit_has_empty_split_positions() {
     let Some(fx) = skip_if_missing("a_single_tensor_unit_has_empty_split_positions") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
     let one = src
         .tensor("model.layers.0.mlp.down_proj.weight")
         .expect("source tensor");
@@ -106,5 +106,18 @@ fn a_reserved_exponent_aborts_before_anything_is_produced() {
             df11_codec::EncodeError::ReservedExponent { value: 255, .. }
         ),
         "got {err:?}"
+    );
+}
+
+/// A unit whose tensors are all empty is an error, not a panic: there is no
+/// codebook to build. It used to hit an assertion in `Codebook::build`.
+#[test]
+fn a_unit_of_empty_tensors_is_an_error() {
+    use df11_codec::EncodeError;
+    let r = encode_unit("empty", &[&[], &[]], 512, 8);
+    assert!(
+        matches!(r, Err(EncodeError::EmptyUnit)),
+        "expected EmptyUnit, got {:?}",
+        r.map(|u| u.weights())
     );
 }

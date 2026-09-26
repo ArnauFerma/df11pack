@@ -26,10 +26,10 @@ fn encoded_gaps_and_positions_match_official_output() {
     let Some(fx) = skip_if_missing("encoded_gaps_and_positions_match_official_output") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
 
     let mut checked = 0;
     for unit in set.unit_names() {
@@ -89,10 +89,10 @@ fn index_tensors_have_the_shapes_the_format_requires() {
     let Some(fx) = skip_if_missing("index_tensors_have_the_shapes_the_format_requires") else {
         return;
     };
-    let set = fx.set("tier0-qwen3-trunc-layers-only").expect("tier0");
-    let Some(src) = SourceModel::open(set) else {
+    let Some(set) = fx.set("tier0-qwen3-trunc-layers-only") else {
         return;
     };
+    let src = SourceModel::open(set);
     let input = src
         .unit_input("model.layers.0", &QWEN3_LAYER)
         .expect("source");

@@ -36,7 +36,8 @@ enum Command {
         /// LUT semantics. `compat` is byte-identical to the official compressor.
         #[arg(long, value_enum, default_value_t = LutModeArg::Compat)]
         luts: LutModeArg,
-        /// Memory budget, e.g. 512M or 4G. Workers are sized to fit inside it.
+        /// Memory budget, e.g. 512M or 4G. Workers are sized to fit inside it
+        /// (at least one worker).
         #[arg(long)]
         ram: Option<String>,
         /// Force a worker count, overriding --ram.
@@ -60,9 +61,9 @@ enum Command {
         /// cannot read it.
         #[arg(long, value_enum, default_value_t = IndexArg::Df11)]
         index: IndexArg,
-        /// Symbols per idx8 block.
-        #[arg(long, default_value_t = 64)]
-        idx8_block: usize,
+        /// Symbols per idx8 block (default 64). Needs --index idx8.
+        #[arg(long, requires = "index", value_parser = clap::value_parser!(u64).range(1..))]
+        idx8_block: Option<u64>,
     },
     /// Check a written output, optionally against the model it was made from.
     ///
@@ -258,7 +259,7 @@ struct CompressArgs {
     safe: bool,
     hashes: bool,
     index: IndexArg,
-    idx8_block: usize,
+    idx8_block: Option<u64>,
 }
 
 fn compress(a: CompressArgs) -> Result<(), String> {
@@ -308,7 +309,7 @@ fn compress(a: CompressArgs) -> Result<(), String> {
         io: io.into(),
         verify: safe,
         hashes,
-        idx8_block: (index == IndexArg::Idx8).then_some(idx8_block),
+        idx8_block: (index == IndexArg::Idx8).then(|| idx8_block.unwrap_or(64) as usize),
     };
     let report = write_directory(&model, &def, &out, &opts).map_err(|e| e.to_string())?;
 
@@ -349,7 +350,13 @@ fn compress(a: CompressArgs) -> Result<(), String> {
         println!("  stored a SHA-256 of every DF11 tensor; the headers now differ from the official tool's");
     }
     println!("  reads: {}", report.io.reason);
-    println!("  wrote {} -> {}", report.shards.len() + 1, out.display());
+    // Unit shards plus the remainder, or the one single file; then any config.
+    let n = report.shards.len() + 1;
+    let mut wrote = format!("{n} safetensors file{}", if n == 1 { "" } else { "s" });
+    for f in report.config.iter().chain(&report.generation_config) {
+        wrote.push_str(&format!(" + {f}"));
+    }
+    println!("  wrote {wrote} -> {}", out.display());
     Ok(())
 }
 
@@ -422,6 +429,21 @@ fn verify(a: VerifyArgs) -> Result<bool, String> {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    if let Command::Compress {
+        index: IndexArg::Df11,
+        idx8_block: Some(_),
+        ..
+    } = cli.command
+    {
+        // clap's `requires` sees `--index df11` as present; the value matters.
+        use clap::CommandFactory;
+        Cli::command()
+            .error(
+                clap::error::ErrorKind::ArgumentConflict,
+                "--idx8-block needs --index idx8",
+            )
+            .exit();
+    }
     let r = match cli.command {
         Command::Compress {
             source,
