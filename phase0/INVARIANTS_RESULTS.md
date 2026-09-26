@@ -311,7 +311,7 @@ remaining gap rather than implying `INV-OUTPOS-DELTA` fully fixes it: two
 chunk 500's and chunk 501's true deltas — without violating monotonicity,
 the trailing total, the entry count, or the per-chunk delta bound, since
 both delta values were legitimately drawn from the same file and each
-still lands inside `[lo, hi]` after the swap. I built and ran this
+still lands inside `[lo, hi]` after the swap. We built and ran this
 corruption to confirm it is real, not hypothetical: on
 `qwen3-trunc-layers-only-dir/model_layers_0.safetensors`, swapping chunk
 500's delta (12,337) and chunk 501's delta (12,391) — i.e. setting
@@ -319,7 +319,7 @@ corruption to confirm it is real, not hypothetical: on
 `+ 12,337`, leaving `output_positions[502]` onward untouched (their sums
 are unaffected because addition commutes) — **passes every check in this
 tool, exit code 0**, yet corrupts the write offset the kernel uses for
-block 501 onward. I did not add a check for this: closing it requires
+block 501 onward. We did not add a check for this: closing it requires
 knowing the *true* per-chunk element count, which means counting code
 starts in that chunk's byte range using `gaps` + `luts` against the real
 bitstream — i.e. a partial decode, not a structural bound. That is

@@ -302,7 +302,7 @@ iterations of the outer `pi` loop. Two distinct consequences:
    the first that lacks key `0`, the positions before its first key are filled
    with the **trailing value of the previous table**.
 
-I confirmed (2) in our own official output rather than in theory. In
+We confirmed (2) in our own official output rather than in theory. In
 `model_layers_0.safetensors`, prefix table 2 ends with value 105 at key 192, and
 table 3 is `{128: 96}` — it has no key 0. The real file contains:
 
@@ -346,7 +346,7 @@ assumed.
 
 ### A corruption that got through
 
-The first version of the checker caught 10 of 10 injected corruptions. I then
+The first version of the checker caught 10 of 10 injected corruptions. We then
 invented an eleventh outside its author's model of the format: set
 `output_positions[600] = output_positions[599]`. Still non-decreasing, trailing
 total untouched, `sign_mantissa` length unchanged — every checked property holds,
@@ -374,7 +374,7 @@ pass, and an independent second published shard passes.
 ### A gap that remains open, deliberately
 
 Swapping two *individually valid* deltas between adjacent chunks passes
-everything. I confirmed this directly: exchanging chunks 500 and 501's real
+everything. We confirmed this directly: exchanging chunks 500 and 501's real
 deltas of 12,337 and 12,391 leaves both values in band and the total intact, and
 the checker exits 0.
 
@@ -417,11 +417,11 @@ however, was **peak RSS in the 1.0–1.6 GiB range**. Measured: **2.29 GiB**. Th
 prediction is wrong, by about 50% at the upper bound, and is left standing above
 as written.
 
-The error is instructive. I inferred from tier 0 that the model stays mmapped and
+The error is instructive. We inferred from tier 0 that the model stays mmapped and
 barely enters RSS — loading it there cost only 32 MiB. That inference did not
 survive scaling: at tier 1, loading cost **591 MiB** of RSS. The tier-0 signal
 was not evidence of mmap behaviour, it was evidence that 136 MiB is small. I
-generalised from a measurement taken in the regime where the effect I was
+generalised from a measurement taken in the regime where the effect we were
 measuring could not show up.
 
 The practical consequence is that the margin was far thinner than believed. Peak
@@ -488,7 +488,7 @@ general, not a quirk of one layer.
 1. **`output_positions` is already free** at 0.024% of the unit — 0.0026
    bits/weight. Nothing any index scheme does to it can matter.
 
-   **Correction to an earlier version of this section.** I first compared the
+   **Correction to an earlier version of this section.** We first compared the
    sibling project's 8-bit index against `output_positions` and concluded it
    would save 0.018%. That was the wrong pairing. idx8 is an **input-side**
    index — it tells a thread where its block begins in the bitstream, which is
@@ -535,7 +535,7 @@ safetensors: dtype, shape, and streaming SHA-256 of the bytes.
 | tier-1 full Qwen3-0.6B | 311 | 114 | **114 / 114** | 0 |
 
 **132 of 132 byte-identical across two model sizes.** No tensor was invented,
-cast, renamed or altered. I re-verified a sample of five independently, including
+cast, renamed or altered. We re-verified a sample of five independently, including
 norms from two different layer shards and both remainder tensors: 5 of 5
 identical.
 
@@ -937,7 +937,7 @@ That was the test's fault, not the output's: the skeleton comes from
 `AutoModelForCausalLM.from_config`, which initialises randomly, so two
 independently built skeletons differ for reasons that have nothing to do with
 compression. The GPU session's own H6 script had a determinism baseline for
-exactly this reason; the gate script I wrote did not.
+exactly this reason; the gate script we wrote did not.
 
 With the baseline added — load the same directory twice, require identical logits
 before comparing anything else — the baseline passed and the difference persisted,
