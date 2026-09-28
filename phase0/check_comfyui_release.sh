@@ -10,28 +10,39 @@ HERE=$(cd "$(dirname "$0")" && pwd); ROOT=$(dirname "$HERE")
 OUT=$HERE/results/comfyui; mkdir -p $OUT $WD
 PY=${PY:-python3}; BIN=${BIN:-$ROOT/target/release/df11pack}
 R=$OUT/$NAME.txt
+BINDIR=$(cd "$(dirname "$BIN")" 2>/dev/null && pwd || dirname "$BIN")
+strip() {   # no local paths in the repo: work dir, repository, the binary's directory
+    sed -i "s#$WD/#<workdir>/#g; s#$ROOT/#<df11pack>/#g; s#$BINDIR/#<bin>/#g" "$@"
+}
+finish() { strip $R $OUT/$NAME.df11pack.log 2>/dev/null; cat $R; exit $1; }
 {
-echo "# $(date -u +%FT%TZ) df11pack $($BIN --version 2>/dev/null) ($(git -C $ROOT rev-parse --short HEAD)), arch $ARCH"
+echo "# $(date -u +%FT%TZ) df11pack $($BIN --version 2>/dev/null) ($(git -C $ROOT rev-parse --short HEAD 2>/dev/null)), arch $ARCH"
 echo "# source  $SRC_REPO@$SRC_REV $SRC_FILE"
 echo "# release $REL_REPO@$REL_REV $REL_FILE"
 echo "# machine: $(lscpu | sed -n 's/^Model name: *//p' | head -1), $(free -g | awk '/^Mem/{print $2}') GB RAM, $(uname -sr)"
+echo "# command: $(basename "$BIN") compress <source> --arch $ARCH --ram ${RAM:-2G}"
 } > $R
+: > $OUT/$NAME.df11pack.log
 dl() { $PY -c "
 from huggingface_hub import hf_hub_download
 print(hf_hub_download('$1', '$3', revision='$2', local_dir='$WD/$4'))" 2>&1 | tail -1; }
 SRC=$(dl $SRC_REPO $SRC_REV $SRC_FILE src); REL=$(dl $REL_REPO $REL_REV $REL_FILE rel)
-[ -f "$SRC" ] && [ -f "$REL" ] || { echo "FAILED download: $SRC | $REL" | tee -a $R; exit 1; }
+[ -f "$SRC" ] && [ -f "$REL" ] || { echo "FAILED download: $SRC | $REL" >> $R; finish 1; }
 rm -rf $WD/out
 TIME=""; [ -x /usr/bin/time ] && TIME="/usr/bin/time -v"   # peak memory when GNU time exists
 T0=$(date +%s)
 $TIME $BIN compress "$SRC" --arch $ARCH -o $WD/out --ram ${RAM:-2G} > $OUT/$NAME.df11pack.log 2>&1
 RC=$?
 echo "df11pack exit $RC after $(( $(date +%s) - T0 )) s (log: $NAME.df11pack.log)" >> $R
-[ $RC -eq 0 ] || { echo "FAILED: df11pack did not finish; no comparison" >> $R
-    sed -i "s#$WD/#<workdir>/#g; s#$ROOT/#<df11pack>/#g" $R $OUT/$NAME.df11pack.log; cat $R; exit 1; }
+[ $RC -eq 0 ] || { echo "FAILED: df11pack did not finish; no comparison" >> $R; finish 1; }
 echo "## per tensor: release (left) against df11pack output (right)" >> $R
 $PY $HERE/verify_repack.py "$REL" $WD/out >> $R 2>&1
+VRC=$?
 echo "## files (SHA-256)" >> $R
 sha256sum "$REL" $WD/out/*.safetensors | sed "s#$WD/##" >> $R
-sed -i "s#$WD/#<workdir>/#g; s#$ROOT/#<df11pack>/#g" $R $OUT/$NAME.df11pack.log   # no local paths in the repo
-cat $R
+H=$(sha256sum "$REL" $WD/out/*.safetensors | awk '{print $1}' | sort -u | wc -l)
+N=$(ls $WD/out/*.safetensors 2>/dev/null | wc -l)
+if [ $VRC -eq 0 ] && [ $N -eq 1 ] && [ $H -eq 1 ]; then
+    echo "CHECK: PASS (every tensor and the whole file identical)" >> $R; finish 0
+fi
+echo "CHECK: FAILED (verify exit $VRC, $N output files, $H distinct hashes)" >> $R; finish 1

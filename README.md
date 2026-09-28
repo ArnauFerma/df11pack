@@ -109,10 +109,10 @@ named by `DF11PACK_ARCH_DIR` (the file name without `.toml` is then the name
   compared (2026-09-28, `phase0/check_comfyui_release.sh`): Lumina-Image-2.0 (402
   tensors) and Chroma1-HD (777 tensors) are byte-identical, file SHA-256 included
   (`phase0/results/comfyui/`). The other ComfyUI definitions were checked by tensor
-  names only.
+  names only, except the three not checked above.
 - Not yet done: loading df11pack's output in ComfyUI on a GPU for the image models.
-  Since the files are byte-identical to what those loaders already read, it is
-  expected to work; reports welcome.
+  For Lumina-Image-2.0 and Chroma1-HD the output is byte-identical to releases that
+  loader already reads, so it is expected to work (not tested); reports welcome.
 
 Beyond the official format, all opt-in and clearly marked:
 

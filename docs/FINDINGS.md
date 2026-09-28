@@ -1797,19 +1797,24 @@ ComfyUI DF11 releases at pinned revisions, compresses the source with df11pack, 
 compares every tensor (`verify_repack.py`) and the whole file (SHA-256). Results in
 `phase0/results/comfyui/`:
 
-| release | definition | tensors | result | machine |
+| release | definition | tensors | result | machine, measured |
 |---|---|---|---|---|
-| `mingyi456/Lumina-Image-2.0-DF11-ComfyUI` | `lumina2-comfyui` | 402 | identical, same SHA-256 | Intel Core i3-2365M laptop, 2:37, 0.98 GB peak RSS |
-| `mingyi456/Chroma1-HD-DF11-ComfyUI` | `chroma-comfyui` | 777 | identical, same SHA-256 | RunPod pod, Xeon Gold 6342, 106 s |
+| `mingyi456/Lumina-Image-2.0-DF11-ComfyUI` | `lumina2-comfyui` | 402 | identical, same SHA-256 | Intel Core i3-2365M laptop, `--ram 2G`: 2:37 wall clock, 983,712 KiB peak RSS (1.01 GB) |
+| `mingyi456/Chroma1-HD-DF11-ComfyUI` | `chroma-comfyui` | 777 | identical, same SHA-256 | RunPod Secure Cloud A40 pod (Xeon Gold 6342), `--ram 16G`: 106 s, while GPU benchmarks ran on the same pod |
 
-Chroma used the v0.1.1 release binary (x86_64 musl, from GitHub Releases) with the
-repository at 27f9e85 (`idx8-decode/pod/run_night.sh`); the pod copy had no `.git`,
-so the hash in `chroma1-hd.txt` is empty.
+Lumina: df11pack at bcb7b63; its machine line in `lumina2.txt` was
+added after the run. Chroma: the v0.1.1 release binary (x86_64 musl, GitHub Releases).
+The first Chroma attempt used the script as of 27f9e85 and failed: the pod has no
+`/usr/bin/time`, so df11pack never ran (exit 127), and the script went on to compare an
+absent output (`chroma1-hd.failed-2026-09-28.txt`, kept). The rerun used the script as
+fixed in 18cbb99, copied to the pod by hand (no `.git` there, so the hash in
+`chroma1-hd.txt` is empty). The script now runs without GNU time, stops with FAILED when
+df11pack exits non-zero, and ends with `CHECK: PASS` or `CHECK: FAILED` and the matching
+exit status (it used to exit 0 whatever the comparison found); the two committed
+records predate that line.
 
-The first Chroma attempt failed: the pod has no `/usr/bin/time`, so df11pack never ran
-(exit 127). The script still went on to compare an absent output and printed a
-traceback (`chroma1-hd.failed-2026-09-28.txt`, kept). The script now runs without GNU
-time when it is missing, and stops with FAILED when df11pack exits non-zero.
+**Correction:** `lumina2.txt` (27f9e85) gave the peak RSS as "0.98 GB". GNU time reports
+kibibytes: 983,712 KiB is 1.01 GB (0.94 GiB). Fixed in that file.
 
 Not done: loading these files in ComfyUI on a GPU. Byte-identical files are what the
 ComfyUI-DFloat11-Extended loader already reads, so it is expected to work, not tested.

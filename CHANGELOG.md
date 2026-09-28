@@ -6,6 +6,12 @@ versions may change the command line.
 
 ## [Unreleased]
 
+### Changed
+
+- `phase0/check_comfyui_release.sh` (research script, not the tool): runs without GNU
+  time, stops on a failed compress, ends with `CHECK: PASS`/`FAILED` and a matching exit
+  status, and strips the binary's directory from its logs.
+
 ## [0.1.1] - 2026-09-26
 
 Fixes found by an independent review of the repository against its own data.

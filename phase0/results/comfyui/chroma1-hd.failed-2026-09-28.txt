@@ -1,4 +1,4 @@
-# FAILED first attempt, kept as a record (2026-09-28): /usr/bin/time was missing on the pod, so df11pack never ran (exit 127). The rerun is chroma1-hd.txt.
+# FAILED first attempt, kept as a record (2026-09-28): /usr/bin/time was missing on the pod, so df11pack never ran (exit 127). The rerun is chroma1-hd.txt. The log named below was overwritten by the rerun's; its only line, transcribed from the terminal before it was overwritten, was "phase0/check_comfyui_release.sh: line 25: /usr/bin/time: No such file or directory".
 # 2026-09-28T22:09:04Z df11pack df11pack 0.1.1 (), arch chroma-comfyui
 # source  lodestones/Chroma1-HD@0e0c60ece1e82b17cb7f77342d765ba5024c40c0 Chroma1-HD.safetensors
 # release mingyi456/Chroma1-HD-DF11-ComfyUI@6d4fc04654fc3b9e1be22c82b68c99f5fcb38842 Chroma1-HD-DF11.safetensors
