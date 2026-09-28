@@ -1,0 +1,14 @@
+Conditions of the Chroma1-HD comparison (chroma1-hd.txt), 2026-09-28, written after the run
+from the session's command history (weaker evidence than a log written by the run).
+
+Machine: RunPod Secure Cloud pod, 1x NVIDIA A40, Intel Xeon Gold 6342, 503 GB RAM,
+  image runpod/pytorch:1.0.3-cu1281-torch291-ubuntu2404.
+Binary: df11pack v0.1.1 release, df11pack-v0.1.1-x86_64-unknown-linux-musl.tar.gz (GitHub Releases).
+Script: phase0/check_comfyui_release.sh as in commit 18cbb99, copied to the pod by hand.
+Command: PY=<venv python> BIN=<bin>/df11pack RAM=16G bash phase0/check_comfyui_release.sh chroma1-hd \
+  lodestones/Chroma1-HD 0e0c60ece1e82b17cb7f77342d765ba5024c40c0 Chroma1-HD.safetensors \
+  mingyi456/Chroma1-HD-DF11-ComfyUI 6d4fc04654fc3b9e1be22c82b68c99f5fcb38842 Chroma1-HD-DF11.safetensors \
+  chroma-comfyui <workdir>
+Time: 22:14:59 UTC start (chroma1-hd.txt); df11pack took 106 s. GPU benchmarks ran on the
+  same pod at the same time, so the 106 s is not a clean timing.
+First attempt (22:09:04, chroma1-hd.failed-2026-09-28.txt): the same arguments, script as in 27f9e85.

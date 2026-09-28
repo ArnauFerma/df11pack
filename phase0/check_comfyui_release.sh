@@ -12,7 +12,7 @@ PY=${PY:-python3}; BIN=${BIN:-$ROOT/target/release/df11pack}
 R=$OUT/$NAME.txt
 BINDIR=$(cd "$(dirname "$BIN")" 2>/dev/null && pwd || dirname "$BIN")
 strip() {   # no local paths in the repo: work dir, repository, the binary's directory
-    sed -i "s#$WD/#<workdir>/#g; s#$ROOT/#<df11pack>/#g; s#$BINDIR/#<bin>/#g" "$@"
+    sed -i "s#$WD/#<workdir>/#g; s#$ROOT/#<df11pack>/#g; s#$BINDIR/#<bin>/#g; s#${HOME:-/nonexistent}/#<home>/#g" "$@"
 }
 finish() { strip $R $OUT/$NAME.df11pack.log 2>/dev/null; cat $R; exit $1; }
 {

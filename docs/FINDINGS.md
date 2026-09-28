@@ -1799,11 +1799,12 @@ compares every tensor (`verify_repack.py`) and the whole file (SHA-256). Results
 
 | release | definition | tensors | result | machine, measured |
 |---|---|---|---|---|
-| `mingyi456/Lumina-Image-2.0-DF11-ComfyUI` | `lumina2-comfyui` | 402 | identical, same SHA-256 | Intel Core i3-2365M laptop, `--ram 2G`: 2:37 wall clock, 983,712 KiB peak RSS (1.01 GB) |
+| `mingyi456/Lumina-Image-2.0-DF11-ComfyUI` | `lumina2-comfyui` | 402 | identical, same SHA-256 | Intel Core i3-2365M laptop, `--ram 1500M`: 2:37 wall clock, 983,712 KiB peak RSS (1.01 GB) |
 | `mingyi456/Chroma1-HD-DF11-ComfyUI` | `chroma-comfyui` | 777 | identical, same SHA-256 | RunPod Secure Cloud A40 pod (Xeon Gold 6342), `--ram 16G`: 106 s, while GPU benchmarks ran on the same pod |
 
 Lumina: df11pack at bcb7b63; its machine line in `lumina2.txt` was
-added after the run. Chroma: the v0.1.1 release binary (x86_64 musl, GitHub Releases).
+added after the run. Chroma: the v0.1.1 release binary (x86_64 musl, GitHub Releases); pod, command and
+times in `chroma1-hd.conditions.txt` (written after the run).
 The first Chroma attempt used the script as of 27f9e85 and failed: the pod has no
 `/usr/bin/time`, so df11pack never ran (exit 127), and the script went on to compare an
 absent output (`chroma1-hd.failed-2026-09-28.txt`, kept). The rerun used the script as
