@@ -148,6 +148,14 @@ draft file records what was actually posted.
 6.3 **Posts that are already live** are corrected on the platform when they turn out
 wrong, with the owner's edit (GitHub keeps edit history).
 
+6.4 **Read the destination's AI policy before publishing anywhere.** Every platform,
+forum, subreddit, repository or venue (its rules, CONTRIBUTING file, code of conduct,
+submission guidelines) may restrict or forbid AI-generated or AI-assisted content, or
+require a specific disclosure. Read it the same day, before posting, and follow it; if
+it forbids the content, do not post there. Record in the draft which policy was read
+and when. *Found (2026-09-28): an account blocked for breaking a platform's AI policy,
+an easily avoided mistake.*
+
 ## 7. Authorship and privacy
 
 7.1 The code, docs and measurements are made largely with Claude Code (Anthropic)
