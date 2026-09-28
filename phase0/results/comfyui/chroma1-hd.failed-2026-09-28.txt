@@ -1,0 +1,23 @@
+# FAILED first attempt, kept as a record (2026-09-28): /usr/bin/time was missing on the pod, so df11pack never ran (exit 127). The rerun is chroma1-hd.txt.
+# 2026-09-28T22:09:04Z df11pack df11pack 0.1.1 (), arch chroma-comfyui
+# source  lodestones/Chroma1-HD@0e0c60ece1e82b17cb7f77342d765ba5024c40c0 Chroma1-HD.safetensors
+# release mingyi456/Chroma1-HD-DF11-ComfyUI@6d4fc04654fc3b9e1be22c82b68c99f5fcb38842 Chroma1-HD-DF11.safetensors
+# machine: Intel(R) Xeon(R) Gold 6342 CPU @ 2.80GHz, 503 GB RAM, Linux 6.8.0-87-generic
+df11pack exit 127 (log: chroma1-hd.df11pack.log)
+## per tensor: release (left) against df11pack output (right)
+Traceback (most recent call last):
+  File "<df11pack>/phase0/verify_repack.py", line 102, in <module>
+    sys.exit(main(sys.argv[1:]))
+             ^^^^^^^^^^^^^^^^^^
+  File "<df11pack>/phase0/verify_repack.py", line 67, in main
+    repacked = collect_manifest(repacked_dir)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<df11pack>/phase0/verify_repack.py", line 33, in collect_manifest
+    header, data_start = read_header(path)
+                         ^^^^^^^^^^^^^^^^^
+  File "<df11pack>/phase0/verify_repack.py", line 14, in read_header
+    with open(path, "rb") as f:
+         ^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '<workdir>/out'
+## files (SHA-256)
+731a53455afd907b77c08adab5ecd85802ac33391f5df015d26d0cb94209a14f  rel/Chroma1-HD-DF11.safetensors

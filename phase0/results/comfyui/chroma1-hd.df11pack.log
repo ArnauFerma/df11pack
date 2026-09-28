@@ -1,0 +1,4 @@
+compressed 62 unit(s) from 1 shard(s)
+  16975.4 MiB -> 11607.7 MiB  (0.684)
+  reads: device type unknown; defaulting to concurrent
+  wrote 1 safetensors file -> <workdir>/out

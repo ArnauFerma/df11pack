@@ -1787,3 +1787,29 @@ Raw data: `gpu_session/qwen3_8b/results/` (`report.json`, and a `.time` and
   GiB, nearly twice compression's 6.6 GiB.
 - **idx8** (not DFloat11): 11,083,193,141 bytes, 0.6576% smaller than DF11,
   against 0.6580% predicted; 3,111 escapes in 127,975,424 blocks.
+
+---
+
+# ComfyUI releases rebuilt byte for byte (2026-09-28)
+
+`phase0/check_comfyui_release.sh` downloads a source checkpoint and one of mingyi456's
+ComfyUI DF11 releases at pinned revisions, compresses the source with df11pack, and
+compares every tensor (`verify_repack.py`) and the whole file (SHA-256). Results in
+`phase0/results/comfyui/`:
+
+| release | definition | tensors | result | machine |
+|---|---|---|---|---|
+| `mingyi456/Lumina-Image-2.0-DF11-ComfyUI` | `lumina2-comfyui` | 402 | identical, same SHA-256 | Intel Core i3-2365M laptop, 2:37, 0.98 GB peak RSS |
+| `mingyi456/Chroma1-HD-DF11-ComfyUI` | `chroma-comfyui` | 777 | identical, same SHA-256 | RunPod pod, Xeon Gold 6342, 106 s |
+
+Chroma used the v0.1.1 release binary (x86_64 musl, from GitHub Releases) with the
+repository at 27f9e85 (`idx8-decode/pod/run_night.sh`); the pod copy had no `.git`,
+so the hash in `chroma1-hd.txt` is empty.
+
+The first Chroma attempt failed: the pod has no `/usr/bin/time`, so df11pack never ran
+(exit 127). The script still went on to compare an absent output and printed a
+traceback (`chroma1-hd.failed-2026-09-28.txt`, kept). The script now runs without GNU
+time when it is missing, and stops with FAILED when df11pack exits non-zero.
+
+Not done: loading these files in ComfyUI on a GPU. Byte-identical files are what the
+ComfyUI-DFloat11-Extended loader already reads, so it is expected to work, not tested.

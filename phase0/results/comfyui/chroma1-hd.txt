@@ -1,0 +1,11 @@
+# 2026-09-28T22:14:59Z df11pack df11pack 0.1.1 (), arch chroma-comfyui
+# source  lodestones/Chroma1-HD@0e0c60ece1e82b17cb7f77342d765ba5024c40c0 Chroma1-HD.safetensors
+# release mingyi456/Chroma1-HD-DF11-ComfyUI@6d4fc04654fc3b9e1be22c82b68c99f5fcb38842 Chroma1-HD-DF11.safetensors
+# machine: Intel(R) Xeon(R) Gold 6342 CPU @ 2.80GHz, 503 GB RAM, Linux 6.8.0-87-generic
+df11pack exit 0 after 106 s (log: chroma1-hd.df11pack.log)
+## per tensor: release (left) against df11pack output (right)
+777 tensors compared, 0 mismatches, 0 missing, 0 extra
+RESULT: PASS
+## files (SHA-256)
+731a53455afd907b77c08adab5ecd85802ac33391f5df015d26d0cb94209a14f  rel/Chroma1-HD-DF11.safetensors
+731a53455afd907b77c08adab5ecd85802ac33391f5df015d26d0cb94209a14f  out/model.safetensors

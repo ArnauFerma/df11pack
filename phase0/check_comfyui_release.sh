@@ -22,8 +22,13 @@ print(hf_hub_download('$1', '$3', revision='$2', local_dir='$WD/$4'))" 2>&1 | ta
 SRC=$(dl $SRC_REPO $SRC_REV $SRC_FILE src); REL=$(dl $REL_REPO $REL_REV $REL_FILE rel)
 [ -f "$SRC" ] && [ -f "$REL" ] || { echo "FAILED download: $SRC | $REL" | tee -a $R; exit 1; }
 rm -rf $WD/out
-/usr/bin/time -v $BIN compress "$SRC" --arch $ARCH -o $WD/out --ram ${RAM:-2G} > $OUT/$NAME.df11pack.log 2>&1
-echo "df11pack exit $? (log: $NAME.df11pack.log)" >> $R
+TIME=""; [ -x /usr/bin/time ] && TIME="/usr/bin/time -v"   # peak memory when GNU time exists
+T0=$(date +%s)
+$TIME $BIN compress "$SRC" --arch $ARCH -o $WD/out --ram ${RAM:-2G} > $OUT/$NAME.df11pack.log 2>&1
+RC=$?
+echo "df11pack exit $RC after $(( $(date +%s) - T0 )) s (log: $NAME.df11pack.log)" >> $R
+[ $RC -eq 0 ] || { echo "FAILED: df11pack did not finish; no comparison" >> $R
+    sed -i "s#$WD/#<workdir>/#g; s#$ROOT/#<df11pack>/#g" $R $OUT/$NAME.df11pack.log; cat $R; exit 1; }
 echo "## per tensor: release (left) against df11pack output (right)" >> $R
 $PY $HERE/verify_repack.py "$REL" $WD/out >> $R 2>&1
 echo "## files (SHA-256)" >> $R
