@@ -142,6 +142,11 @@ Testing a model on a GPU and reporting how it went helps most right now. See
 [SECURITY.md](SECURITY.md). Everyone taking part follows the
 [Code of Conduct](CODE_OF_CONDUCT.md).
 
+## Reporting a problem
+
+Found a problem, or a number that does not match? Please tell us: `REPORTING.md` says what helps.
+
+
 ## Licence
 
 MIT — see [`LICENSE`](LICENSE). Free to use, modify and redistribute; keep the
