@@ -14,6 +14,7 @@ R=$OUT/$NAME.txt
 echo "# $(date -u +%FT%TZ) df11pack $($BIN --version 2>/dev/null) ($(git -C $ROOT rev-parse --short HEAD)), arch $ARCH"
 echo "# source  $SRC_REPO@$SRC_REV $SRC_FILE"
 echo "# release $REL_REPO@$REL_REV $REL_FILE"
+echo "# machine: $(lscpu | sed -n 's/^Model name: *//p' | head -1), $(free -g | awk '/^Mem/{print $2}') GB RAM, $(uname -sr)"
 } > $R
 dl() { $PY -c "
 from huggingface_hub import hf_hub_download
@@ -27,4 +28,5 @@ echo "## per tensor: release (left) against df11pack output (right)" >> $R
 $PY $HERE/verify_repack.py "$REL" $WD/out >> $R 2>&1
 echo "## files (SHA-256)" >> $R
 sha256sum "$REL" $WD/out/*.safetensors | sed "s#$WD/##" >> $R
+sed -i "s#$WD/#<workdir>/#g; s#$ROOT/#<df11pack>/#g" $R $OUT/$NAME.df11pack.log   # no local paths in the repo
 cat $R

@@ -1,0 +1,27 @@
+compressed 30 unit(s) from 1 shard(s)
+  4977.7 MiB -> 3390.1 MiB  (0.681)
+  reads: device reports rotational=0
+  wrote 1 safetensors file -> <workdir>/out
+	Command being timed: "<df11pack>/target/release/df11pack compress <workdir>/src/split_files/diffusion_models/lumina_2_model_bf16.safetensors --arch lumina2-comfyui -o <workdir>/out --ram 1500M"
+	User time (seconds): 369.44
+	System time (seconds): 41.56
+	Percent of CPU this job got: 261%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:37.00
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 983712
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 26
+	Minor (reclaiming a frame) page faults: 5080677
+	Voluntary context switches: 7830
+	Involuntary context switches: 57164
+	Swaps: 0
+	File system inputs: 20339256
+	File system outputs: 6943024
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

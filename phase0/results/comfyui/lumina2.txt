@@ -1,0 +1,11 @@
+# 2026-09-28T21:47:20Z df11pack df11pack 0.1.1 (bcb7b63), arch lumina2-comfyui
+# source  Comfy-Org/Lumina_Image_2.0_Repackaged@5b072540ef86570fecb8249c505f23d5bdeb88cd split_files/diffusion_models/lumina_2_model_bf16.safetensors
+# release mingyi456/Lumina-Image-2.0-DF11-ComfyUI@f1f19eff38d864f8926f248bb1ba46a8c154eb70 lumina_2_model_bf16-DF11.safetensors
+# machine (added after the run): Intel Core i3-2365M, 3.6 GB RAM, Linux 6.8 (the author's old laptop); df11pack took 2:37 wall clock, 0.98 GB peak RSS (lumina2.df11pack.log)
+df11pack exit 0 (log: lumina2.df11pack.log)
+## per tensor: release (left) against df11pack output (right)
+402 tensors compared, 0 mismatches, 0 missing, 0 extra
+RESULT: PASS
+## files (SHA-256)
+cf33f6d2bac4ab788b62e3fe170169888d7495ec622f0a03e08b4f07eceb98d2  rel/lumina_2_model_bf16-DF11.safetensors
+cf33f6d2bac4ab788b62e3fe170169888d7495ec622f0a03e08b4f07eceb98d2  out/model.safetensors
