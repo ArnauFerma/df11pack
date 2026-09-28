@@ -1,5 +1,8 @@
 # df11pack
 
+> AI-built, human-directed: Claude Code (Anthropic) did most of the coding, debugging and
+> test runs; the author chose what to build and measure, and decides what is published.
+
 A fast, independent compressor for **[DFloat11](https://github.com/LeanModels/DFloat11)**:
 lossless compression of BF16 model weights to about 70% of their size, decoded on
 the GPU by the official CUDA kernel.
