@@ -6,8 +6,9 @@ docs, papers, posts, drafts, commit messages. Every repo carries an identical co
 of this file; if you reuse these rules elsewhere, they stand on their own.
 
 The aim is simple: **everything written must match what was measured, and anyone
-must be able to check it.** Each rule below exists because the 2026-09-26 review
-found it broken at least once; the example is given so the reason stays visible.
+must be able to check it.** Most rules below exist because the 2026-09-26 review
+found them broken at least once, and later ones because a mistake showed they were
+needed; the example (*Found*) is given so the reason stays visible.
 
 ## 1. Evidence
 
@@ -64,7 +65,14 @@ abstract summary or memory. *Found: "11x over DFloat11" where the paper says
 measurement of".
 
 2.7 **Plain, concise English. No marketing tone.** A result is described by its
-number and its scope, not by adjectives.
+number and its scope, not by adjectives. Write for humans first (AIs read it too):
+keep verbosity to the minimum, keep the tone cold and precise, and say nothing that
+is not exact. Jokes and informal tone belong in posts elsewhere, never in the repos.
+
+2.8 **Use exact values, not convenient ones.** Write 9.8 m/s², not 10: a rounded or
+remembered value carried into a later step becomes an error down the pipeline. Use
+the measured or documented value at the precision it has; an approximation is labelled
+as one (2.1) and used only where its error cannot propagate.
 
 ## 3. Predictions
 
@@ -113,6 +121,15 @@ a one-line resolution and date, or a dated status note at the top.
 
 4.6 **Dates are absolute** (2026-09-26), never "yesterday" or "last week".
 
+4.7 **Failures stay in the record, with why they failed.** A failed approach, a
+wrong assumption, a test that did not pass, a slower variant: keep it, and write
+which assumption was wrong and where, so the next person does not repeat it. A test
+that fails and the reason it fails are as useful as a test that passes. Correct the
+wrong statement where it was made (4.4, 4.5); do not delete the history of it.
+*Found (2026-09-28): two fused-kernel variants predicted faster were slower; the
+predictions, the refuted hypothesis and the measurements that located the real limit
+were kept, not dropped.*
+
 ## 5. Code and tests
 
 5.1 **A test must be able to fail.** When adding a test, show it fails on the old or
@@ -155,6 +172,11 @@ require a specific disclosure. Read it the same day, before posting, and follow 
 it forbids the content, do not post there. Record in the draft which policy was read
 and when. *Found (2026-09-28): an account blocked for breaking a platform's AI policy,
 an easily avoided mistake.*
+
+6.5 **Before a repo or release goes public, make several passes until it is clean
+and organized**: a structure a stranger can follow, no stale or misplaced files, docs
+that read well, nothing left behind by moves (files, git history). This is the last
+step, after the review of 6.1; do not reorganize speculatively before it.
 
 ## 7. Authorship and privacy
 
